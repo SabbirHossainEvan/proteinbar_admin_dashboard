@@ -3,6 +3,14 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --admin-bg-start: #0f1720;
+  --admin-bg-end: #06090f;
+  --admin-panel: rgba(14, 20, 29, 0.82);
+  --admin-border: rgba(161, 178, 199, 0.2);
+  --admin-muted: #9eacc0;
+  --admin-text: #e6edf8;
+  --admin-accent: #ffbf47;
+  --admin-accent-soft: rgba(255, 191, 71, 0.14);
 }
 
 @theme inline {
@@ -22,5 +30,34 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.admin-bg {
+  background:
+    radial-gradient(circle at 10% -5%, rgba(255, 191, 71, 0.2), transparent 28%),
+    radial-gradient(circle at 88% 0%, rgba(63, 136, 255, 0.16), transparent 32%),
+    linear-gradient(160deg, var(--admin-bg-start), var(--admin-bg-end) 62%);
+}
+
+.admin-panel {
+  border: 1px solid var(--admin-border);
+  background: var(--admin-panel);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 35px rgba(1, 8, 18, 0.35);
+}
+
+.admin-table th {
+  color: var(--admin-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.admin-table tbody tr {
+  border-top: 1px solid rgba(156, 173, 193, 0.14);
+}
+
+.admin-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
 }
