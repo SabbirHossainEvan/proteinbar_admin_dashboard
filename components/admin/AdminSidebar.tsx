@@ -11,6 +11,8 @@ const navItems = [
   { href: "/admin/customers", label: "Locations" },
   { href: "/admin/monthly-plans", label: "Monthly Plans" },
   { href: "/admin/subscriptions", label: "Subscriptions" },
+  { href: "/admin/notifications", label: "Notifications" },
+  { href: "/admin/profile", label: "Profile" },
 ];
 
 export default function AdminSidebar() {
