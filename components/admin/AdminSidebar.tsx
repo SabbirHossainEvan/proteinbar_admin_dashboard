@@ -5,12 +5,14 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   { href: "/admin", label: "Dashboard" },
-  { href: "/admin/menu", label: "Menu" },
-  { href: "/admin/products", label: "Products" },
-  { href: "/admin/orders", label: "Orders" },
+  { href: "/admin/products", label: "Add Product" },
+  { href: "/admin/menu", label: "Add Menu Item" },
   { href: "/admin/customers", label: "Locations" },
-  { href: "/admin/monthly-plans", label: "Monthly Plans" },
+  { href: "/admin/orders", label: "Orders" },
   { href: "/admin/subscriptions", label: "Subscriptions" },
+  { href: "/admin/orders-of-day", label: "Orders of the Day" },
+  { href: "/admin/printing", label: "Printing" },
+  { href: "/admin/monthly-plans", label: "Monthly Plans" },
   { href: "/admin/notifications", label: "Notifications" },
   { href: "/admin/profile", label: "Profile" },
 ];
@@ -24,7 +26,7 @@ export default function AdminSidebar() {
         <div className="px-5 py-5">
           <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">Proteinbar</p>
           <h1 className="mt-1 text-2xl font-semibold text-white">Control Center</h1>
-          <p className="mt-2 text-sm text-zinc-400">Manage products, orders, locations, plans and subscribers.</p>
+          <p className="mt-2 text-sm text-zinc-400">Backoffice modules for catalog, ops, subscriptions, and printing.</p>
         </div>
         <div className="mx-5 h-px bg-zinc-700/60" />
         <div className="px-5 pb-5 pt-4">

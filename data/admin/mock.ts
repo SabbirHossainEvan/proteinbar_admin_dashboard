@@ -1,40 +1,200 @@
-export type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered";
+export type OrderStatus = "Pending" | "Confirmed" | "Prepared" | "Delivered";
+
+export type ProductCategory = "Breakfast" | "Lunch" | "Dinner" | "Snack" | "Add-on" | "Ingredient";
+
+export type ProductAvailability = "Active" | "Inactive";
+
+export type MenuMealType = "Breakfast" | "Lunch" | "Dinner";
+
+export type ConfirmationStatus = "Pending" | "Confirmed" | "Call back" | "No answer";
+
+export const productCategories: ProductCategory[] = ["Breakfast", "Lunch", "Dinner", "Snack", "Add-on", "Ingredient"];
+export const menuMealTypes: MenuMealType[] = ["Breakfast", "Lunch", "Dinner"];
+export const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export const dashboardStats = [
   { title: "Today Orders", value: "84" },
-  { title: "Monthly Revenue", value: "$26,940" },
-  { title: "Menu Items", value: "68" },
+  { title: "Daily Production", value: "126 Meals" },
+  { title: "Active Menu Cards", value: "42" },
   { title: "Active Subscribers", value: "512" },
 ];
 
 export const latestOrders = [
   { id: "ORD-2082", customer: "Sara Benali", amount: "$17.00", status: "Pending" as OrderStatus, date: "Mar 03, 2026" },
-  { id: "ORD-2081", customer: "Yassine Hadi", amount: "$24.00", status: "Processing" as OrderStatus, date: "Mar 03, 2026" },
-  { id: "ORD-2080", customer: "Nora Ilyas", amount: "$13.00", status: "Shipped" as OrderStatus, date: "Mar 02, 2026" },
+  { id: "ORD-2081", customer: "Yassine Hadi", amount: "$24.00", status: "Confirmed" as OrderStatus, date: "Mar 03, 2026" },
+  { id: "ORD-2080", customer: "Nora Ilyas", amount: "$13.00", status: "Prepared" as OrderStatus, date: "Mar 02, 2026" },
   { id: "ORD-2079", customer: "Amine Tahiri", amount: "$28.00", status: "Delivered" as OrderStatus, date: "Mar 02, 2026" },
   { id: "ORD-2078", customer: "Rania Karim", amount: "$19.00", status: "Delivered" as OrderStatus, date: "Mar 01, 2026" },
 ];
 
 export const products = [
-  { sku: "MENU-101", name: "Chicken Burrito Bowl", collection: "Bowls", calories: 510, protein: "38g", carbs: "42g", fat: "18g", price: "$11.90" },
-  { sku: "MENU-102", name: "Steak Protein Wrap", collection: "Wraps", calories: 470, protein: "34g", carbs: "39g", fat: "16g", price: "$10.50" },
-  { sku: "MENU-103", name: "Tuna Avocado Salad", collection: "Salads", calories: 390, protein: "31g", carbs: "17g", fat: "22g", price: "$9.80" },
-  { sku: "MENU-104", name: "Berry Oats Smoothie", collection: "Smoothies", calories: 290, protein: "21g", carbs: "34g", fat: "7g", price: "$6.40" },
-  { sku: "MENU-105", name: "Egg White Omelette Box", collection: "Breakfast", calories: 350, protein: "29g", carbs: "14g", fat: "16g", price: "$8.20" },
+  {
+    sku: "PRD-101",
+    name: "Chicken Burrito Bowl",
+    category: "Lunch" as ProductCategory,
+    price: "$11.90",
+    kcal: 510,
+    protein: "38g",
+    carbs: "42g",
+    fat: "18g",
+    tags: ["high-protein", "balanced"],
+    allergens: ["dairy"],
+    availability: "Active" as ProductAvailability,
+  },
+  {
+    sku: "PRD-102",
+    name: "Steak Protein Wrap",
+    category: "Lunch" as ProductCategory,
+    price: "$10.50",
+    kcal: 470,
+    protein: "34g",
+    carbs: "39g",
+    fat: "16g",
+    tags: ["muscle-gain"],
+    allergens: ["gluten"],
+    availability: "Active" as ProductAvailability,
+  },
+  {
+    sku: "PRD-103",
+    name: "Berry Oats Smoothie",
+    category: "Snack" as ProductCategory,
+    price: "$6.40",
+    kcal: 290,
+    protein: "21g",
+    carbs: "34g",
+    fat: "7g",
+    tags: ["grab-and-go"],
+    allergens: ["dairy"],
+    availability: "Active" as ProductAvailability,
+  },
+  {
+    sku: "PRD-104",
+    name: "Extra Chicken Add-on",
+    category: "Add-on" as ProductCategory,
+    price: "$2.50",
+    kcal: 120,
+    protein: "22g",
+    carbs: "0g",
+    fat: "3g",
+    tags: ["extra-protein"],
+    allergens: [],
+    availability: "Inactive" as ProductAvailability,
+  },
+];
+
+export const menuItems = [
+  {
+    id: "MENU-901",
+    title: "High Protein Lunch Box",
+    linkedProductSkus: ["PRD-101", "PRD-104"],
+    visibleDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    timeSlots: ["12:00-14:00", "14:00-16:00"],
+    mealTypes: ["Lunch" as MenuMealType],
+    planCompatibility: ["Weight Loss", "Muscle Gain"],
+    priority: 1,
+    status: "Visible",
+  },
+  {
+    id: "MENU-902",
+    title: "Quick Breakfast Combo",
+    linkedProductSkus: ["PRD-103"],
+    visibleDays: ["Sun", "Mon", "Tue", "Wed", "Thu"],
+    timeSlots: ["08:00-10:00"],
+    mealTypes: ["Breakfast" as MenuMealType],
+    planCompatibility: ["Standard", "Keto"],
+    priority: 2,
+    status: "Visible",
+  },
 ];
 
 export const orders = [
-  { id: "ORD-2082", customer: "Sara Benali", total: "$17.00", itemCount: 2, status: "Pending" as OrderStatus, date: "Mar 03, 2026" },
-  { id: "ORD-2081", customer: "Yassine Hadi", total: "$24.00", itemCount: 3, status: "Processing" as OrderStatus, date: "Mar 03, 2026" },
-  { id: "ORD-2080", customer: "Nora Ilyas", total: "$13.00", itemCount: 1, status: "Shipped" as OrderStatus, date: "Mar 02, 2026" },
-  { id: "ORD-2079", customer: "Amine Tahiri", total: "$28.00", itemCount: 3, status: "Delivered" as OrderStatus, date: "Mar 02, 2026" },
-  { id: "ORD-2078", customer: "Rania Karim", total: "$19.00", itemCount: 2, status: "Delivered" as OrderStatus, date: "Mar 01, 2026" },
+  {
+    id: "ORD-2082",
+    client: "Sara Benali",
+    phone: "+212 600 000 111",
+    status: "Pending" as OrderStatus,
+    confirmationStatus: "Pending" as ConfirmationStatus,
+    plan: "Weight Loss",
+    orderType: "Delivery",
+    location: "CFC Pickup Hub",
+    payment: "Paid",
+    schedule: "Mon, Wed, Fri - 12:00-14:00",
+    date: "Mar 03, 2026",
+    total: "$17.00",
+    items: [
+      { name: "Chicken Burrito Bowl", qty: 1, macros: "510 kcal | P38 C42 F18" },
+      { name: "Berry Oats Smoothie", qty: 1, macros: "290 kcal | P21 C34 F7" },
+    ],
+    notes: "Ring bell once.",
+    subscriptionInfo: "3 days/week for 4 weeks",
+    auditLog: [
+      { at: "Mar 03, 2026 09:12", by: "Agent Jannat", action: "Created order" },
+      { at: "Mar 03, 2026 09:30", by: "System", action: "Payment marked paid" },
+    ],
+  },
+  {
+    id: "ORD-2081",
+    client: "Yassine Hadi",
+    phone: "+212 600 000 222",
+    status: "Confirmed" as OrderStatus,
+    confirmationStatus: "Confirmed" as ConfirmationStatus,
+    plan: "Muscle Gain",
+    orderType: "Pickup",
+    location: "Bourgogne Branch",
+    payment: "COD",
+    schedule: "Tue, Thu, Sat - 18:00-20:00",
+    date: "Mar 03, 2026",
+    total: "$24.00",
+    items: [
+      { name: "Steak Protein Wrap", qty: 2, macros: "470 kcal | P34 C39 F16" },
+    ],
+    notes: "Customer will arrive 10 min late.",
+    subscriptionInfo: "2 days/week for 6 weeks",
+    auditLog: [{ at: "Mar 03, 2026 10:05", by: "Agent Riad", action: "Marked confirmed by call" }],
+  },
+  {
+    id: "ORD-2080",
+    client: "Nora Ilyas",
+    phone: "+212 600 000 333",
+    status: "Prepared" as OrderStatus,
+    confirmationStatus: "Confirmed" as ConfirmationStatus,
+    plan: "Standard",
+    orderType: "Delivery",
+    location: "Maarif Zone A",
+    payment: "Paid",
+    schedule: "Daily - 12:00-14:00",
+    date: "Mar 02, 2026",
+    total: "$13.00",
+    items: [{ name: "Chicken Burrito Bowl", qty: 1, macros: "510 kcal | P38 C42 F18" }],
+    notes: "No chili.",
+    subscriptionInfo: "5 days/week for 4 weeks",
+    auditLog: [{ at: "Mar 02, 2026 11:15", by: "Ops", action: "Moved to prepared" }],
+  },
 ];
 
-export const customers = [
-  { id: "LOC-1", name: "Proteinbar CFC", email: "cfc@proteinbar.ma", city: "Casablanca", orders: 1540, totalSpent: "Open 08:00 - 23:00" },
-  { id: "LOC-2", name: "Proteinbar Bourgogne", email: "bourgogne@proteinbar.ma", city: "Casablanca", orders: 1293, totalSpent: "Open 08:00 - 23:00" },
-  { id: "LOC-3", name: "Delivery Hub", email: "delivery@proteinbar.ma", city: "Casablanca", orders: 2432, totalSpent: "City-wide delivery" },
+export const locations = [
+  {
+    id: "LOC-1",
+    name: "CFC Pickup Hub",
+    pickupAddress: "Tower 5, CFC, Casablanca",
+    mapLink: "https://maps.google.com/?q=CFC+Casablanca",
+    deliveryZone: "CFC + Anfa",
+    deliveryFee: "$2.00",
+    workingDays: ["Sun", "Mon", "Tue", "Wed", "Thu"],
+    cutoffTime: "10:00",
+    timeSlots: ["12:00-14:00", "18:00-20:00"],
+  },
+  {
+    id: "LOC-2",
+    name: "Bourgogne Branch",
+    pickupAddress: "Rue Taha Hussein, Casablanca",
+    mapLink: "",
+    deliveryZone: "Bourgogne",
+    deliveryFee: "$1.50",
+    workingDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    cutoffTime: "11:00",
+    timeSlots: ["13:00-15:00", "19:00-21:00"],
+  },
 ];
 
 export const monthlyPlans = [
@@ -63,94 +223,6 @@ export const monthlyPlans = [
     status: "Active",
     description: "Nutritious portion-controlled meals for children with family-friendly options and better ingredients.",
   },
-  {
-    id: "PLAN-RAMADAN-LOSE",
-    name: "Ramadan Lose Weight",
-    basePrice: "$219/mo",
-    members: 32,
-    status: "Active",
-    description: "Smart calorie control for Ramadan with satisfying meals and clean ingredients.",
-  },
-  {
-    id: "PLAN-RAMADAN-GAIN",
-    name: "Ramadan Gain Weight",
-    basePrice: "$229/mo",
-    members: 21,
-    status: "Active",
-    description: "Higher-calorie Ramadan structure for healthy weight gain and stronger recovery.",
-  },
-  {
-    id: "PLAN-SANDWICH",
-    name: "Sandwich Subscription",
-    basePrice: "$179/mo",
-    members: 67,
-    status: "Active",
-    description: "Quick and protein-focused monthly option with practical daily meal convenience.",
-  },
-  {
-    id: "PLAN-LOSE",
-    name: "Lose Weight",
-    basePrice: "$199/mo",
-    members: 95,
-    status: "Active",
-    description: "A guided deficit approach with portioned meals that help cut fat while staying energized.",
-  },
-  {
-    id: "PLAN-GAIN",
-    name: "Gain Weight",
-    basePrice: "$229/mo",
-    members: 71,
-    status: "Active",
-    description: "Controlled calorie surplus with nutrient-dense meals to support healthy mass gain.",
-  },
-  {
-    id: "PLAN-DETOX",
-    name: "Detox Plan",
-    basePrice: "$159/mo",
-    members: 42,
-    status: "Active",
-    description: "A lighter monthly plan with clean hydration and fresh ingredient combinations.",
-  },
-  {
-    id: "PLAN-KETO",
-    name: "Keto Plan",
-    basePrice: "$239/mo",
-    members: 49,
-    status: "Active",
-    description: "Low-carb, high-fat meal structure for people following ketogenic nutrition.",
-  },
-  {
-    id: "PLAN-VEGAN",
-    name: "Vegan Diet",
-    basePrice: "$209/mo",
-    members: 64,
-    status: "Active",
-    description: "Plant-based monthly meals with high-fiber ingredients and complete daily variety.",
-  },
-  {
-    id: "PLAN-PESCATARIAN",
-    name: "Pescatarian Diet",
-    basePrice: "$229/mo",
-    members: 28,
-    status: "Active",
-    description: "Seafood-forward meals with vegetables and grains for balanced, lighter nutrition.",
-  },
-  {
-    id: "PLAN-OVO-VEG",
-    name: "Ovo-Veg Diet",
-    basePrice: "$199/mo",
-    members: 34,
-    status: "Active",
-    description: "Vegetarian structure including eggs for higher protein and better satiety.",
-  },
-  {
-    id: "PLAN-LACTO",
-    name: "Lacto Diet Plan",
-    basePrice: "$199/mo",
-    members: 29,
-    status: "Active",
-    description: "Vegetarian monthly plan that includes dairy while avoiding egg-based meals.",
-  },
 ];
 
 export const monthlyPlanFlow = [
@@ -162,25 +234,80 @@ export const monthlyPlanFlow = [
 ];
 
 export const subscriptions = [
-  { id: "SUB-9201", customer: "Sara Benali", plan: "Gold Plan", nextBilling: "Mar 12, 2026", status: "Active" },
-  { id: "SUB-9202", customer: "Yassine Hadi", plan: "Premium Plan", nextBilling: "Mar 08, 2026", status: "Active" },
-  { id: "SUB-9203", customer: "Nora Ilyas", plan: "Silver Plan", nextBilling: "Mar 06, 2026", status: "Trial" },
-  { id: "SUB-9204", customer: "Amine Tahiri", plan: "Gold Plan", nextBilling: "Mar 22, 2026", status: "Paused" },
-  { id: "SUB-9205", customer: "Rania Karim", plan: "Silver Plan", nextBilling: "Mar 18, 2026", status: "Cancelled" },
+  {
+    id: "SUB-9201",
+    client: "Sara Benali",
+    plan: "3 days/week",
+    totalWeeks: 4,
+    currentWeek: 2,
+    dayProgress: "3/3",
+    remainingMeals: 6,
+    status: "Active",
+  },
+  {
+    id: "SUB-9202",
+    client: "Yassine Hadi",
+    plan: "2 days/week",
+    totalWeeks: 6,
+    currentWeek: 4,
+    dayProgress: "1/2",
+    remainingMeals: 5,
+    status: "Paused",
+  },
+  {
+    id: "SUB-9203",
+    client: "Nora Ilyas",
+    plan: "5 days/week",
+    totalWeeks: 4,
+    currentWeek: 1,
+    dayProgress: "4/5",
+    remainingMeals: 16,
+    status: "Active",
+  },
+];
+
+export const todaysOrders = [
+  { id: "ORD-2082", client: "Sara Benali", mode: "Delivery", slot: "12:00-14:00", location: "CFC + Anfa", meals: 2 },
+  { id: "ORD-2081", client: "Yassine Hadi", mode: "Pickup", slot: "18:00-20:00", location: "Bourgogne Branch", meals: 2 },
+  { id: "ORD-2077", client: "Amine Tahiri", mode: "Delivery", slot: "12:00-14:00", location: "Maarif Zone A", meals: 3 },
+  { id: "ORD-2076", client: "Rania Karim", mode: "Pickup", slot: "13:00-15:00", location: "CFC Pickup Hub", meals: 1 },
+];
+
+export const printableOrders = [
+  {
+    orderId: "ORD-2082",
+    client: "Sara Benali",
+    date: "Mar 03, 2026",
+    meal: "Chicken Burrito Bowl",
+    macros: "510 kcal | P38 C42 F18",
+    bestBefore: "Mar 04, 2026",
+  },
+  {
+    orderId: "ORD-2081",
+    client: "Yassine Hadi",
+    date: "Mar 03, 2026",
+    meal: "Steak Protein Wrap",
+    macros: "470 kcal | P34 C39 F16",
+    bestBefore: "Mar 04, 2026",
+  },
+  {
+    orderId: "ORD-2080",
+    client: "Nora Ilyas",
+    date: "Mar 02, 2026",
+    meal: "Chicken Burrito Bowl",
+    macros: "510 kcal | P38 C42 F18",
+    bestBefore: "Mar 03, 2026",
+  },
 ];
 
 export const contentSections = [
   { title: "Homepage Hero", description: "Main title, CTA, and background media for home page." },
   { title: "Monthly Plan Banner", description: "Promo strip and offer copy shown before plan cards." },
   { title: "Why Proteinbar", description: "Health, no-oil, macro-focused messaging blocks." },
-  { title: "Testimonials", description: "Customer reviews and star ratings shown on home page." },
-  { title: "Footer Links", description: "About, contact, legal and social link groups." },
 ];
 
 export const settingsBlocks = [
   { title: "Contact Information", description: "Phone, WhatsApp, support email and map coordinates." },
   { title: "Delivery Settings", description: "Delivery zones, fee slabs and cut-off times." },
-  { title: "SEO Settings", description: "Meta title, description and social preview content." },
   { title: "Notification Settings", description: "Order and subscription alerts for customers/admin." },
-  { title: "Security Settings", description: "Admin password policies and session duration." },
 ];
