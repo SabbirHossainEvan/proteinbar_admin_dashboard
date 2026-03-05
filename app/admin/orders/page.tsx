@@ -198,16 +198,13 @@ export default function OrdersPage() {
             <div className="mt-4 space-y-4 text-sm">
               <div className="grid gap-2 text-zinc-300">
                 <p>
+                  <span className="text-zinc-400">Order details:</span> {selectedOrder.id} | {selectedOrder.plan} | {selectedOrder.date}
+                </p>
+                <p>
                   <span className="text-zinc-400">Client:</span> {selectedOrder.client} ({selectedOrder.phone})
                 </p>
                 <p>
                   <span className="text-zinc-400">Schedule:</span> {selectedOrder.schedule}
-                </p>
-                <p>
-                  <span className="text-zinc-400">Address / Pickup:</span> {selectedOrder.location}
-                </p>
-                <p>
-                  <span className="text-zinc-400">Subscription:</span> {selectedOrder.subscriptionInfo}
                 </p>
                 <p>
                   <span className="text-zinc-400">Payment:</span> {selectedOrder.payment} ({selectedOrder.total})
@@ -215,6 +212,53 @@ export default function OrdersPage() {
                 <p>
                   <span className="text-zinc-400">Notes:</span> {selectedOrder.notes}
                 </p>
+              </div>
+
+              <div className="rounded-xl border border-amber-300/30 bg-amber-300/10 p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-amber-100">Delivery Configuration</p>
+                <div className="mt-3 space-y-2 text-sm text-zinc-100">
+                  <p className="flex items-center gap-2">
+                    <span className="text-zinc-300">Selected option:</span>
+                    <StatusBadge label={selectedOrder.orderType} />
+                  </p>
+                  {selectedOrder.orderType === "Delivery" ? (
+                    <p>
+                      <span className="text-zinc-300">Delivery address:</span>{" "}
+                      {"deliveryAddress" in selectedOrder && selectedOrder.deliveryAddress
+                        ? selectedOrder.deliveryAddress
+                        : selectedOrder.location}
+                    </p>
+                  ) : (
+                    <p>
+                      <span className="text-zinc-300">Pickup location:</span>{" "}
+                      {"pickupLocation" in selectedOrder && selectedOrder.pickupLocation
+                        ? selectedOrder.pickupLocation
+                        : selectedOrder.location}
+                    </p>
+                  )}
+                  <p>
+                    <span className="text-zinc-300">Location reference:</span> {selectedOrder.location}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Subscription Details</p>
+                {"subscriptionDetails" in selectedOrder && selectedOrder.subscriptionDetails ? (
+                  <div className="mt-3 grid gap-2 text-sm text-zinc-200 md:grid-cols-3">
+                    <p className="rounded-lg border border-zinc-700 bg-zinc-950/40 px-3 py-2">
+                      <span className="text-zinc-400">Days / week:</span> {selectedOrder.subscriptionDetails.daysPerWeek}
+                    </p>
+                    <p className="rounded-lg border border-zinc-700 bg-zinc-950/40 px-3 py-2">
+                      <span className="text-zinc-400">Duration:</span> {selectedOrder.subscriptionDetails.durationWeeks} weeks
+                    </p>
+                    <p className="rounded-lg border border-zinc-700 bg-zinc-950/40 px-3 py-2">
+                      <span className="text-zinc-400">Meals:</span> {selectedOrder.subscriptionDetails.meals}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-zinc-300">{selectedOrder.subscriptionInfo}</p>
+                )}
               </div>
 
               <div>
