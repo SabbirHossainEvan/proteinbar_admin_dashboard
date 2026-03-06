@@ -27,137 +27,137 @@ export const adminApi = createApi({
   ],
   endpoints: (builder) => ({
     getDashboard: builder.query<ApiResponse<any>, void>({
-      query: () => "/admin/dashboard",
+      query: () => "/dashboard",
       providesTags: ["Dashboard"]
     }),
 
     getProducts: builder.query<ApiResponse<any[]>, void>({
-      query: () => "/admin/products",
+      query: () => "/products",
       providesTags: ["Products"]
     }),
     createProduct: builder.mutation<ApiResponse<any>, any>({
-      query: (body) => ({ url: "/admin/products", method: "POST", body }),
+      query: (body) => ({ url: "/products", method: "POST", body }),
       invalidatesTags: ["Products", "Dashboard"]
     }),
     updateProduct: builder.mutation<ApiResponse<any>, { id: string; body: any }>({
-      query: ({ id, body }) => ({ url: `/admin/products/${id}`, method: "PATCH", body }),
+      query: ({ id, body }) => ({ url: `/products/${id}`, method: "PATCH", body }),
       invalidatesTags: ["Products", "Dashboard"]
     }),
     deleteProduct: builder.mutation<void, string>({
-      query: (id) => ({ url: `/admin/products/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/products/${id}`, method: "DELETE" }),
       invalidatesTags: ["Products", "Dashboard"]
     }),
 
     getMenuItems: builder.query<ApiResponse<any[]>, void>({
-      query: () => "/admin/menu-items",
+      query: () => "/menu-items",
       providesTags: ["MenuItems"]
     }),
     createMenuItem: builder.mutation<ApiResponse<any>, any>({
-      query: (body) => ({ url: "/admin/menu-items", method: "POST", body }),
+      query: (body) => ({ url: "/menu-items", method: "POST", body }),
       invalidatesTags: ["MenuItems", "Dashboard"]
     }),
     updateMenuItem: builder.mutation<ApiResponse<any>, { id: string; body: any }>({
-      query: ({ id, body }) => ({ url: `/admin/menu-items/${id}`, method: "PATCH", body }),
+      query: ({ id, body }) => ({ url: `/menu-items/${id}`, method: "PATCH", body }),
       invalidatesTags: ["MenuItems", "Dashboard"]
     }),
     deleteMenuItem: builder.mutation<void, string>({
-      query: (id) => ({ url: `/admin/menu-items/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/menu-items/${id}`, method: "DELETE" }),
       invalidatesTags: ["MenuItems", "Dashboard"]
     }),
 
     getLocations: builder.query<ApiResponse<any[]>, void>({
-      query: () => "/admin/locations",
+      query: () => "/locations",
       providesTags: ["Locations"]
     }),
     createLocation: builder.mutation<ApiResponse<any>, any>({
-      query: (body) => ({ url: "/admin/locations", method: "POST", body }),
+      query: (body) => ({ url: "/locations", method: "POST", body }),
       invalidatesTags: ["Locations"]
     }),
     updateLocation: builder.mutation<ApiResponse<any>, { id: string; body: any }>({
-      query: ({ id, body }) => ({ url: `/admin/locations/${id}`, method: "PATCH", body }),
+      query: ({ id, body }) => ({ url: `/locations/${id}`, method: "PATCH", body }),
       invalidatesTags: ["Locations"]
     }),
     deleteLocation: builder.mutation<void, string>({
-      query: (id) => ({ url: `/admin/locations/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/locations/${id}`, method: "DELETE" }),
       invalidatesTags: ["Locations"]
     }),
 
     getMonthlyPlans: builder.query<ApiResponse<any[]>, void>({
-      query: () => "/admin/monthly-plans",
+      query: () => "/monthly-plans",
       providesTags: ["MonthlyPlans"]
     }),
     createMonthlyPlan: builder.mutation<ApiResponse<any>, any>({
-      query: (body) => ({ url: "/admin/monthly-plans", method: "POST", body }),
+      query: (body) => ({ url: "/monthly-plans", method: "POST", body }),
       invalidatesTags: ["MonthlyPlans", "Dashboard"]
     }),
     updateMonthlyPlan: builder.mutation<ApiResponse<any>, { id: string; body: any }>({
-      query: ({ id, body }) => ({ url: `/admin/monthly-plans/${id}`, method: "PATCH", body }),
+      query: ({ id, body }) => ({ url: `/monthly-plans/${id}`, method: "PATCH", body }),
       invalidatesTags: ["MonthlyPlans", "Dashboard"]
     }),
     deleteMonthlyPlan: builder.mutation<void, string>({
-      query: (id) => ({ url: `/admin/monthly-plans/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/monthly-plans/${id}`, method: "DELETE" }),
       invalidatesTags: ["MonthlyPlans", "Dashboard"]
     }),
 
     getPlanFlows: builder.query<ApiResponse<any[]>, void>({
-      query: () => "/admin/plan-flows",
+      query: () => "/plan-flows",
       providesTags: ["PlanFlows"]
     }),
     updatePlanFlow: builder.mutation<ApiResponse<any>, { flowType: "custom" | "preset"; body: { steps: Array<{ step: string; title: string }> } }>({
-      query: ({ flowType, body }) => ({ url: `/admin/plan-flows/${flowType}`, method: "PUT", body }),
+      query: ({ flowType, body }) => ({ url: `/plan-flows/${flowType}`, method: "PUT", body }),
       invalidatesTags: ["PlanFlows"]
     }),
 
     getIngredients: builder.query<ApiResponse<any[]>, void>({
-      query: () => "/admin/ingredients",
+      query: () => "/ingredients",
       providesTags: ["Ingredients"]
     }),
     createIngredient: builder.mutation<ApiResponse<any>, any>({
-      query: (body) => ({ url: "/admin/ingredients", method: "POST", body }),
+      query: (body) => ({ url: "/ingredients", method: "POST", body }),
       invalidatesTags: ["Ingredients"]
     }),
     updateIngredient: builder.mutation<ApiResponse<any>, { id: string; body: any }>({
-      query: ({ id, body }) => ({ url: `/admin/ingredients/${id}`, method: "PATCH", body }),
+      query: ({ id, body }) => ({ url: `/ingredients/${id}`, method: "PATCH", body }),
       invalidatesTags: ["Ingredients"]
     }),
     deleteIngredient: builder.mutation<void, string>({
-      query: (id) => ({ url: `/admin/ingredients/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/ingredients/${id}`, method: "DELETE" }),
       invalidatesTags: ["Ingredients"]
     }),
 
     getOrders: builder.query<ApiResponse<any[]>, Record<string, string | undefined> | void>({
-      query: (params) => ({ url: "/admin/orders", params: params ?? {} }),
+      query: (params) => ({ url: "/orders", params: params ?? {} }),
       providesTags: ["Orders"]
     }),
     updateOrder: builder.mutation<ApiResponse<any>, { id: string; body: any }>({
-      query: ({ id, body }) => ({ url: `/admin/orders/${id}`, method: "PATCH", body }),
+      query: ({ id, body }) => ({ url: `/orders/${id}`, method: "PATCH", body }),
       invalidatesTags: ["Orders", "Dashboard", "OrdersOfDay", "Printable"]
     }),
 
     getSubscriptions: builder.query<ApiResponse<any[]>, void>({
-      query: () => "/admin/subscriptions",
+      query: () => "/subscriptions",
       providesTags: ["Subscriptions"]
     }),
     updateSubscription: builder.mutation<ApiResponse<any>, { id: string; body: any }>({
-      query: ({ id, body }) => ({ url: `/admin/subscriptions/${id}`, method: "PATCH", body }),
+      query: ({ id, body }) => ({ url: `/subscriptions/${id}`, method: "PATCH", body }),
       invalidatesTags: ["Subscriptions", "Dashboard"]
     }),
 
     getNotifications: builder.query<ApiResponse<any[]>, void>({
-      query: () => "/admin/notifications",
+      query: () => "/notifications",
       providesTags: ["Notifications"]
     }),
     deleteNotification: builder.mutation<void, string>({
-      query: (id) => ({ url: `/admin/notifications/${id}`, method: "DELETE" }),
+      query: (id) => ({ url: `/notifications/${id}`, method: "DELETE" }),
       invalidatesTags: ["Notifications"]
     }),
 
     getOrdersOfDay: builder.query<ApiResponse<any[]>, void>({
-      query: () => "/admin/orders-of-day",
+      query: () => "/orders-of-day",
       providesTags: ["OrdersOfDay"]
     }),
     getPrintableOrders: builder.query<ApiResponse<any[]>, void>({
-      query: () => "/admin/printing",
+      query: () => "/printing",
       providesTags: ["Printable"]
     }),
 
@@ -213,3 +213,4 @@ export const {
   useVerifyCodeMutation,
   useResetPasswordMutation
 } = adminApi;
+
