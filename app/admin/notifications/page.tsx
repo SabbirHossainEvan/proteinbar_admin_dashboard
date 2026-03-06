@@ -1,13 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { useDeleteNotificationMutation, useGetNotificationsQuery } from "@/redux/api/adminApi";
 
-const initialNotifications = [
-  { id: "NOTIF-1", title: "New order received", meta: "ORD-2092 from Casablanca", time: "2 min ago", status: "Unread" },
-  { id: "NOTIF-2", title: "Plan updated", meta: "Super Saver Subscription edited", time: "18 min ago", status: "Unread" },
-  { id: "NOTIF-3", title: "Delivery alert", meta: "CFC branch cut-off changed", time: "1 hour ago", status: "Read" },
-  { id: "NOTIF-4", title: "Low stock warning", meta: "Protein Oats inventory is below threshold", time: "3 hours ago", status: "Read" },
-];
+type NotificationItem = {
+  _id?: string;
+  id?: string;
+  notificationId: string;
+  title: string;
+  meta: string;
+  time: string;
+  status: string;
+};
+
+function getNotificationDocId(item: NotificationItem) {
+  return String(item.id ?? item._id ?? "");
+}
 
 function ViewIcon() {
   return (
@@ -30,12 +38,26 @@ function DeleteIcon() {
 }
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState(initialNotifications);
-  const [selectedNotification, setSelectedNotification] = useState<(typeof initialNotifications)[number] | null>(null);
+  const { data, isLoading, isError } = useGetNotificationsQuery();
+  const [deleteNotification, { isLoading: isDeleting }] = useDeleteNotificationMutation();
+  const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
 
-  const deleteNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((item) => item.id !== id));
-    if (selectedNotification?.id === id) {
+  const notifications: NotificationItem[] = (data?.data ?? []).map((item: any) => ({
+    _id: item._id,
+    id: item.id,
+    notificationId: item.notificationId ?? "",
+    title: item.title ?? "",
+    meta: item.meta ?? "",
+    time: item.time ?? "",
+    status: item.status ?? "Unread"
+  }));
+
+  const removeNotification = async (item: NotificationItem) => {
+    const id = getNotificationDocId(item);
+    if (!id) return;
+
+    await deleteNotification(id).unwrap();
+    if (selectedNotification && getNotificationDocId(selectedNotification) === id) {
       setSelectedNotification(null);
     }
   };
@@ -50,6 +72,7 @@ export default function NotificationsPage() {
 
       <section className="admin-panel rounded-2xl p-4 md:p-5">
         <h3 className="text-lg font-semibold text-white">Recent Notifications</h3>
+        {isError ? <p className="mt-3 text-sm text-rose-300">Failed to load notifications.</p> : null}
         <div className="mt-4 overflow-x-auto">
           <table className="admin-table min-w-full text-left text-sm">
             <thead>
@@ -62,8 +85,8 @@ export default function NotificationsPage() {
               </tr>
             </thead>
             <tbody>
-              {notifications.map((notification) => (
-                <tr key={notification.id}>
+              {(isLoading ? [] : notifications).map((notification) => (
+                <tr key={getNotificationDocId(notification) || notification.notificationId}>
                   <td className="py-3.5 pr-4 text-zinc-100">{notification.title}</td>
                   <td className="py-3.5 pr-4 text-zinc-300">{notification.meta}</td>
                   <td className="py-3.5 pr-4 text-zinc-300">{notification.time}</td>
@@ -81,8 +104,9 @@ export default function NotificationsPage() {
                       <button
                         type="button"
                         aria-label="Delete notification"
-                        onClick={() => deleteNotification(notification.id)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-400/40 bg-rose-400/10 text-rose-100 transition hover:bg-rose-400/20"
+                        disabled={isDeleting}
+                        onClick={() => void removeNotification(notification)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-400/40 bg-rose-400/10 text-rose-100 transition hover:bg-rose-400/20 disabled:opacity-60"
                       >
                         <DeleteIcon />
                       </button>
@@ -90,6 +114,11 @@ export default function NotificationsPage() {
                   </td>
                 </tr>
               ))}
+              {!isLoading && notifications.length === 0 ? (
+                <tr>
+                  <td className="py-3.5 text-zinc-400" colSpan={5}>No notifications found.</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
@@ -106,7 +135,7 @@ export default function NotificationsPage() {
             <div className="mt-4 space-y-2 text-sm">
               <p className="text-zinc-300">
                 <span className="text-zinc-400">Notification ID: </span>
-                {selectedNotification.id}
+                {selectedNotification.notificationId}
               </p>
               <p className="text-zinc-300">
                 <span className="text-zinc-400">Details: </span>

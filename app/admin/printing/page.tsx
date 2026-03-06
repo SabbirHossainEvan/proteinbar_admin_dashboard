@@ -1,8 +1,15 @@
 "use client";
 
-import { printableOrders } from "@/data/admin/mock";
+import { useGetPrintableOrdersQuery } from "@/redux/api/adminApi";
 
-type PrintableOrder = (typeof printableOrders)[number];
+type PrintableOrder = {
+  orderId: string;
+  client: string;
+  date: string;
+  meal: string;
+  macros: string;
+  bestBefore: string;
+};
 
 function printLabelDocument(items: PrintableOrder[]) {
   const printWindow = window.open("", "_blank", "width=860,height=760");
@@ -20,7 +27,7 @@ function printLabelDocument(items: PrintableOrder[]) {
         <p><strong>Order ID:</strong> ${item.orderId}</p>
         <p><strong>QR:</strong> [${item.orderId}]</p>
       </section>
-    `,
+    `
     )
     .join("");
 
@@ -47,6 +54,16 @@ function printLabelDocument(items: PrintableOrder[]) {
 }
 
 export default function PrintingPage() {
+  const { data, isLoading, isError } = useGetPrintableOrdersQuery();
+  const printableOrders: PrintableOrder[] = (data?.data ?? []).map((item: any) => ({
+    orderId: item.orderId ?? "",
+    client: item.client ?? "",
+    date: item.date ?? "",
+    meal: item.meal ?? "",
+    macros: item.macros ?? "",
+    bestBefore: item.bestBefore ?? ""
+  }));
+
   return (
     <section className="space-y-7">
       <div>
@@ -65,6 +82,7 @@ export default function PrintingPage() {
             Print All Labels
           </button>
         </div>
+        {isError ? <p className="mb-3 text-sm text-rose-300">Failed to load printable orders.</p> : null}
         <div className="overflow-x-auto">
           <table className="admin-table min-w-full text-left text-sm">
             <thead>
@@ -79,7 +97,7 @@ export default function PrintingPage() {
               </tr>
             </thead>
             <tbody>
-              {printableOrders.map((item) => (
+              {(isLoading ? [] : printableOrders).map((item) => (
                 <tr key={`${item.orderId}-${item.meal}`}>
                   <td className="py-3.5 pr-4 text-zinc-100">{item.client}</td>
                   <td className="py-3.5 pr-4 text-zinc-300">{item.date}</td>
@@ -98,6 +116,11 @@ export default function PrintingPage() {
                   </td>
                 </tr>
               ))}
+              {!isLoading && printableOrders.length === 0 ? (
+                <tr>
+                  <td className="py-3.5 text-zinc-400" colSpan={7}>No printable orders found.</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
