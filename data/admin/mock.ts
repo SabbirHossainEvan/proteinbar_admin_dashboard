@@ -346,10 +346,12 @@ export const customPlanFlow = [
   { step: "Step 1", title: "Set number of meals" },
   { step: "Step 2", title: "Set number of days" },
   { step: "Step 3", title: "Set number of snacks" },
-  { step: "Step 4", title: "Pick start date" },
-  { step: "Step 5", title: "Choose delivery or pickup days" },
-  { step: "Step 6", title: "Select meals for each slot" },
-  { step: "Step 7", title: "Optional: Build a fully custom meal and add to plan" },
+  { step: "Step 4", title: "Browse products by tab and select meals for each slot" },
+  { step: "Step 5", title: "Review selected product cards" },
+  { step: "Step 6", title: "Pick start date" },
+  { step: "Step 7", title: "Choose delivery or pickup days" },
+  { step: "Step 8", title: "Optional: Build a fully custom meal and add to plan" },
+  { step: "Step 9", title: "Proceed to checkout" },
 ];
 
 export const presetPlanFlow = [
