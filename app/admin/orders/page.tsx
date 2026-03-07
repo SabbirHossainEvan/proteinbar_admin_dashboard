@@ -1,15 +1,54 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import StatusBadge from "@/components/admin/StatusBadge";
-import { orders as seedOrders, type ConfirmationStatus, type OrderStatus } from "@/data/admin/mock";
+import { useGetOrdersQuery, useUpdateOrderMutation } from "@/redux/api/adminApi";
+
+type OrderStatus = "Pending" | "Confirmed" | "Prepared" | "Delivered";
+type ConfirmationStatus = "Pending" | "Confirmed" | "Call back" | "No answer";
+
+type OrderItem = {
+  name: string;
+  qty: number;
+  macros: string;
+};
+
+type OrderRow = {
+  _id?: string;
+  id?: string;
+  orderId: string;
+  client: string;
+  phone: string;
+  status: OrderStatus;
+  confirmationStatus: ConfirmationStatus;
+  plan: string;
+  orderType: string;
+  location: string;
+  deliveryAddress?: string;
+  pickupLocation?: string;
+  payment: string;
+  schedule: string;
+  date: string;
+  total: string;
+  items: OrderItem[];
+  notes: string;
+  subscriptionInfo?: string;
+  subscriptionDetails?: {
+    daysPerWeek: number;
+    durationWeeks: number;
+    meals: number;
+  };
+  auditLog: Array<{ at: string; by: string; action: string }>;
+};
 
 const workflowStatuses: OrderStatus[] = ["Pending", "Confirmed", "Prepared", "Delivered"];
 const confirmationStatuses: ConfirmationStatus[] = ["Pending", "Confirmed", "Call back", "No answer"];
 
+function getOrderDocId(order: OrderRow) {
+  return String(order.id ?? order._id ?? "");
+}
+
 export default function OrdersPage() {
-  const [orderList, setOrderList] = useState(seedOrders);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(seedOrders[0]?.id ?? null);
   const [filters, setFilters] = useState({
     date: "",
     client: "",
@@ -17,57 +56,73 @@ export default function OrdersPage() {
     plan: "",
     mode: "",
     location: "",
-    payment: "",
+    payment: ""
   });
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
+  const [actionError, setActionError] = useState("");
 
-  const selectedOrder = orderList.find((order) => order.id === selectedOrderId) ?? null;
+  const { data, isLoading, isError } = useGetOrdersQuery(filters);
+  const [updateOrder, { isLoading: isUpdating }] = useUpdateOrderMutation();
 
-  const filteredOrders = useMemo(
-    () =>
-      orderList.filter((order) => {
-        if (filters.date && !order.date.toLowerCase().includes(filters.date.toLowerCase())) return false;
-        if (filters.client && !order.client.toLowerCase().includes(filters.client.toLowerCase())) return false;
-        if (filters.status && order.status !== filters.status) return false;
-        if (filters.plan && !order.plan.toLowerCase().includes(filters.plan.toLowerCase())) return false;
-        if (filters.mode && order.orderType !== filters.mode) return false;
-        if (filters.location && !order.location.toLowerCase().includes(filters.location.toLowerCase())) return false;
-        if (filters.payment && order.payment !== filters.payment) return false;
-        return true;
-      }),
-    [filters, orderList],
-  );
+  const orderList = useMemo<OrderRow[]>(() => {
+    return (data?.data ?? []).map((order: any) => ({
+      _id: order._id,
+      id: order.id,
+      orderId: order.orderId ?? "",
+      client: order.client ?? "",
+      phone: order.phone ?? "",
+      status: (order.status ?? "Pending") as OrderStatus,
+      confirmationStatus: (order.confirmationStatus ?? "Pending") as ConfirmationStatus,
+      plan: order.plan ?? "",
+      orderType: order.orderType ?? "Delivery",
+      location: order.location ?? "",
+      deliveryAddress: order.deliveryAddress ?? "",
+      pickupLocation: order.pickupLocation ?? "",
+      payment: order.payment ?? "Paid",
+      schedule: order.schedule ?? "",
+      date: order.date ?? "",
+      total: order.total ?? "",
+      items: Array.isArray(order.items) ? order.items : [],
+      notes: order.notes ?? "",
+      subscriptionInfo: order.subscriptionInfo ?? "",
+      subscriptionDetails: order.subscriptionDetails,
+      auditLog: Array.isArray(order.auditLog) ? order.auditLog : []
+    }));
+  }, [data]);
 
-  const pushAudit = (targetId: string, action: string) => {
-    const at = new Date().toLocaleString("en-US", {
-      month: "short",
-      day: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
+  useEffect(() => {
+    if (!orderList.length) {
+      setSelectedOrderId(null);
+      return;
+    }
 
-    setOrderList((prev) =>
-      prev.map((order) =>
-        order.id === targetId
-          ? {
-              ...order,
-              auditLog: [{ at, by: "Agent UI", action }, ...order.auditLog],
-            }
-          : order,
-      ),
-    );
+    if (!selectedOrderId || !orderList.some((order) => getOrderDocId(order) === selectedOrderId)) {
+      setSelectedOrderId(getOrderDocId(orderList[0]));
+    }
+  }, [orderList, selectedOrderId]);
+
+  const selectedOrder = orderList.find((order) => getOrderDocId(order) === selectedOrderId) ?? null;
+
+  const applyUpdate = async (patch: Partial<OrderRow>) => {
+    if (!selectedOrder) return;
+
+    const id = getOrderDocId(selectedOrder);
+    if (!id) return;
+
+    setActionError("");
+    try {
+      await updateOrder({ id, body: patch }).unwrap();
+    } catch {
+      setActionError("Failed to update order.");
+    }
   };
 
-  const updateOrder = (targetId: string, patch: Partial<(typeof seedOrders)[number]>, action: string) => {
-    setOrderList((prev) => prev.map((order) => (order.id === targetId ? { ...order, ...patch } : order)));
-    pushAudit(targetId, action);
-  };
-
-  const addNote = () => {
+  const addNote = async () => {
     if (!selectedOrder || !noteDraft.trim()) return;
-    updateOrder(selectedOrder.id, { notes: `${selectedOrder.notes} | ${noteDraft.trim()}` }, `Added note: ${noteDraft.trim()}`);
+
+    const nextNote = selectedOrder.notes ? `${selectedOrder.notes} | ${noteDraft.trim()}` : noteDraft.trim();
+    await applyUpdate({ notes: nextNote });
     setNoteDraft("");
   };
 
@@ -144,6 +199,7 @@ export default function OrdersPage() {
       <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
         <section className="admin-panel overflow-x-auto rounded-2xl p-4 md:p-5">
           <h3 className="text-lg font-semibold text-white">Orders</h3>
+          {isError ? <p className="mt-3 text-sm text-rose-300">Failed to load orders.</p> : null}
           <table className="admin-table mt-4 min-w-full text-left text-sm">
             <thead>
               <tr>
@@ -159,33 +215,41 @@ export default function OrdersPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map((order) => (
-                <tr key={order.id}>
-                  <td className="py-3.5 pr-4 text-zinc-200">{order.id}</td>
-                  <td className="py-3.5 pr-4 text-zinc-100">{order.client}</td>
-                  <td className="py-3.5 pr-4 text-zinc-300">{order.plan}</td>
-                  <td className="py-3 pr-4">
-                    <StatusBadge label={order.orderType} />
-                  </td>
-                  <td className="py-3.5 pr-4 text-zinc-300">{order.location}</td>
-                  <td className="py-3 pr-4">
-                    <StatusBadge label={order.payment} />
-                  </td>
-                  <td className="py-3 pr-4">
-                    <StatusBadge label={order.status} />
-                  </td>
-                  <td className="py-3.5 pr-4 text-zinc-300">{order.date}</td>
-                  <td className="py-3.5">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedOrderId(order.id)}
-                      className="rounded-lg border border-amber-300/40 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-300/20"
-                    >
-                      View
-                    </button>
-                  </td>
+              {(isLoading ? [] : orderList).map((order) => {
+                const docId = getOrderDocId(order);
+                return (
+                  <tr key={docId || order.orderId}>
+                    <td className="py-3.5 pr-4 text-zinc-200">{order.orderId}</td>
+                    <td className="py-3.5 pr-4 text-zinc-100">{order.client}</td>
+                    <td className="py-3.5 pr-4 text-zinc-300">{order.plan}</td>
+                    <td className="py-3 pr-4">
+                      <StatusBadge label={order.orderType} />
+                    </td>
+                    <td className="py-3.5 pr-4 text-zinc-300">{order.location}</td>
+                    <td className="py-3 pr-4">
+                      <StatusBadge label={order.payment} />
+                    </td>
+                    <td className="py-3 pr-4">
+                      <StatusBadge label={order.status} />
+                    </td>
+                    <td className="py-3.5 pr-4 text-zinc-300">{order.date}</td>
+                    <td className="py-3.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOrderId(docId)}
+                        className="rounded-lg border border-amber-300/40 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-300/20"
+                      >
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!isLoading && orderList.length === 0 ? (
+                <tr>
+                  <td className="py-3.5 text-zinc-400" colSpan={9}>No orders found.</td>
                 </tr>
-              ))}
+              ) : null}
             </tbody>
           </table>
         </section>
@@ -198,7 +262,7 @@ export default function OrdersPage() {
             <div className="mt-4 space-y-4 text-sm">
               <div className="grid gap-2 text-zinc-300">
                 <p>
-                  <span className="text-zinc-400">Order details:</span> {selectedOrder.id} | {selectedOrder.plan} | {selectedOrder.date}
+                  <span className="text-zinc-400">Order details:</span> {selectedOrder.orderId} | {selectedOrder.plan} | {selectedOrder.date}
                 </p>
                 <p>
                   <span className="text-zinc-400">Client:</span> {selectedOrder.client} ({selectedOrder.phone})
@@ -224,16 +288,12 @@ export default function OrdersPage() {
                   {selectedOrder.orderType === "Delivery" ? (
                     <p>
                       <span className="text-zinc-300">Delivery address:</span>{" "}
-                      {"deliveryAddress" in selectedOrder && selectedOrder.deliveryAddress
-                        ? selectedOrder.deliveryAddress
-                        : selectedOrder.location}
+                      {selectedOrder.deliveryAddress || selectedOrder.location}
                     </p>
                   ) : (
                     <p>
                       <span className="text-zinc-300">Pickup location:</span>{" "}
-                      {"pickupLocation" in selectedOrder && selectedOrder.pickupLocation
-                        ? selectedOrder.pickupLocation
-                        : selectedOrder.location}
+                      {selectedOrder.pickupLocation || selectedOrder.location}
                     </p>
                   )}
                   <p>
@@ -244,7 +304,7 @@ export default function OrdersPage() {
 
               <div className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
                 <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Subscription Details</p>
-                {"subscriptionDetails" in selectedOrder && selectedOrder.subscriptionDetails ? (
+                {selectedOrder.subscriptionDetails ? (
                   <div className="mt-3 grid gap-2 text-sm text-zinc-200 md:grid-cols-3">
                     <p className="rounded-lg border border-zinc-700 bg-zinc-950/40 px-3 py-2">
                       <span className="text-zinc-400">Days / week:</span> {selectedOrder.subscriptionDetails.daysPerWeek}
@@ -265,7 +325,7 @@ export default function OrdersPage() {
                 <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Items + Macros</p>
                 <ul className="mt-2 space-y-2">
                   {selectedOrder.items.map((item) => (
-                    <li key={`${selectedOrder.id}-${item.name}`} className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 px-3 py-2 text-zinc-200">
+                    <li key={`${selectedOrder.orderId}-${item.name}`} className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 px-3 py-2 text-zinc-200">
                       {item.name} x {item.qty}
                       <p className="text-xs text-zinc-400">{item.macros}</p>
                     </li>
@@ -278,14 +338,9 @@ export default function OrdersPage() {
                 <div className="grid gap-2">
                   <select
                     value={selectedOrder.confirmationStatus}
-                    onChange={(event) =>
-                      updateOrder(
-                        selectedOrder.id,
-                        { confirmationStatus: event.target.value as ConfirmationStatus },
-                        `Confirmation status changed to ${event.target.value}`,
-                      )
-                    }
-                    className="rounded-lg border border-zinc-600 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                    onChange={(event) => void applyUpdate({ confirmationStatus: event.target.value as ConfirmationStatus })}
+                    disabled={isUpdating}
+                    className="rounded-lg border border-zinc-600 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300 disabled:opacity-60"
                   >
                     {confirmationStatuses.map((status) => (
                       <option key={status} value={status} style={{ color: "#111111", backgroundColor: "#ffffff" }}>
@@ -295,10 +350,8 @@ export default function OrdersPage() {
                   </select>
                   <select
                     value={selectedOrder.status}
-                    onChange={(event) =>
-                      updateOrder(selectedOrder.id, { status: event.target.value as OrderStatus }, `Order status changed to ${event.target.value}`)
-                    }
-                    disabled={!isEditable && selectedOrder.status !== "Delivered"}
+                    onChange={(event) => void applyUpdate({ status: event.target.value as OrderStatus })}
+                    disabled={(!isEditable && selectedOrder.status !== "Delivered") || isUpdating}
                     className="rounded-lg border border-zinc-600 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300 disabled:cursor-not-allowed disabled:opacity-55"
                   >
                     {workflowStatuses.map((status) => (
@@ -319,14 +372,17 @@ export default function OrdersPage() {
                     />
                     <button
                       type="button"
-                      onClick={addNote}
-                      className="rounded-lg bg-amber-300 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-amber-200"
+                      onClick={() => void addNote()}
+                      disabled={isUpdating}
+                      className="rounded-lg bg-amber-300 px-3 py-2 text-xs font-semibold text-zinc-900 hover:bg-amber-200 disabled:opacity-60"
                     >
                       Add Note
                     </button>
                   </div>
                 </div>
               </div>
+
+              {actionError ? <p className="text-sm text-rose-300">{actionError}</p> : null}
 
               <div>
                 <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Audit Log</p>

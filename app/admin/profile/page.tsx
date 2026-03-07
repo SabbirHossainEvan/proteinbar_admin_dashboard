@@ -1,12 +1,41 @@
-import Link from "next/link";
+"use client";
 
-const recentActivity = [
-  { id: "ACT-1", action: "Updated location timing", target: "Proteinbar CFC", date: "Mar 04, 2026" },
-  { id: "ACT-2", action: "Added new menu item", target: "High Protein Wrap", date: "Mar 03, 2026" },
-  { id: "ACT-3", action: "Reviewed order issue", target: "ORD-2081", date: "Mar 03, 2026" },
-];
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useGetDashboardQuery } from "@/redux/api/adminApi";
+
+type AuthUser = {
+  email?: string;
+  role?: string;
+};
 
 export default function ProfilePage() {
+  const { data } = useGetDashboardQuery();
+  const [user, setUser] = useState<AuthUser>({});
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const raw = window.sessionStorage.getItem("proteinbar_admin_auth");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      setUser(parsed?.user ?? {});
+    } catch {
+      setUser({});
+    }
+  }, []);
+
+  const recentActivity = useMemo(() => {
+    const latestOrders = data?.data?.latestOrders ?? [];
+    return latestOrders.map((order: any) => ({
+      id: order.id,
+      action: "Reviewed recent order",
+      target: `${order.id} (${order.customer})`,
+      date: order.date
+    }));
+  }, [data]);
+
   return (
     <section className="space-y-7">
       <div>
@@ -24,15 +53,15 @@ export default function ProfilePage() {
           </div>
           <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 px-4 py-3">
             <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Email</p>
-            <p className="mt-1 text-sm text-zinc-100">admin@proteinbar.ma</p>
+            <p className="mt-1 text-sm text-zinc-100">{user.email ?? "admin@proteinbar.com"}</p>
           </div>
           <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 px-4 py-3">
             <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Role</p>
-            <p className="mt-1 text-sm text-zinc-100">Super Admin</p>
+            <p className="mt-1 text-sm text-zinc-100">{user.role ?? "admin"}</p>
           </div>
           <div className="rounded-xl border border-zinc-700 bg-zinc-900/70 px-4 py-3">
             <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Last Login</p>
-            <p className="mt-1 text-sm text-zinc-100">Mar 04, 2026 10:14 AM</p>
+            <p className="mt-1 text-sm text-zinc-100">{new Date().toLocaleString("en-US")}</p>
           </div>
         </div>
       </section>
@@ -83,13 +112,18 @@ export default function ProfilePage() {
               </tr>
             </thead>
             <tbody>
-              {recentActivity.map((activity) => (
+              {recentActivity.map((activity: any) => (
                 <tr key={activity.id}>
                   <td className="py-3.5 pr-4 text-zinc-100">{activity.action}</td>
                   <td className="py-3.5 pr-4 text-zinc-300">{activity.target}</td>
                   <td className="py-3.5 text-zinc-300">{activity.date}</td>
                 </tr>
               ))}
+              {recentActivity.length === 0 ? (
+                <tr>
+                  <td className="py-3.5 text-zinc-400" colSpan={3}>No recent activity.</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
