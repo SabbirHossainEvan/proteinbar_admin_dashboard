@@ -1,6 +1,32 @@
+"use client";
+
 import Link from "next/link";
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAdminLoginMutation } from "@/redux/api/adminApi";
 
 export default function AdminSignInPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("admin@proteinbar.com");
+  const [password, setPassword] = useState("admin12345");
+  const [error, setError] = useState("");
+  const [adminLogin, { isLoading }] = useAdminLoginMutation();
+
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+
+    try {
+      const response = await adminLogin({ email, password }).unwrap();
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem("proteinbar_admin_auth", JSON.stringify(response.data ?? {}));
+      }
+      router.push("/admin");
+    } catch {
+      setError("Invalid credentials.");
+    }
+  };
+
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">
       <div className="absolute -left-24 top-16 h-60 w-60 rounded-full bg-amber-300/15 blur-3xl" />
@@ -8,25 +34,31 @@ export default function AdminSignInPage() {
       <div className="admin-panel relative w-full max-w-md rounded-2xl p-8">
         <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">Proteinbar</p>
         <h1 className="mt-2 text-3xl font-semibold text-white">Sign In</h1>
-        <p className="mt-2 text-sm text-zinc-300">Frontend-only authentication flow for the admin dashboard.</p>
+        <p className="mt-2 text-sm text-zinc-300">Sign in to the admin dashboard.</p>
 
-        <form className="mt-6 space-y-3">
+        <form className="mt-6 space-y-3" onSubmit={onSubmit}>
           <input
             type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
             placeholder="Admin email"
             className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
           />
           <input
             type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
             placeholder="Password"
             className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
           />
-          <Link
-            href="/admin"
-            className="inline-flex w-full items-center justify-center rounded-xl bg-amber-300 px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200"
+          {error ? <p className="text-xs text-rose-300">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="inline-flex w-full items-center justify-center rounded-xl bg-amber-300 px-4 py-3 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200 disabled:opacity-60"
           >
-            Sign In
-          </Link>
+            {isLoading ? "Signing In..." : "Sign In"}
+          </button>
         </form>
 
         <div className="mt-4 flex items-center justify-between text-xs text-zinc-300">
@@ -41,3 +73,4 @@ export default function AdminSignInPage() {
     </div>
   );
 }
+

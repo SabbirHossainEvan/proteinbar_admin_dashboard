@@ -1,6 +1,16 @@
 "use client";
 
-import { todaysOrders } from "@/data/admin/mock";
+import { useMemo } from "react";
+import { useGetOrdersOfDayQuery } from "@/redux/api/adminApi";
+
+type TodaysOrder = {
+  id: string;
+  client: string;
+  mode: string;
+  slot: string;
+  location: string;
+  meals: number;
+};
 
 function openPrintDocument(title: string, body: string) {
   const printWindow = window.open("", "_blank", "width=980,height=760");
@@ -29,16 +39,29 @@ function openPrintDocument(title: string, body: string) {
 }
 
 export default function OrdersOfDayPage() {
+  const { data, isLoading, isError } = useGetOrdersOfDayQuery();
+
+  const todaysOrders = useMemo<TodaysOrder[]>(() => {
+    return (data?.data ?? []).map((order: any) => ({
+      id: order.orderId ?? "",
+      client: order.client ?? "",
+      mode: order.orderType ?? "Delivery",
+      slot: order.schedule ?? "-",
+      location: order.location ?? "-",
+      meals: Array.isArray(order.items) ? order.items.reduce((acc: number, item: any) => acc + Number(item.qty ?? 0), 0) : 0
+    }));
+  }, [data]);
+
   const groupedByMode = {
     Delivery: todaysOrders.filter((order) => order.mode === "Delivery"),
-    Pickup: todaysOrders.filter((order) => order.mode === "Pickup"),
+    Pickup: todaysOrders.filter((order) => order.mode === "Pickup")
   };
 
   const handlePrintDailySheet = () => {
     const rows = todaysOrders
       .map(
         (order) =>
-          `<tr><td>${order.id}</td><td>${order.client}</td><td>${order.mode}</td><td>${order.slot}</td><td>${order.location}</td><td>${order.meals}</td></tr>`,
+          `<tr><td>${order.id}</td><td>${order.client}</td><td>${order.mode}</td><td>${order.slot}</td><td>${order.location}</td><td>${order.meals}</td></tr>`
       )
       .join("");
 
@@ -48,8 +71,8 @@ export default function OrdersOfDayPage() {
         weekday: "long",
         month: "short",
         day: "2-digit",
-        year: "numeric",
-      })}</p><table><thead><tr><th>Order ID</th><th>Client</th><th>Mode</th><th>Time Slot</th><th>Location</th><th>Meals</th></tr></thead><tbody>${rows}</tbody></table>`,
+        year: "numeric"
+      })}</p><table><thead><tr><th>Order ID</th><th>Client</th><th>Mode</th><th>Time Slot</th><th>Location</th><th>Meals</th></tr></thead><tbody>${rows}</tbody></table>`
     );
   };
 
@@ -75,12 +98,14 @@ export default function OrdersOfDayPage() {
         <p className="mt-2 text-sm text-zinc-300">Daily production and delivery sheet grouped by mode, slot, and location.</p>
       </div>
 
+      {isError ? <p className="text-sm text-rose-300">Failed to load orders of the day.</p> : null}
+
       <div className="grid gap-5 lg:grid-cols-2">
         {Object.entries(groupedByMode).map(([mode, list]) => (
           <section key={mode} className="admin-panel rounded-2xl p-5">
             <h3 className="text-lg font-semibold text-white">{mode}</h3>
             <div className="mt-4 space-y-2">
-              {list.map((order) => (
+              {(isLoading ? [] : list).map((order) => (
                 <article key={order.id} className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-3 text-sm">
                   <p className="text-zinc-100">
                     {order.id} - {order.client}
@@ -90,6 +115,7 @@ export default function OrdersOfDayPage() {
                   <p className="text-xs text-zinc-400">Meals: {order.meals}</p>
                 </article>
               ))}
+              {!isLoading && list.length === 0 ? <p className="text-sm text-zinc-500">No {mode.toLowerCase()} orders.</p> : null}
             </div>
           </section>
         ))}

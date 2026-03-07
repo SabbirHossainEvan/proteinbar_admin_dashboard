@@ -1,10 +1,33 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import StatusBadge from "@/components/admin/StatusBadge";
-import { menuItems, menuMealTypes, products, weekDays, type MenuMealType } from "@/data/admin/mock";
+import {
+  useCreateMenuItemMutation,
+  useDeleteMenuItemMutation,
+  useGetMenuItemsQuery,
+  useGetProductsQuery,
+  useUpdateMenuItemMutation
+} from "@/redux/api/adminApi";
 
-type MenuItem = (typeof menuItems)[number];
+type MenuMealType = "Breakfast" | "Lunch" | "Dinner";
+
+type MenuItem = {
+  _id?: string;
+  id?: string;
+  menuId: string;
+  title: string;
+  linkedProductSkus: string[];
+  visibleDays: string[];
+  timeSlots: string[];
+  mealTypes: MenuMealType[];
+  planCompatibility: string[];
+  priority: number;
+  status: string;
+};
+
+const menuMealTypes: MenuMealType[] = ["Breakfast", "Lunch", "Dinner"];
+const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const initialForm = {
   title: "",
@@ -14,31 +37,71 @@ const initialForm = {
   mealTypes: [] as MenuMealType[],
   planCompatibility: "",
   priority: "1",
-  status: "Visible",
+  status: "Visible"
 };
 
 function toggleString(values: string[], value: string) {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
+function getMenuItemId(item: MenuItem) {
+  return String(item.id ?? item._id ?? "");
+}
+
 export default function MenuPage() {
-  const [items, setItems] = useState<MenuItem[]>(menuItems);
+  const { data, isLoading, isError } = useGetMenuItemsQuery();
+  const { data: productsResponse } = useGetProductsQuery();
+  const [createMenuItem, { isLoading: isCreating }] = useCreateMenuItemMutation();
+  const [updateMenuItem, { isLoading: isUpdating }] = useUpdateMenuItemMutation();
+  const [deleteMenuItem, { isLoading: isDeleting }] = useDeleteMenuItemMutation();
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(initialForm);
+  const [submitError, setSubmitError] = useState("");
   const formSectionRef = useRef<HTMLElement | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
+
+  const items = useMemo<MenuItem[]>(() => {
+    return (data?.data ?? []).map((item: any) => ({
+      _id: item._id,
+      id: item.id,
+      menuId: item.menuId ?? "",
+      title: item.title ?? "",
+      linkedProductSkus: Array.isArray(item.linkedProductSkus) ? item.linkedProductSkus : [],
+      visibleDays: Array.isArray(item.visibleDays) ? item.visibleDays : [],
+      timeSlots: Array.isArray(item.timeSlots) ? item.timeSlots : [],
+      mealTypes: Array.isArray(item.mealTypes) ? item.mealTypes : [],
+      planCompatibility: Array.isArray(item.planCompatibility) ? item.planCompatibility : [],
+      priority: Number(item.priority ?? 1),
+      status: item.status ?? "Visible"
+    }));
+  }, [data]);
+
+  const products = useMemo(() => {
+    return (productsResponse?.data ?? []).map((product: any) => ({
+      sku: String(product.sku ?? ""),
+      name: String(product.name ?? "")
+    }));
+  }, [productsResponse]);
 
   const resetForm = () => {
     setForm(initialForm);
     setEditingId(null);
+    setSubmitError("");
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setSubmitError("");
+
     if (!form.title.trim() || !form.linkedProductSkus.length) return;
 
-    const payload: MenuItem = {
-      id: editingId ?? `MENU-${Date.now()}`,
+    const currentMenuId = editingId
+      ? items.find((item) => getMenuItemId(item) === editingId)?.menuId ?? `MENU-${Date.now()}`
+      : `MENU-${Date.now()}`;
+
+    const payload = {
+      menuId: currentMenuId,
       title: form.title.trim(),
       linkedProductSkus: form.linkedProductSkus,
       visibleDays: form.visibleDays,
@@ -52,21 +115,26 @@ export default function MenuPage() {
         .map((plan) => plan.trim())
         .filter(Boolean),
       priority: Number(form.priority) || 1,
-      status: form.status,
+      status: form.status
     };
 
-    if (editingId) {
-      setItems((prev) => prev.map((item) => (item.id === editingId ? payload : item)));
+    try {
+      if (editingId) {
+        await updateMenuItem({ id: editingId, body: payload }).unwrap();
+      } else {
+        await createMenuItem(payload).unwrap();
+      }
       resetForm();
-      return;
+    } catch {
+      setSubmitError("Failed to save menu item.");
     }
-
-    setItems((prev) => [payload, ...prev]);
-    resetForm();
   };
 
   const startEdit = (item: MenuItem) => {
-    setEditingId(item.id);
+    const id = getMenuItemId(item);
+    if (!id) return;
+
+    setEditingId(id);
     setForm({
       title: item.title,
       linkedProductSkus: item.linkedProductSkus,
@@ -75,7 +143,7 @@ export default function MenuPage() {
       mealTypes: item.mealTypes,
       planCompatibility: item.planCompatibility.join(", "),
       priority: String(item.priority),
-      status: item.status,
+      status: item.status
     });
     formSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     setTimeout(() => {
@@ -84,9 +152,13 @@ export default function MenuPage() {
     }, 120);
   };
 
-  const deleteItem = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
-    if (editingId === id) resetForm();
+  const removeItem = async (id: string) => {
+    try {
+      await deleteMenuItem(id).unwrap();
+      if (editingId === id) resetForm();
+    } catch {
+      setSubmitError("Failed to delete menu item.");
+    }
   };
 
   return (
@@ -156,7 +228,7 @@ export default function MenuPage() {
                     onChange={() =>
                       setForm((prev) => ({
                         ...prev,
-                        mealTypes: toggleString(prev.mealTypes, mealType) as MenuMealType[],
+                        mealTypes: toggleString(prev.mealTypes, mealType) as MenuMealType[]
                       }))
                     }
                   />
@@ -197,8 +269,9 @@ export default function MenuPage() {
             <option value="Hidden">Hidden</option>
           </select>
 
+          {submitError ? <p className="text-sm text-rose-300 md:col-span-2">{submitError}</p> : null}
           <div className="md:col-span-2 flex items-center gap-3">
-            <button type="submit" className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200">
+            <button type="submit" disabled={isCreating || isUpdating} className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200 disabled:opacity-60">
               {editingId ? "Update Menu Item" : "Add Menu Item"}
             </button>
             {editingId ? (
@@ -217,6 +290,7 @@ export default function MenuPage() {
       <section className="admin-panel rounded-2xl p-4 md:p-5">
         <h3 className="text-lg font-semibold text-white">Menu Card List</h3>
         <p className="mt-2 text-sm text-zinc-300">Product inventory stays in Products module. This table is client-facing display configuration.</p>
+        {isError ? <p className="mt-3 text-sm text-rose-300">Failed to load menu items.</p> : null}
         <div className="mt-4 overflow-x-auto">
           <table className="admin-table min-w-full text-left text-sm">
             <thead>
@@ -233,39 +307,48 @@ export default function MenuPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
-                <tr key={item.id}>
-                  <td className="py-3.5 pr-4 text-zinc-200">{item.id}</td>
-                  <td className="py-3.5 pr-4 text-zinc-100">{item.title}</td>
-                  <td className="py-3.5 pr-4 text-zinc-300">{item.linkedProductSkus.join(", ")}</td>
-                  <td className="py-3.5 pr-4 text-zinc-300">
-                    {item.visibleDays.join(", ")}
-                    <p className="text-xs text-zinc-400">{item.timeSlots.join(", ") || "No slot set"}</p>
-                  </td>
-                  <td className="py-3.5 pr-4 text-zinc-300">{item.mealTypes.join(", ") || "-"}</td>
-                  <td className="py-3.5 pr-4 text-zinc-300">{item.planCompatibility.join(", ") || "All plans"}</td>
-                  <td className="py-3.5 pr-4 text-zinc-200">{item.priority}</td>
-                  <td className="py-3 pr-4">
-                    <StatusBadge label={item.status} />
-                  </td>
-                  <td className="py-3.5">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => startEdit(item)}
-                        className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-amber-200"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => deleteItem(item.id)}
-                        className="rounded-lg border border-rose-400/40 bg-rose-400/10 px-3 py-1.5 text-xs font-medium text-rose-100 hover:bg-rose-400/20"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
+              {(isLoading ? [] : items).map((item) => {
+                const id = getMenuItemId(item);
+                return (
+                  <tr key={id || item.menuId}>
+                    <td className="py-3.5 pr-4 text-zinc-200">{item.menuId}</td>
+                    <td className="py-3.5 pr-4 text-zinc-100">{item.title}</td>
+                    <td className="py-3.5 pr-4 text-zinc-300">{item.linkedProductSkus.join(", ")}</td>
+                    <td className="py-3.5 pr-4 text-zinc-300">
+                      {item.visibleDays.join(", ")}
+                      <p className="text-xs text-zinc-400">{item.timeSlots.join(", ") || "No slot set"}</p>
+                    </td>
+                    <td className="py-3.5 pr-4 text-zinc-300">{item.mealTypes.join(", ") || "-"}</td>
+                    <td className="py-3.5 pr-4 text-zinc-300">{item.planCompatibility.join(", ") || "All plans"}</td>
+                    <td className="py-3.5 pr-4 text-zinc-200">{item.priority}</td>
+                    <td className="py-3 pr-4">
+                      <StatusBadge label={item.status} />
+                    </td>
+                    <td className="py-3.5">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => startEdit(item)}
+                          className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-amber-200"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => id && removeItem(id)}
+                          disabled={!id || isDeleting}
+                          className="rounded-lg border border-rose-400/40 bg-rose-400/10 px-3 py-1.5 text-xs font-medium text-rose-100 hover:bg-rose-400/20 disabled:opacity-60"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!isLoading && items.length === 0 ? (
+                <tr>
+                  <td className="py-3.5 text-zinc-400" colSpan={9}>No menu items found.</td>
                 </tr>
-              ))}
+              ) : null}
             </tbody>
           </table>
         </div>

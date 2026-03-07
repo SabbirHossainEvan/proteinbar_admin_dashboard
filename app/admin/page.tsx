@@ -1,7 +1,14 @@
+"use client";
+
 import StatusBadge from "@/components/admin/StatusBadge";
-import { dashboardStats, latestOrders } from "@/data/admin/mock";
+import { useGetDashboardQuery } from "@/redux/api/adminApi";
 
 export default function DashboardPage() {
+  const { data, isLoading, isError } = useGetDashboardQuery();
+
+  const dashboardStats = data?.data?.dashboardStats ?? [];
+  const latestOrders = data?.data?.latestOrders ?? [];
+
   return (
     <section className="space-y-7">
       <div>
@@ -11,7 +18,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {dashboardStats.map((stat) => (
+        {(isLoading ? [{ title: "Loading...", value: "-" }] : dashboardStats).map((stat: any) => (
           <article key={stat.title} className="admin-panel rounded-2xl p-5">
             <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">{stat.title}</p>
             <p className="mt-3 text-3xl font-semibold text-white">{stat.value}</p>
@@ -21,6 +28,7 @@ export default function DashboardPage() {
 
       <section className="admin-panel rounded-2xl p-4 md:p-5">
         <h3 className="text-lg font-semibold text-white">Latest Orders</h3>
+        {isError ? <p className="mt-4 text-sm text-rose-300">Failed to load dashboard data.</p> : null}
         <div className="mt-4 overflow-x-auto">
           <table className="admin-table min-w-full text-left text-sm">
             <thead>
@@ -33,7 +41,7 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {latestOrders.map((order) => (
+              {latestOrders.map((order: any) => (
                 <tr key={order.id}>
                   <td className="py-3.5 pr-4 text-zinc-200">{order.id}</td>
                   <td className="py-3.5 pr-4 text-zinc-100">{order.customer}</td>

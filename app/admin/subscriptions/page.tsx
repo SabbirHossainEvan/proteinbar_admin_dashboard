@@ -1,49 +1,74 @@
 "use client";
 
-import { useState } from "react";
 import StatusBadge from "@/components/admin/StatusBadge";
-import { subscriptions as seedSubscriptions } from "@/data/admin/mock";
+import { useGetSubscriptionsQuery, useUpdateSubscriptionMutation } from "@/redux/api/adminApi";
 
-type SubscriptionItem = (typeof seedSubscriptions)[number] & {
+type SubscriptionItem = {
+  _id?: string;
+  id?: string;
+  subscriptionId: string;
+  client: string;
+  plan: string;
+  totalWeeks: number;
+  currentWeek: number;
+  dayProgress: string;
+  remainingMeals: number;
+  status: string;
   log: string[];
 };
 
-const initialSubscriptions: SubscriptionItem[] = seedSubscriptions.map((item) => ({
-  ...item,
-  log: ["Subscription initialized"],
-}));
+function getSubscriptionDocId(item: SubscriptionItem) {
+  return String(item.id ?? item._id ?? "");
+}
 
 export default function SubscriptionsPage() {
-  const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>(initialSubscriptions);
+  const { data, isLoading, isError } = useGetSubscriptionsQuery();
+  const [updateSubscription, { isLoading: isUpdating }] = useUpdateSubscriptionMutation();
 
-  const updateSubscription = (id: string, patch: Partial<SubscriptionItem>, log: string) => {
-    setSubscriptions((prev) =>
-      prev.map((subscription) =>
-        subscription.id === id
-          ? {
-              ...subscription,
-              ...patch,
-              log: [log, ...subscription.log],
-            }
-          : subscription,
-      ),
-    );
+  const subscriptions: SubscriptionItem[] = (data?.data ?? []).map((item: any) => ({
+    _id: item._id,
+    id: item.id,
+    subscriptionId: item.subscriptionId ?? "",
+    client: item.client ?? "",
+    plan: item.plan ?? "",
+    totalWeeks: Number(item.totalWeeks ?? 0),
+    currentWeek: Number(item.currentWeek ?? 0),
+    dayProgress: item.dayProgress ?? "0/0",
+    remainingMeals: Number(item.remainingMeals ?? 0),
+    status: item.status ?? "Active",
+    log: Array.isArray(item.log) ? item.log : []
+  }));
+
+  const applyUpdate = async (id: string, body: Record<string, unknown>) => {
+    await updateSubscription({ id, body }).unwrap();
   };
 
-  const togglePause = (item: SubscriptionItem) => {
+  const togglePause = async (item: SubscriptionItem) => {
+    const id = getSubscriptionDocId(item);
+    if (!id) return;
+
     if (item.status === "Paused") {
-      updateSubscription(item.id, { status: "Active" }, "Resumed by admin");
+      await applyUpdate(id, { status: "Active", logMessage: "Resumed by admin" });
       return;
     }
-    updateSubscription(item.id, { status: "Paused" }, "Paused by admin");
+    await applyUpdate(id, { status: "Paused", logMessage: "Paused by admin" });
   };
 
-  const reschedule = (item: SubscriptionItem) => {
-    updateSubscription(item.id, { dayProgress: "0/0" }, "Reschedule requested (rules-based check pending)");
+  const reschedule = async (item: SubscriptionItem) => {
+    const id = getSubscriptionDocId(item);
+    if (!id) return;
+
+    await applyUpdate(id, { dayProgress: "0/0", logMessage: "Reschedule requested (rules-based check pending)" });
   };
 
-  const extendDuration = (item: SubscriptionItem) => {
-    updateSubscription(item.id, { totalWeeks: item.totalWeeks + 1 }, "Extended subscription by 1 week");
+  const extendDuration = async (item: SubscriptionItem) => {
+    const id = getSubscriptionDocId(item);
+    if (!id) return;
+
+    await applyUpdate(id, {
+      totalWeeks: item.totalWeeks + 1,
+      logMessage: "Extended subscription by 1 week"
+    });
   };
 
   return (
@@ -55,6 +80,7 @@ export default function SubscriptionsPage() {
       </div>
 
       <div className="admin-panel overflow-x-auto rounded-2xl p-4 md:p-5">
+        {isError ? <p className="mb-3 text-sm text-rose-300">Failed to load subscriptions.</p> : null}
         <table className="admin-table min-w-full text-left text-sm">
           <thead>
             <tr>
@@ -69,52 +95,63 @@ export default function SubscriptionsPage() {
             </tr>
           </thead>
           <tbody>
-            {subscriptions.map((subscription) => (
-              <tr key={subscription.id}>
-                <td className="py-3.5 pr-4 text-zinc-200">{subscription.id}</td>
-                <td className="py-3.5 pr-4 text-zinc-100">{subscription.client}</td>
-                <td className="py-3.5 pr-4 text-zinc-300">{subscription.plan}</td>
-                <td className="py-3.5 pr-4 text-zinc-300">
-                  Week {subscription.currentWeek}/{subscription.totalWeeks}
-                  <p className="text-xs text-zinc-400">Day {subscription.dayProgress}</p>
-                </td>
-                <td className="py-3.5 pr-4 text-zinc-200">{subscription.remainingMeals}</td>
-                <td className="py-3 pr-4">
-                  <StatusBadge label={subscription.status} />
-                </td>
-                <td className="py-3.5 pr-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => togglePause(subscription)}
-                      className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-amber-200"
-                    >
-                      {subscription.status === "Paused" ? "Resume" : "Pause"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => reschedule(subscription)}
-                      className="rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-400/20"
-                    >
-                      Reschedule
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => extendDuration(subscription)}
-                      className="rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-100 hover:bg-emerald-400/20"
-                    >
-                      Extend +1 Week
-                    </button>
-                  </div>
-                </td>
-                <td className="py-3.5 text-zinc-300">
-                  <p className="max-w-56 truncate" title={subscription.log[0]}>
-                    {subscription.log[0]}
-                  </p>
-                  <p className="text-xs text-zinc-500">{subscription.log.length} logs</p>
-                </td>
+            {(isLoading ? [] : subscriptions).map((subscription) => {
+              const docId = getSubscriptionDocId(subscription);
+              return (
+                <tr key={docId || subscription.subscriptionId}>
+                  <td className="py-3.5 pr-4 text-zinc-200">{subscription.subscriptionId}</td>
+                  <td className="py-3.5 pr-4 text-zinc-100">{subscription.client}</td>
+                  <td className="py-3.5 pr-4 text-zinc-300">{subscription.plan}</td>
+                  <td className="py-3.5 pr-4 text-zinc-300">
+                    Week {subscription.currentWeek}/{subscription.totalWeeks}
+                    <p className="text-xs text-zinc-400">Day {subscription.dayProgress}</p>
+                  </td>
+                  <td className="py-3.5 pr-4 text-zinc-200">{subscription.remainingMeals}</td>
+                  <td className="py-3 pr-4">
+                    <StatusBadge label={subscription.status} />
+                  </td>
+                  <td className="py-3.5 pr-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={!docId || isUpdating}
+                        onClick={() => void togglePause(subscription)}
+                        className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-amber-200 disabled:opacity-60"
+                      >
+                        {subscription.status === "Paused" ? "Resume" : "Pause"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!docId || isUpdating}
+                        onClick={() => void reschedule(subscription)}
+                        className="rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-400/20 disabled:opacity-60"
+                      >
+                        Reschedule
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!docId || isUpdating}
+                        onClick={() => void extendDuration(subscription)}
+                        className="rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-100 hover:bg-emerald-400/20 disabled:opacity-60"
+                      >
+                        Extend +1 Week
+                      </button>
+                    </div>
+                  </td>
+                  <td className="py-3.5 text-zinc-300">
+                    <p className="max-w-56 truncate" title={subscription.log[0]}>
+                      {subscription.log[0] ?? "-"}
+                    </p>
+                    <p className="text-xs text-zinc-500">{subscription.log.length} logs</p>
+                  </td>
+                </tr>
+              );
+            })}
+            {!isLoading && subscriptions.length === 0 ? (
+              <tr>
+                <td className="py-3.5 text-zinc-400" colSpan={8}>No subscriptions found.</td>
               </tr>
-            ))}
+            ) : null}
           </tbody>
         </table>
       </div>

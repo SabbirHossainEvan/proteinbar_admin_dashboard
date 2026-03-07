@@ -1,6 +1,16 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect } from "react";
 
 export default function AdminSignOutPage() {
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem("proteinbar_admin_auth");
+      window.sessionStorage.removeItem("proteinbar_admin_reset_email");
+    }
+  }, []);
+
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">
       <div className="admin-panel w-full max-w-md rounded-2xl p-8 text-center">
