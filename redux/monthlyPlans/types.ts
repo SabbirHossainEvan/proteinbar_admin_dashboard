@@ -76,6 +76,12 @@ export interface MonthlyPlanContent {
   heroSubtitle: string;
   selectMealsText: string;
   checkoutText: string;
+  customStepTwo?: {
+    categories: Array<{
+      name: string;
+      mealIds: string[];
+    }>;
+  };
 }
 
 export interface MonthlyPlan {
