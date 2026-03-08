@@ -23,6 +23,7 @@ const tabs: Array<{ key: TabKey; label: string }> = [
 ];
 
 const mealTypes: MealType[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
+const weekDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const createEmptyWeek = (planId: string, weekIndex: number, startDate: string): WeekAssignment => {
   const start = new Date(`${startDate}T00:00:00`);
@@ -57,6 +58,11 @@ export default function MonthlyPlanDetailEditorPage() {
     mealId: "",
     badges: ""
   });
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [detailMealId, setDetailMealId] = useState<string | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [categoryMealDraft, setCategoryMealDraft] = useState("");
+  const [newCardDate, setNewCardDate] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
 
@@ -95,12 +101,144 @@ export default function MonthlyPlanDetailEditorPage() {
   );
 
   const meals = mealsData?.data ?? [];
+  const customCategories = draft?.plan.content.customStepTwo?.categories ?? [];
+  const customCategoryNames = customCategories.map((item) => item.name);
+
+  const mealCategories = useMemo(() => {
+    const categories = new Set<string>();
+    meals
+      .filter((meal) => meal.status === "active")
+      .forEach((meal) => {
+        if (meal.tags.length) {
+          meal.tags.forEach((tag) => categories.add(tag.toUpperCase()));
+        } else {
+          categories.add(meal.mealType.toUpperCase());
+        }
+      });
+    customCategoryNames.forEach((name) => categories.add(name));
+    return ["All", ...Array.from(categories)];
+  }, [meals, customCategoryNames]);
+
+  const categoryMeals = useMemo(() => {
+    const activeMeals = meals.filter((meal) => meal.status === "active");
+    if (activeCategory === "All") return activeMeals;
+    const selectedCustom = customCategories.find((item) => item.name === activeCategory);
+    if (selectedCustom) {
+      return activeMeals.filter((meal) => selectedCustom.mealIds.includes(meal.id));
+    }
+    return activeMeals.filter(
+      (meal) =>
+        meal.tags.map((tag) => tag.toUpperCase()).includes(activeCategory) ||
+        meal.mealType.toUpperCase() === activeCategory
+    );
+  }, [meals, activeCategory, customCategories]);
+
   const selectableMeals = useMemo(
     () => meals.filter((meal) => meal.status === "active" && meal.mealType === newAssignment.mealType),
     [meals, newAssignment.mealType]
   );
 
   const selectedMealsOnDate = selectedWeek && selectedDate ? selectedWeek.mealsByDate[selectedDate] ?? [] : [];
+  const detailMeal = meals.find((meal) => meal.id === detailMealId) ?? null;
+  const isCustomPlan = draft?.plan.planKind === "custom";
+
+  const formatDayDate = (isoDate: string) => {
+    const date = new Date(`${isoDate}T00:00:00`);
+    return `${weekDays[date.getDay()]}, ${isoDate}`;
+  };
+
+  const addCustomCategory = () => {
+    const normalized = newCategoryName.trim().toUpperCase();
+    if (!normalized) return;
+    if (!draft) return;
+    if (mealCategories.includes(normalized)) return;
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            plan: {
+              ...prev.plan,
+              content: {
+                ...prev.plan.content,
+                customStepTwo: {
+                  categories: [...(prev.plan.content.customStepTwo?.categories ?? []), { name: normalized, mealIds: [] }]
+                }
+              }
+            }
+          }
+        : prev
+    );
+    setNewCategoryName("");
+    setActiveCategory(normalized);
+  };
+
+  const removeCustomCategory = (categoryName: string) => {
+    if (!draft) return;
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            plan: {
+              ...prev.plan,
+              content: {
+                ...prev.plan.content,
+                customStepTwo: {
+                  categories: (prev.plan.content.customStepTwo?.categories ?? []).filter((item) => item.name !== categoryName)
+                }
+              }
+            }
+          }
+        : prev
+    );
+    if (activeCategory === categoryName) setActiveCategory("All");
+  };
+
+  const addMealToCustomCategory = () => {
+    if (!draft || !categoryMealDraft || !activeCategory) return;
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            plan: {
+              ...prev.plan,
+              content: {
+                ...prev.plan.content,
+                customStepTwo: {
+                  categories: (prev.plan.content.customStepTwo?.categories ?? []).map((item) =>
+                    item.name === activeCategory && !item.mealIds.includes(categoryMealDraft)
+                      ? { ...item, mealIds: [...item.mealIds, categoryMealDraft] }
+                      : item
+                  )
+                }
+              }
+            }
+          }
+        : prev
+    );
+    setCategoryMealDraft("");
+  };
+
+  const addYourCardDate = () => {
+    if (!draft || !selectedWeek || !newCardDate) return;
+    setDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        weekAssignments: prev.weekAssignments.map((week) => {
+          if (week.id !== selectedWeek.id) return week;
+          if (week.mealsByDate[newCardDate]) return week;
+          return {
+            ...week,
+            mealsByDate: {
+              ...week.mealsByDate,
+              [newCardDate]: []
+            }
+          };
+        })
+      };
+    });
+    setNewCardDate("");
+  };
 
   const validate = (payload: MonthlyPlanDetailsPayload) => {
     if (!payload.plan.title.trim()) return "Title is required.";
@@ -158,11 +296,10 @@ export default function MonthlyPlanDetailEditorPage() {
     setSelectedWeekId(week.id);
   };
 
-  const addMealToDate = () => {
-    if (!draft || !selectedWeek || !selectedDate || !newAssignment.mealId) return;
-    const selectedMeal = meals.find((meal) => meal.id === newAssignment.mealId);
+  const assignMealToDate = (selectedMealId: string, mealType: MealType, badgeText: string) => {
+    if (!draft || !selectedWeek || !selectedDate) return;
+    const selectedMeal = meals.find((meal) => meal.id === selectedMealId);
     if (!selectedMeal) return;
-
     setDraft((prev) => {
       if (!prev) return prev;
       return {
@@ -180,9 +317,9 @@ export default function MonthlyPlanDetailEditorPage() {
                   id: `assigned-${Date.now()}`,
                   mealId: selectedMeal.id,
                   mealName: selectedMeal.name,
-                  mealType: newAssignment.mealType,
+                  mealType,
                   date: selectedDate,
-                  badges: newAssignment.badges
+                  badges: badgeText
                     .split(",")
                     .map((tag) => tag.trim())
                     .filter(Boolean)
@@ -193,6 +330,11 @@ export default function MonthlyPlanDetailEditorPage() {
         })
       };
     });
+  };
+
+  const addMealToDate = () => {
+    if (!newAssignment.mealId) return;
+    assignMealToDate(newAssignment.mealId, newAssignment.mealType, newAssignment.badges);
     setNewAssignment((prev) => ({ ...prev, mealId: "", badges: "" }));
   };
 
@@ -491,6 +633,125 @@ export default function MonthlyPlanDetailEditorPage() {
                   ))}
                 </div>
 
+                {isCustomPlan ? (
+                  <>
+                    <div className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Category Navigation (Custom Plan Step 2)</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {mealCategories.map((category) => (
+                          <div key={category} className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setActiveCategory(category)}
+                              className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                                activeCategory === category ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"
+                              }`}
+                            >
+                              {category}
+                            </button>
+                            {customCategoryNames.includes(category) ? (
+                              <button
+                                type="button"
+                                onClick={() => removeCustomCategory(category)}
+                                className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-2 py-1 text-[10px] text-rose-100"
+                                title={`Remove ${category}`}
+                              >
+                                Remove
+                              </button>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
+                        <input
+                          value={newCategoryName}
+                          onChange={(event) => setNewCategoryName(event.target.value)}
+                          placeholder="New category name (e.g. CHICKEN)"
+                          className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                        />
+                        <button
+                          type="button"
+                          onClick={addCustomCategory}
+                          className="rounded-xl bg-amber-300 px-3 py-2 text-sm font-semibold text-zinc-900"
+                        >
+                          Add Category
+                        </button>
+                      </div>
+                      {customCategoryNames.includes(activeCategory) ? (
+                        <div className="mt-3 space-y-2 rounded-xl border border-zinc-700 bg-zinc-950/40 p-3">
+                          <p className="text-xs text-zinc-400">Manage custom category: {activeCategory}</p>
+                          <div className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
+                            <select
+                              value={categoryMealDraft}
+                              onChange={(event) => setCategoryMealDraft(event.target.value)}
+                              className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                            >
+                              <option value="">Select meal to add in this category</option>
+                              {meals
+                                .filter((meal) => meal.status === "active")
+                                .map((meal) => (
+                                  <option key={`cat-meal-${meal.id}`} value={meal.id}>
+                                    {meal.name}
+                                  </option>
+                                ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={addMealToCustomCategory}
+                              className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-xs text-zinc-100"
+                            >
+                              Add Item
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeCustomCategory(activeCategory)}
+                              className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-100"
+                            >
+                              Remove Category
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {categoryMeals.map((meal) => (
+                        <article key={meal.id} className="rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-4">
+                          <div className="h-28 rounded-lg bg-gradient-to-br from-zinc-700/70 via-zinc-800/70 to-zinc-900/70" />
+                          <h4 className="mt-3 text-base font-semibold text-white">{meal.name}</h4>
+                          <p className="text-xs text-zinc-400">{meal.mealType}</p>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {meal.tags.map((tag) => (
+                              <span key={`${meal.id}-${tag}`} className="rounded-full border border-zinc-600 px-2 py-0.5 text-[10px] text-zinc-300">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setDetailMealId(meal.id)}
+                              className="flex-1 rounded-lg border border-zinc-600 bg-zinc-950/70 px-3 py-1.5 text-xs text-zinc-100"
+                            >
+                              Details
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => assignMealToDate(meal.id, meal.mealType, meal.tags.join(","))}
+                              className="flex-1 rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900"
+                            >
+                              Select
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                      {!categoryMeals.length ? (
+                        <p className="text-sm text-zinc-400">এই category-তে কোন active food item নেই।</p>
+                      ) : null}
+                    </div>
+                  </>
+                ) : null}
+
                 <div className="grid gap-3 md:grid-cols-4">
                   <select
                     value={newAssignment.mealType}
@@ -550,6 +811,43 @@ export default function MonthlyPlanDetailEditorPage() {
                   ))}
                   {!selectedMealsOnDate.length ? <p className="text-sm text-zinc-400">No meals assigned for this date yet.</p> : null}
                 </div>
+
+                {isCustomPlan ? (
+                  <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/55 p-4">
+                    <h4 className="text-2xl font-semibold text-white">Your Cards</h4>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <input
+                        type="date"
+                        value={newCardDate}
+                        onChange={(event) => setNewCardDate(event.target.value)}
+                        className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={addYourCardDate}
+                        className="rounded-xl bg-amber-300 px-3 py-2 text-sm font-semibold text-zinc-900"
+                      >
+                        Add Your Card Date
+                      </button>
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {Object.keys(selectedWeek.mealsByDate).map((dateIso) => {
+                        const items = selectedWeek.mealsByDate[dateIso] ?? [];
+                        const mealCount = items.filter((item) => item.mealType !== "Snack").length;
+                        const snackCount = items.filter((item) => item.mealType === "Snack").length;
+                        return (
+                          <article key={`card-${dateIso}`} className="rounded-xl border border-zinc-700/70 bg-zinc-900/70 p-3">
+                            <p className="text-xs text-amber-200">{formatDayDate(dateIso)}</p>
+                            <p className="mt-2 text-sm font-semibold text-white">Meals</p>
+                            <p className="text-xs text-zinc-300">{mealCount} selected</p>
+                            <p className="mt-2 text-sm font-semibold text-white">Snacks</p>
+                            <p className="text-xs text-zinc-300">{snackCount} selected</p>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </>
             ) : (
               <p className="text-sm text-zinc-400">No week assignments available.</p>
@@ -720,6 +1018,56 @@ export default function MonthlyPlanDetailEditorPage() {
 
       {saveError ? <ErrorState label={saveError} /> : null}
       {saveMessage ? <p className="text-sm text-emerald-300">{saveMessage}</p> : null}
+
+      {isCustomPlan && detailMeal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/70 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-zinc-700 bg-zinc-900 p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-2xl font-semibold text-white">{detailMeal.name}</h3>
+                <p className="text-sm text-zinc-400">{detailMeal.mealType}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailMealId(null)}
+                className="rounded-lg border border-zinc-600 px-3 py-1.5 text-xs text-zinc-200"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="rounded-lg border border-zinc-700 bg-zinc-950/50 p-3">
+                <p className="text-xs text-zinc-400">Calories</p>
+                <p className="mt-1 text-lg font-semibold text-white">{detailMeal.calories}</p>
+              </div>
+              <div className="rounded-lg border border-zinc-700 bg-zinc-950/50 p-3">
+                <p className="text-xs text-zinc-400">Fat</p>
+                <p className="mt-1 text-lg font-semibold text-white">{detailMeal.fat}</p>
+              </div>
+              <div className="rounded-lg border border-zinc-700 bg-zinc-950/50 p-3">
+                <p className="text-xs text-zinc-400">Protein</p>
+                <p className="mt-1 text-lg font-semibold text-white">{detailMeal.protein}</p>
+              </div>
+              <div className="rounded-lg border border-zinc-700 bg-zinc-950/50 p-3">
+                <p className="text-xs text-zinc-400">Carb</p>
+                <p className="mt-1 text-lg font-semibold text-white">{detailMeal.carbs}</p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  assignMealToDate(detailMeal.id, detailMeal.mealType, detailMeal.tags.join(","));
+                  setDetailMealId(null);
+                }}
+                className="rounded-xl bg-amber-300 px-5 py-2 text-sm font-semibold text-zinc-900"
+              >
+                Select
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex items-center gap-2">
         <button
