@@ -9,8 +9,11 @@ const pageTitleMap: Record<string, string> = {
   "/admin/products": "Products",
   "/admin/orders": "Orders",
   "/admin/customers": "Locations",
+  "/admin/locations": "Locations",
   "/admin/monthly-plans": "Monthly Plans",
+  "/admin/meal-library": "Meal Library",
   "/admin/subscriptions": "Subscriptions",
+  "/admin/settings/monthly-plan": "Monthly Plan Settings",
   "/admin/orders-of-day": "Orders of the Day",
   "/admin/printing": "Printing",
   "/admin/notifications": "Notifications",
@@ -37,7 +40,7 @@ function ProfileIcon() {
 
 export default function AdminTopbar() {
   const pathname = usePathname();
-  const title = pageTitleMap[pathname] ?? "Admin";
+  const title = pathname.startsWith("/admin/monthly-plans/") ? "Monthly Plan Details" : pageTitleMap[pathname] ?? "Admin";
 
   return (
     <header className="admin-panel relative z-40 mb-6 flex items-center justify-between overflow-visible rounded-2xl px-4 py-3.5 md:px-5">

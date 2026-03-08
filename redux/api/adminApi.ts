@@ -1,4 +1,15 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { monthlyPlanMockAdapter, type MonthlyPlanDetailsPayload } from "@/redux/monthlyPlans/mockAdapter";
+import type {
+  LocationRecord,
+  MealLibraryItem,
+  MonthlyPlan,
+  MonthlyPlanGlobalSettings,
+  MonthlyPlanOverview,
+  OrderRecord,
+  PlanKind,
+  SubscriptionRecord
+} from "@/redux/monthlyPlans/types";
 
 const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000/api/v1";
 
@@ -6,6 +17,12 @@ type ApiResponse<T> = {
   success: boolean;
   data: T;
   message?: string;
+};
+
+type PlanListFilters = {
+  kind?: PlanKind | "all";
+  status?: MonthlyPlan["status"] | "all";
+  search?: string;
 };
 
 export const adminApi = createApi({
@@ -23,7 +40,14 @@ export const adminApi = createApi({
     "Subscriptions",
     "Notifications",
     "OrdersOfDay",
-    "Printable"
+    "Printable",
+    "MonthlyPlanAdmin",
+    "MonthlyPlanDetails",
+    "MealLibraryAdmin",
+    "LocationAdmin",
+    "MonthlySubscriptionAdmin",
+    "MonthlyOrderAdmin",
+    "MonthlySettingsAdmin"
   ],
   endpoints: (builder) => ({
     getDashboard: builder.query<ApiResponse<any>, void>({
@@ -172,6 +196,129 @@ export const adminApi = createApi({
     }),
     resetPassword: builder.mutation<ApiResponse<any>, { email: string; newPassword: string }>({
       query: (body) => ({ url: "/auth/reset-password", method: "POST", body })
+    }),
+
+    getMonthlyPlanOverview: builder.query<ApiResponse<MonthlyPlanOverview>, void>({
+      queryFn: async () => {
+        const data = await monthlyPlanMockAdapter.getOverview();
+        return { data: { success: true, data } };
+      },
+      providesTags: ["MonthlyPlanAdmin"]
+    }),
+    getMonthlyPlanAdminList: builder.query<ApiResponse<MonthlyPlan[]>, PlanListFilters | void>({
+      queryFn: async (filters) => {
+        const data = await monthlyPlanMockAdapter.listPlans(filters ?? {});
+        return { data: { success: true, data } };
+      },
+      providesTags: ["MonthlyPlanAdmin"]
+    }),
+    getMonthlyPlanDetails: builder.query<ApiResponse<MonthlyPlanDetailsPayload | null>, string>({
+      queryFn: async (id) => {
+        const data = await monthlyPlanMockAdapter.getPlanById(id);
+        return { data: { success: true, data } };
+      },
+      providesTags: (_result, _error, id) => [{ type: "MonthlyPlanDetails", id }]
+    }),
+    upsertMonthlyPlanDetails: builder.mutation<ApiResponse<MonthlyPlanDetailsPayload>, MonthlyPlanDetailsPayload>({
+      queryFn: async (payload) => {
+        const data = await monthlyPlanMockAdapter.upsertPlanDetails(payload);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: (_result, _error, payload) => [
+        "MonthlyPlanAdmin",
+        { type: "MonthlyPlanDetails", id: payload.plan.id }
+      ]
+    }),
+    archiveMonthlyPlan: builder.mutation<ApiResponse<{ id: string; status: MonthlyPlan["status"] } | null>, string>({
+      queryFn: async (id) => {
+        const data = await monthlyPlanMockAdapter.archivePlan(id);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["MonthlyPlanAdmin"]
+    }),
+    getMealLibraryAdmin: builder.query<ApiResponse<MealLibraryItem[]>, void>({
+      queryFn: async () => {
+        const data = await monthlyPlanMockAdapter.listMealLibrary();
+        return { data: { success: true, data } };
+      },
+      providesTags: ["MealLibraryAdmin"]
+    }),
+    upsertMealLibraryAdmin: builder.mutation<ApiResponse<MealLibraryItem>, MealLibraryItem>({
+      queryFn: async (payload) => {
+        const data = await monthlyPlanMockAdapter.upsertMealLibraryItem(payload);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin"]
+    }),
+    deleteMealLibraryAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
+      queryFn: async (id) => {
+        const data = await monthlyPlanMockAdapter.deleteMealLibraryItem(id);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin"]
+    }),
+    getMonthlySubscriptionsAdmin: builder.query<ApiResponse<SubscriptionRecord[]>, void>({
+      queryFn: async () => {
+        const data = await monthlyPlanMockAdapter.listSubscriptions();
+        return { data: { success: true, data } };
+      },
+      providesTags: ["MonthlySubscriptionAdmin"]
+    }),
+    updateMonthlySubscriptionAdmin: builder.mutation<ApiResponse<SubscriptionRecord | null>, { id: string; patch: Partial<SubscriptionRecord> }>({
+      queryFn: async ({ id, patch }) => {
+        const data = await monthlyPlanMockAdapter.updateSubscription(id, patch);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["MonthlySubscriptionAdmin", "MonthlyPlanAdmin"]
+    }),
+    getMonthlyOrdersAdmin: builder.query<ApiResponse<OrderRecord[]>, void>({
+      queryFn: async () => {
+        const data = await monthlyPlanMockAdapter.listOrders();
+        return { data: { success: true, data } };
+      },
+      providesTags: ["MonthlyOrderAdmin"]
+    }),
+    updateMonthlyOrderAdmin: builder.mutation<ApiResponse<OrderRecord | null>, { id: string; patch: Partial<OrderRecord> }>({
+      queryFn: async ({ id, patch }) => {
+        const data = await monthlyPlanMockAdapter.updateOrder(id, patch);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["MonthlyOrderAdmin", "MonthlyPlanAdmin"]
+    }),
+    getMonthlyLocationsAdmin: builder.query<ApiResponse<LocationRecord[]>, void>({
+      queryFn: async () => {
+        const data = await monthlyPlanMockAdapter.listLocations();
+        return { data: { success: true, data } };
+      },
+      providesTags: ["LocationAdmin"]
+    }),
+    upsertMonthlyLocationAdmin: builder.mutation<ApiResponse<LocationRecord>, LocationRecord>({
+      queryFn: async (payload) => {
+        const data = await monthlyPlanMockAdapter.upsertLocation(payload);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["LocationAdmin"]
+    }),
+    deleteMonthlyLocationAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
+      queryFn: async (id) => {
+        const data = await monthlyPlanMockAdapter.deleteLocation(id);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["LocationAdmin"]
+    }),
+    getMonthlyPlanSettings: builder.query<ApiResponse<MonthlyPlanGlobalSettings>, void>({
+      queryFn: async () => {
+        const data = await monthlyPlanMockAdapter.getSettings();
+        return { data: { success: true, data } };
+      },
+      providesTags: ["MonthlySettingsAdmin"]
+    }),
+    updateMonthlyPlanSettings: builder.mutation<ApiResponse<MonthlyPlanGlobalSettings>, Partial<MonthlyPlanGlobalSettings>>({
+      queryFn: async (payload) => {
+        const data = await monthlyPlanMockAdapter.updateSettings(payload);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["MonthlySettingsAdmin"]
     })
   })
 });
@@ -211,6 +358,23 @@ export const {
   useAdminLoginMutation,
   useSendCodeMutation,
   useVerifyCodeMutation,
-  useResetPasswordMutation
+  useResetPasswordMutation,
+  useGetMonthlyPlanOverviewQuery,
+  useGetMonthlyPlanAdminListQuery,
+  useGetMonthlyPlanDetailsQuery,
+  useUpsertMonthlyPlanDetailsMutation,
+  useArchiveMonthlyPlanMutation,
+  useGetMealLibraryAdminQuery,
+  useUpsertMealLibraryAdminMutation,
+  useDeleteMealLibraryAdminMutation,
+  useGetMonthlySubscriptionsAdminQuery,
+  useUpdateMonthlySubscriptionAdminMutation,
+  useGetMonthlyOrdersAdminQuery,
+  useUpdateMonthlyOrderAdminMutation,
+  useGetMonthlyLocationsAdminQuery,
+  useUpsertMonthlyLocationAdminMutation,
+  useDeleteMonthlyLocationAdminMutation,
+  useGetMonthlyPlanSettingsQuery,
+  useUpdateMonthlyPlanSettingsMutation
 } = adminApi;
 
