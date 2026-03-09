@@ -222,6 +222,10 @@ export const adminApi = createApi({
       query: (id) => ({ url: `/admin/monthly-plan/plans/${id}/archive`, method: "PATCH" }),
       invalidatesTags: ["MonthlyPlanAdmin"]
     }),
+    deleteMonthlyPlanAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
+      query: (id) => ({ url: `/admin/monthly-plan/plans/${id}`, method: "DELETE" }),
+      invalidatesTags: ["MonthlyPlanAdmin"]
+    }),
     getMealLibraryAdmin: builder.query<ApiResponse<MealLibraryItem[]>, void>({
       query: () => "/admin/monthly-plan/meals",
       providesTags: ["MealLibraryAdmin"]
@@ -341,6 +345,7 @@ export const {
   useGetMonthlyPlanDetailsQuery,
   useUpsertMonthlyPlanDetailsMutation,
   useArchiveMonthlyPlanMutation,
+  useDeleteMonthlyPlanAdminMutation,
   useGetMealLibraryAdminQuery,
   useUpsertMealLibraryAdminMutation,
   useDeleteMealLibraryAdminMutation,
