@@ -1,9 +1,10 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { monthlyPlanMockAdapter, type MonthlyPlanDetailsPayload } from "@/redux/monthlyPlans/mockAdapter";
+import { monthlyPlanMockAdapter } from "@/redux/monthlyPlans/mockAdapter";
 import type {
   LocationRecord,
   MealLibraryItem,
   MonthlyPlan,
+  MonthlyPlanDetailsPayload,
   MonthlyPlanGlobalSettings,
   MonthlyPlanOverview,
   OrderRecord,
@@ -199,62 +200,42 @@ export const adminApi = createApi({
     }),
 
     getMonthlyPlanOverview: builder.query<ApiResponse<MonthlyPlanOverview>, void>({
-      queryFn: async () => {
-        const data = await monthlyPlanMockAdapter.getOverview();
-        return { data: { success: true, data } };
-      },
+      query: () => "/admin/monthly-plan/overview",
       providesTags: ["MonthlyPlanAdmin"]
     }),
     getMonthlyPlanAdminList: builder.query<ApiResponse<MonthlyPlan[]>, PlanListFilters | void>({
-      queryFn: async (filters) => {
-        const data = await monthlyPlanMockAdapter.listPlans(filters ?? {});
-        return { data: { success: true, data } };
-      },
+      query: (filters) => ({ url: "/admin/monthly-plan/plans", params: filters ?? {} }),
       providesTags: ["MonthlyPlanAdmin"]
     }),
     getMonthlyPlanDetails: builder.query<ApiResponse<MonthlyPlanDetailsPayload | null>, string>({
-      queryFn: async (id) => {
-        const data = await monthlyPlanMockAdapter.getPlanById(id);
-        return { data: { success: true, data } };
-      },
+      query: (id) => `/admin/monthly-plan/plans/${id}`,
       providesTags: (_result, _error, id) => [{ type: "MonthlyPlanDetails", id }]
     }),
     upsertMonthlyPlanDetails: builder.mutation<ApiResponse<MonthlyPlanDetailsPayload>, MonthlyPlanDetailsPayload>({
-      queryFn: async (payload) => {
-        const data = await monthlyPlanMockAdapter.upsertPlanDetails(payload);
-        return { data: { success: true, data } };
-      },
+      query: (payload) => ({ url: `/admin/monthly-plan/plans/${payload.plan.id}`, method: "PUT", body: payload }),
       invalidatesTags: (_result, _error, payload) => [
         "MonthlyPlanAdmin",
         { type: "MonthlyPlanDetails", id: payload.plan.id }
       ]
     }),
     archiveMonthlyPlan: builder.mutation<ApiResponse<{ id: string; status: MonthlyPlan["status"] } | null>, string>({
-      queryFn: async (id) => {
-        const data = await monthlyPlanMockAdapter.archivePlan(id);
-        return { data: { success: true, data } };
-      },
+      query: (id) => ({ url: `/admin/monthly-plan/plans/${id}/archive`, method: "PATCH" }),
+      invalidatesTags: ["MonthlyPlanAdmin"]
+    }),
+    deleteMonthlyPlanAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
+      query: (id) => ({ url: `/admin/monthly-plan/plans/${id}`, method: "DELETE" }),
       invalidatesTags: ["MonthlyPlanAdmin"]
     }),
     getMealLibraryAdmin: builder.query<ApiResponse<MealLibraryItem[]>, void>({
-      queryFn: async () => {
-        const data = await monthlyPlanMockAdapter.listMealLibrary();
-        return { data: { success: true, data } };
-      },
+      query: () => "/admin/monthly-plan/meals",
       providesTags: ["MealLibraryAdmin"]
     }),
     upsertMealLibraryAdmin: builder.mutation<ApiResponse<MealLibraryItem>, MealLibraryItem>({
-      queryFn: async (payload) => {
-        const data = await monthlyPlanMockAdapter.upsertMealLibraryItem(payload);
-        return { data: { success: true, data } };
-      },
+      query: (payload) => ({ url: `/admin/monthly-plan/meals/${payload.id}`, method: "PUT", body: payload }),
       invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin"]
     }),
     deleteMealLibraryAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
-      queryFn: async (id) => {
-        const data = await monthlyPlanMockAdapter.deleteMealLibraryItem(id);
-        return { data: { success: true, data } };
-      },
+      query: (id) => ({ url: `/admin/monthly-plan/meals/${id}`, method: "DELETE" }),
       invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin"]
     }),
     getMonthlySubscriptionsAdmin: builder.query<ApiResponse<SubscriptionRecord[]>, void>({
@@ -364,6 +345,7 @@ export const {
   useGetMonthlyPlanDetailsQuery,
   useUpsertMonthlyPlanDetailsMutation,
   useArchiveMonthlyPlanMutation,
+  useDeleteMonthlyPlanAdminMutation,
   useGetMealLibraryAdminQuery,
   useUpsertMealLibraryAdminMutation,
   useDeleteMealLibraryAdminMutation,

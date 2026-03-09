@@ -200,3 +200,10 @@ export interface MonthlyPlanEntities {
   locations: Record<string, LocationRecord>;
   settings: MonthlyPlanGlobalSettings;
 }
+
+export interface MonthlyPlanDetailsPayload {
+  plan: MonthlyPlan;
+  rules: PlanRuleConfig;
+  pricing: PricingConfig;
+  weekAssignments: WeekAssignment[];
+}

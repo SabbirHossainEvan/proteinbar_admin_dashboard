@@ -9,8 +9,7 @@ import {
   useGetMonthlyPlanDetailsQuery,
   useUpsertMonthlyPlanDetailsMutation
 } from "@/redux/api/adminApi";
-import type { MonthlyPlanDetailsPayload } from "@/redux/monthlyPlans/mockAdapter";
-import type { MealType, WeekAssignment } from "@/redux/monthlyPlans/types";
+import type { MealType, MonthlyPlanDetailsPayload, WeekAssignment } from "@/redux/monthlyPlans/types";
 
 type TabKey = "general" | "rules" | "assignment" | "pricing" | "content";
 
