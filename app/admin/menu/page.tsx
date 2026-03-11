@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useMemo, useRef, useState } from "react";
 import StatusBadge from "@/components/admin/StatusBadge";
 import {
   useCreateMenuItemMutation,
@@ -17,6 +17,7 @@ type MenuItem = {
   id?: string;
   menuId: string;
   title: string;
+  image: string;
   linkedProductSkus: string[];
   visibleDays: string[];
   timeSlots: string[];
@@ -31,6 +32,7 @@ const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const initialForm = {
   title: "",
+  image: "",
   linkedProductSkus: [] as string[],
   visibleDays: [] as string[],
   timeSlots: "",
@@ -67,6 +69,7 @@ export default function MenuPage() {
       id: item.id,
       menuId: item.menuId ?? "",
       title: item.title ?? "",
+      image: item.image ?? "",
       linkedProductSkus: Array.isArray(item.linkedProductSkus) ? item.linkedProductSkus : [],
       visibleDays: Array.isArray(item.visibleDays) ? item.visibleDays : [],
       timeSlots: Array.isArray(item.timeSlots) ? item.timeSlots : [],
@@ -90,11 +93,35 @@ export default function MenuPage() {
     setSubmitError("");
   };
 
+  const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setSubmitError("Please choose a valid image file.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      setForm((prev) => ({ ...prev, image: result }));
+      setSubmitError("");
+    };
+    reader.onerror = () => {
+      setSubmitError("Failed to read image file.");
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitError("");
 
-    if (!form.title.trim() || !form.linkedProductSkus.length) return;
+    if (!form.title.trim() || !form.linkedProductSkus.length || !form.image.trim()) {
+      setSubmitError("Title, image, and linked products are required.");
+      return;
+    }
 
     const currentMenuId = editingId
       ? items.find((item) => getMenuItemId(item) === editingId)?.menuId ?? `MENU-${Date.now()}`
@@ -103,6 +130,7 @@ export default function MenuPage() {
     const payload = {
       menuId: currentMenuId,
       title: form.title.trim(),
+      image: form.image.trim(),
       linkedProductSkus: form.linkedProductSkus,
       visibleDays: form.visibleDays,
       timeSlots: form.timeSlots
@@ -137,6 +165,7 @@ export default function MenuPage() {
     setEditingId(id);
     setForm({
       title: item.title,
+      image: item.image,
       linkedProductSkus: item.linkedProductSkus,
       visibleDays: item.visibleDays,
       timeSlots: item.timeSlots.join(", "),
@@ -182,6 +211,22 @@ export default function MenuPage() {
             required
             className="md:col-span-2 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
           />
+
+          <label className="md:col-span-2 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-3 text-sm text-zinc-200">
+            <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-zinc-400">Menu Image (Required)</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              required={!form.image}
+              className="block w-full cursor-pointer text-xs text-zinc-300 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-300 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-900"
+            />
+            {form.image ? (
+              <div className="mt-3 overflow-hidden rounded-lg border border-zinc-700/70">
+                <img src={form.image} alt="Menu item preview" className="h-36 w-full object-cover" />
+              </div>
+            ) : null}
+          </label>
 
           <label className="md:col-span-2 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-3 text-sm text-zinc-200">
             <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-zinc-400">Attach Product(s)</span>
@@ -297,6 +342,7 @@ export default function MenuPage() {
               <tr>
                 <th className="pb-2 pr-4 font-medium">Menu ID</th>
                 <th className="pb-2 pr-4 font-medium">Title</th>
+                <th className="pb-2 pr-4 font-medium">Image</th>
                 <th className="pb-2 pr-4 font-medium">Linked Products</th>
                 <th className="pb-2 pr-4 font-medium">Visibility</th>
                 <th className="pb-2 pr-4 font-medium">Meal Types</th>
@@ -313,6 +359,13 @@ export default function MenuPage() {
                   <tr key={id || item.menuId}>
                     <td className="py-3.5 pr-4 text-zinc-200">{item.menuId}</td>
                     <td className="py-3.5 pr-4 text-zinc-100">{item.title}</td>
+                    <td className="py-3.5 pr-4">
+                      {item.image ? (
+                        <img src={item.image} alt={item.title} className="h-14 w-20 rounded-lg object-cover" />
+                      ) : (
+                        <span className="text-zinc-500">No image</span>
+                      )}
+                    </td>
                     <td className="py-3.5 pr-4 text-zinc-300">{item.linkedProductSkus.join(", ")}</td>
                     <td className="py-3.5 pr-4 text-zinc-300">
                       {item.visibleDays.join(", ")}
@@ -346,7 +399,7 @@ export default function MenuPage() {
               })}
               {!isLoading && items.length === 0 ? (
                 <tr>
-                  <td className="py-3.5 text-zinc-400" colSpan={9}>No menu items found.</td>
+                  <td className="py-3.5 text-zinc-400" colSpan={10}>No menu items found.</td>
                 </tr>
               ) : null}
             </tbody>
