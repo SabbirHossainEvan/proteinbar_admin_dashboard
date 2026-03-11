@@ -154,6 +154,10 @@ export const adminApi = createApi({
       query: (params) => ({ url: "/orders", params: params ?? {} }),
       providesTags: ["Orders"]
     }),
+    getOrderDetails: builder.query<ApiResponse<any>, string>({
+      query: (id) => `/orders/${id}`,
+      providesTags: (_result, _error, id) => [{ type: "Orders", id }]
+    }),
     updateOrder: builder.mutation<ApiResponse<any>, { id: string; body: any }>({
       query: ({ id, body }) => ({ url: `/orders/${id}`, method: "PATCH", body }),
       invalidatesTags: ["Orders", "Dashboard", "OrdersOfDay", "Printable"]
@@ -162,6 +166,10 @@ export const adminApi = createApi({
     getSubscriptions: builder.query<ApiResponse<any[]>, void>({
       query: () => "/subscriptions",
       providesTags: ["Subscriptions"]
+    }),
+    getSubscriptionDetails: builder.query<ApiResponse<any>, string>({
+      query: (id) => `/subscriptions/${id}`,
+      providesTags: (_result, _error, id) => [{ type: "Subscriptions", id }]
     }),
     updateSubscription: builder.mutation<ApiResponse<any>, { id: string; body: any }>({
       query: ({ id, body }) => ({ url: `/subscriptions/${id}`, method: "PATCH", body }),
@@ -329,8 +337,10 @@ export const {
   useUpdateIngredientMutation,
   useDeleteIngredientMutation,
   useGetOrdersQuery,
+  useGetOrderDetailsQuery,
   useUpdateOrderMutation,
   useGetSubscriptionsQuery,
+  useGetSubscriptionDetailsQuery,
   useUpdateSubscriptionMutation,
   useGetNotificationsQuery,
   useDeleteNotificationMutation,

@@ -42,7 +42,7 @@ export default function OrdersOfDayPage() {
   const { data, isLoading, isError } = useGetOrdersOfDayQuery();
 
   const todaysOrders = useMemo<TodaysOrder[]>(() => {
-    return (data?.data ?? []).map((order: any) => ({
+    return (Array.isArray(data?.data) ? data.data : []).map((order: any) => ({
       id: order.orderId ?? "",
       client: order.client ?? "",
       mode: order.orderType ?? "Delivery",
@@ -144,3 +144,4 @@ export default function OrdersOfDayPage() {
     </section>
   );
 }
+
