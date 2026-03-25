@@ -520,169 +520,173 @@ export default function MonthlyPlanDetailEditorPage() {
               </label>
             </div>
 
-            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-              <p className="text-sm font-semibold text-white">Allowed Week Days</p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                {weekDayOptions.map((day) => {
-                  const checked = draft.rules.deliveryDaysRule.allowedWeekDays.includes(day.value);
-                  return (
-                    <label key={day.value} className="flex items-center gap-2 rounded-xl border border-zinc-700/70 bg-zinc-900/55 px-3 py-2 text-sm text-zinc-100">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(event) => {
-                          const next = event.target.checked
-                            ? [...draft.rules.deliveryDaysRule.allowedWeekDays, day.value]
-                            : draft.rules.deliveryDaysRule.allowedWeekDays.filter((value) => value !== day.value);
-                          setRulesField("deliveryDaysRule", {
-                            ...draft.rules.deliveryDaysRule,
-                            allowedWeekDays: [...new Set(next)].sort((a, b) => a - b)
-                          });
-                        }}
-                      />
-                      <span>{day.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-              <p className="text-sm font-semibold text-white">Default Selection</p>
-              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                <label className="space-y-1">
-                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Meals</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={draft.rules.defaults.meals}
-                    onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, meals: Number(event.target.value) })}
-                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Days</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={draft.rules.defaults.days}
-                    onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, days: Number(event.target.value) })}
-                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Snacks</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={draft.rules.defaults.snacks}
-                    onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, snacks: Number(event.target.value) })}
-                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Plan Type</span>
-                  <input
-                    value={draft.rules.defaults.planType ?? ""}
-                    onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, planType: event.target.value || undefined })}
-                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                  />
-                </label>
-                <label className="space-y-1 md:col-span-2">
-                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Delivery Days</span>
-                  <input
-                    value={draft.rules.defaults.deliveryDays.join(",")}
-                    onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, deliveryDays: parseNumberList(event.target.value, 0) })}
-                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-              <p className="text-sm font-semibold text-white">Delivery Options</p>
-              <div className="mt-3 space-y-3">
-                {draft.rules.deliveryOptionConfigs.map((config, index) => (
-                  <div key={`${config.option}-${index}`} className="grid gap-3 rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-3 md:grid-cols-2 xl:grid-cols-6">
-                    <select
-                      value={config.option}
-                      onChange={(event) => {
-                        const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, option: event.target.value as DeliveryOptionConfig["option"] } : item
-                        );
-                        setRulesField("deliveryOptionConfigs", next);
-                      }}
-                      className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                    >
-                      {deliveryOptionIds.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      value={config.label}
-                      onChange={(event) => {
-                        const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, label: event.target.value } : item
-                        );
-                        setRulesField("deliveryOptionConfigs", next);
-                      }}
-                      className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                    />
-                    <label className="flex items-center gap-2 rounded-xl border border-zinc-700/70 bg-zinc-900/55 px-3 py-2 text-sm text-zinc-100">
-                      <input
-                        type="checkbox"
-                        checked={config.enabled}
-                        onChange={(event) => {
-                          const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
-                            itemIndex === index ? { ...item, enabled: event.target.checked } : item
-                          );
-                          setRulesField("deliveryOptionConfigs", next);
-                        }}
-                      />
-                      Enabled
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={config.serviceFee}
-                      onChange={(event) => {
-                        const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, serviceFee: Number(event.target.value) } : item
-                        );
-                        setRulesField("deliveryOptionConfigs", next);
-                      }}
-                      className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      value={config.minDays}
-                      onChange={(event) => {
-                        const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, minDays: Number(event.target.value) } : item
-                        );
-                        setRulesField("deliveryOptionConfigs", next);
-                      }}
-                      className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      value={config.maxDays}
-                      onChange={(event) => {
-                        const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, maxDays: Number(event.target.value) } : item
-                        );
-                        setRulesField("deliveryOptionConfigs", next);
-                      }}
-                      className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                    />
+            {draft.plan.planKind === "custom" ? (
+              <>
+                <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+                  <p className="text-sm font-semibold text-white">Allowed Week Days</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    {weekDayOptions.map((day) => {
+                      const checked = draft.rules.deliveryDaysRule.allowedWeekDays.includes(day.value);
+                      return (
+                        <label key={day.value} className="flex items-center gap-2 rounded-xl border border-zinc-700/70 bg-zinc-900/55 px-3 py-2 text-sm text-zinc-100">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => {
+                              const next = event.target.checked
+                                ? [...draft.rules.deliveryDaysRule.allowedWeekDays, day.value]
+                                : draft.rules.deliveryDaysRule.allowedWeekDays.filter((value) => value !== day.value);
+                              setRulesField("deliveryDaysRule", {
+                                ...draft.rules.deliveryDaysRule,
+                                allowedWeekDays: [...new Set(next)].sort((a, b) => a - b)
+                              });
+                            }}
+                          />
+                          <span>{day.label}</span>
+                        </label>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+                  <p className="text-sm font-semibold text-white">Default Selection</p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <label className="space-y-1">
+                      <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Meals</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={draft.rules.defaults.meals}
+                        onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, meals: Number(event.target.value) })}
+                        className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                      />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Days</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={draft.rules.defaults.days}
+                        onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, days: Number(event.target.value) })}
+                        className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                      />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Snacks</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={draft.rules.defaults.snacks}
+                        onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, snacks: Number(event.target.value) })}
+                        className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                      />
+                    </label>
+                    <label className="space-y-1">
+                      <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Plan Type</span>
+                      <input
+                        value={draft.rules.defaults.planType ?? ""}
+                        onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, planType: event.target.value || undefined })}
+                        className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                      />
+                    </label>
+                    <label className="space-y-1 md:col-span-2">
+                      <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Delivery Days</span>
+                      <input
+                        value={draft.rules.defaults.deliveryDays.join(",")}
+                        onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, deliveryDays: parseNumberList(event.target.value, 0) })}
+                        className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+                  <p className="text-sm font-semibold text-white">Delivery Options</p>
+                  <div className="mt-3 space-y-3">
+                    {draft.rules.deliveryOptionConfigs.map((config, index) => (
+                      <div key={`${config.option}-${index}`} className="grid gap-3 rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-3 md:grid-cols-2 xl:grid-cols-6">
+                        <select
+                          value={config.option}
+                          onChange={(event) => {
+                            const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, option: event.target.value as DeliveryOptionConfig["option"] } : item
+                            );
+                            setRulesField("deliveryOptionConfigs", next);
+                          }}
+                          className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                        >
+                          {deliveryOptionIds.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          value={config.label}
+                          onChange={(event) => {
+                            const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, label: event.target.value } : item
+                            );
+                            setRulesField("deliveryOptionConfigs", next);
+                          }}
+                          className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                        />
+                        <label className="flex items-center gap-2 rounded-xl border border-zinc-700/70 bg-zinc-900/55 px-3 py-2 text-sm text-zinc-100">
+                          <input
+                            type="checkbox"
+                            checked={config.enabled}
+                            onChange={(event) => {
+                              const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, enabled: event.target.checked } : item
+                              );
+                              setRulesField("deliveryOptionConfigs", next);
+                            }}
+                          />
+                          Enabled
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={config.serviceFee}
+                          onChange={(event) => {
+                            const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, serviceFee: Number(event.target.value) } : item
+                            );
+                            setRulesField("deliveryOptionConfigs", next);
+                          }}
+                          className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          value={config.minDays}
+                          onChange={(event) => {
+                            const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, minDays: Number(event.target.value) } : item
+                            );
+                            setRulesField("deliveryOptionConfigs", next);
+                          }}
+                          className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          value={config.maxDays}
+                          onChange={(event) => {
+                            const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, maxDays: Number(event.target.value) } : item
+                            );
+                            setRulesField("deliveryOptionConfigs", next);
+                          }}
+                          className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
         ) : null}
 
