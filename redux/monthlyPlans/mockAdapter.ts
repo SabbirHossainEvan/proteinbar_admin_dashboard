@@ -336,21 +336,31 @@ const entities: MonthlyPlanEntities = {
   }
 };
 
-const dayKeys = ["2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-14", "2026-03-15"];
+const addDays = (isoDate: string, days: number) => {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+
+const buildWeekKeys = (startDate: string) => Array.from({ length: 7 }, (_, index) => addDays(startDate, index));
+
+const weekTwoKeys = buildWeekKeys("2026-03-15");
 
 const customWeekOne: WeekAssignment = {
   id: "wa-custom-week1",
   planId: "plan-custom-core",
   weekIndex: 1,
-  startDate: "2026-03-10",
-  endDate: "2026-03-15",
+  startDate: "2026-03-08",
+  endDate: "2026-03-14",
   mealsByDate: {
+    "2026-03-08": [],
+    "2026-03-09": [],
     "2026-03-10": [{ id: "am1", mealId: "meal-l1", mealName: "Chicken Burrito Bowl", mealType: "Lunch", date: "2026-03-10", badges: ["High"] }],
     "2026-03-11": [{ id: "am2", mealId: "meal-d1", mealName: "Salmon Rice Plate", mealType: "Dinner", date: "2026-03-11", badges: ["Low"] }],
     "2026-03-12": [{ id: "am3", mealId: "meal-b1", mealName: "Greek Yogurt Bowl", mealType: "Breakfast", date: "2026-03-12", badges: ["Low"] }],
     "2026-03-13": [{ id: "am4", mealId: "meal-s1", mealName: "Protein Smoothie", mealType: "Snack", date: "2026-03-13", badges: ["Low"] }],
-    "2026-03-14": [],
-    "2026-03-15": []
+    "2026-03-14": []
   }
 };
 
@@ -358,12 +368,9 @@ const customWeekTwo: WeekAssignment = {
   id: "wa-custom-week2",
   planId: "plan-custom-core",
   weekIndex: 2,
-  startDate: "2026-03-17",
-  endDate: "2026-03-22",
-  mealsByDate: dayKeys.reduce<Record<string, WeekAssignment["mealsByDate"][string]>>((acc, _, idx) => {
-    const date = new Date("2026-03-17");
-    date.setDate(date.getDate() + idx);
-    const day = date.toISOString().slice(0, 10);
+  startDate: "2026-03-15",
+  endDate: "2026-03-21",
+  mealsByDate: weekTwoKeys.reduce<Record<string, WeekAssignment["mealsByDate"][string]>>((acc, day) => {
     acc[day] = [];
     return acc;
   }, {})
@@ -373,9 +380,11 @@ const normalWeekOne: WeekAssignment = {
   id: "wa-normal-week1",
   planId: "plan-normal-lean",
   weekIndex: 1,
-  startDate: "2026-03-10",
-  endDate: "2026-03-15",
+  startDate: "2026-03-08",
+  endDate: "2026-03-14",
   mealsByDate: {
+    "2026-03-08": [],
+    "2026-03-09": [],
     "2026-03-10": [
       { id: "am5", mealId: "meal-b1", mealName: "Greek Yogurt Bowl", mealType: "Breakfast", date: "2026-03-10", badges: ["Low"] },
       { id: "am6", mealId: "meal-l1", mealName: "Chicken Burrito Bowl", mealType: "Lunch", date: "2026-03-10", badges: ["High"] }
@@ -386,8 +395,7 @@ const normalWeekOne: WeekAssignment = {
     ],
     "2026-03-12": [],
     "2026-03-13": [],
-    "2026-03-14": [],
-    "2026-03-15": []
+    "2026-03-14": []
   }
 };
 
@@ -395,9 +403,12 @@ const normalWeekTwo: WeekAssignment = {
   id: "wa-normal-week2",
   planId: "plan-normal-lean",
   weekIndex: 2,
-  startDate: "2026-03-17",
-  endDate: "2026-03-22",
-  mealsByDate: {}
+  startDate: "2026-03-15",
+  endDate: "2026-03-21",
+  mealsByDate: weekTwoKeys.reduce<Record<string, WeekAssignment["mealsByDate"][string]>>((acc, day) => {
+    acc[day] = [];
+    return acc;
+  }, {})
 };
 
 entities.weekAssignments[customWeekOne.id] = customWeekOne;

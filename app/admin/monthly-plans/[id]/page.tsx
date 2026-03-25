@@ -5,22 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import { useGetMonthlyPlanDetailsQuery, useUpsertMonthlyPlanDetailsMutation } from "@/redux/api/adminApi";
-import type { DeliveryOptionConfig, MealLibraryItem, MealType, MonthlyPlanDetails, WeekAssignment } from "@/redux/monthlyPlans/types";
+import type { DeliveryOptionConfig, MealType, MonthlyPlanDetails, WeekAssignment } from "@/redux/monthlyPlans/types";
 
-type TabKey = "basic" | "content" | "rules" | "pricing" | "meals" | "assignments" | "preview";
-
-type MealFormState = {
-  id: string;
-  name: string;
-  mealType: MealType;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  tags: string;
-  status: MealLibraryItem["status"];
-  image: string;
-};
+type TabKey = "basic" | "content" | "rules" | "assignments";
 
 type AssignmentFormState = {
   id: string;
@@ -34,10 +21,7 @@ const tabs: Array<{ key: TabKey; label: string }> = [
   { key: "basic", label: "Basic Info" },
   { key: "content", label: "Content" },
   { key: "rules", label: "Rules" },
-  { key: "pricing", label: "Pricing" },
-  { key: "meals", label: "Meal Library" },
-  { key: "assignments", label: "Week Assignments" },
-  { key: "preview", label: "Preview / JSON" }
+  { key: "assignments", label: "Week Assignments" }
 ];
 
 const mealTypes: MealType[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
@@ -56,19 +40,7 @@ const deliveryOptionIds: DeliveryOptionConfig["option"][] = [
   "weekly-delivery",
   "weekly-pickup"
 ];
-
-const createMealForm = (meal?: MealLibraryItem): MealFormState => ({
-  id: meal?.id ?? "",
-  name: meal?.name ?? "",
-  mealType: meal?.mealType ?? "Lunch",
-  calories: meal?.calories ?? 0,
-  protein: meal?.protein ?? 0,
-  carbs: meal?.carbs ?? 0,
-  fat: meal?.fat ?? 0,
-  tags: meal?.tags.join(", ") ?? "",
-  status: meal?.status ?? "active",
-  image: meal?.image ?? ""
-});
+const weekDayFormatter = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" });
 
 const createAssignmentForm = (): AssignmentFormState => ({
   id: "",
@@ -151,6 +123,18 @@ const addDays = (isoDate: string, days: number) => {
   return date.toISOString().slice(0, 10);
 };
 
+const startOfWeekSunday = (isoDate: string) => {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return addDays(isoDate, -date.getUTCDay());
+};
+
+const formatDatePillLabel = (isoDate: string) => {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return `${weekDayFormatter.format(date)} ${isoDate}`;
+};
+
 const buildDatesInRange = (startDate: string, endDate: string) => {
   if (!startDate || !endDate || startDate > endDate) return [];
   const dates: string[] = [];
@@ -168,8 +152,8 @@ const syncWeekDates = (week: WeekAssignment): WeekAssignment => ({
 });
 
 const createWeekDraft = (planId: string, nextWeekIndex: number, previousWeek?: WeekAssignment): WeekAssignment => {
-  const startDate = previousWeek ? addDays(previousWeek.endDate, 1) : new Date().toLocaleDateString("en-CA");
-  const endDate = addDays(startDate, 5);
+  const startDate = previousWeek ? addDays(previousWeek.endDate, 1) : startOfWeekSunday(new Date().toLocaleDateString("en-CA"));
+  const endDate = addDays(startDate, 6);
   return syncWeekDates({
     id: `wa-${planId}-${nextWeekIndex}-${Date.now()}`,
     planId,
@@ -178,16 +162,6 @@ const createWeekDraft = (planId: string, nextWeekIndex: number, previousWeek?: W
     endDate,
     mealsByDate: {}
   });
-};
-
-const computePricingPreview = (details: MonthlyPlanDetails) => {
-  const { defaults } = details.rules;
-  const subtotal =
-    details.pricing.basePriceFormula.baseFee +
-    defaults.meals * defaults.days * details.pricing.basePriceFormula.pricePerMeal * details.pricing.basePriceFormula.dayMultiplier +
-    defaults.snacks * details.pricing.snacksAddonPrice;
-  const vat = subtotal * (details.pricing.vatPercent / 100);
-  return { subtotal, vat, total: subtotal + vat + details.pricing.safetyBagFee };
 };
 
 const validateDetails = (details: MonthlyPlanDetails) => {
@@ -260,7 +234,6 @@ export default function MonthlyPlanDetailEditorPage() {
   const [draft, setDraft] = useState<MonthlyPlanDetails | null>(null);
   const [selectedWeekId, setSelectedWeekId] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
-  const [mealForm, setMealForm] = useState<MealFormState>(createMealForm());
   const [assignmentForm, setAssignmentForm] = useState<AssignmentFormState>(createAssignmentForm());
   const [activeCategory, setActiveCategory] = useState("All");
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -274,7 +247,6 @@ export default function MonthlyPlanDetailEditorPage() {
   useEffect(() => {
     if (!data?.data) return;
     setDraft(normalizeDetails(data.data));
-    setMealForm(createMealForm());
     setAssignmentForm(createAssignmentForm());
   }, [data]);
 
@@ -299,7 +271,6 @@ export default function MonthlyPlanDetailEditorPage() {
   const activeMeals = meals.filter((meal) => meal.status === "active");
   const selectedMealsOnDate = selectedWeek && selectedDate ? selectedWeek.mealsByDate[selectedDate] ?? [] : [];
   const isCustomPlan = draft?.plan.planKind === "custom";
-  const pricingPreview = draft ? computePricingPreview(draft) : null;
   const categories = draft?.plan.content?.customStepTwo?.categories ?? [];
   const categoryNames = categories.map((category) => category.name);
   const activeCategoryMeals =
@@ -310,8 +281,6 @@ export default function MonthlyPlanDetailEditorPage() {
           if (customCategory) return customCategory.mealIds.includes(meal.id);
           return meal.tags.some((tag) => tag.toUpperCase() === activeCategory);
         });
-  const previewJson = draft ? JSON.stringify(draft, null, 2) : "";
-
   const setPlanField = <K extends keyof MonthlyPlanDetails["plan"]>(field: K, value: MonthlyPlanDetails["plan"][K]) => {
     setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, [field]: value } } : prev));
   };
@@ -361,68 +330,6 @@ export default function MonthlyPlanDetailEditorPage() {
         plan: { ...prev.plan, weekAssignmentIds: nextWeeks.map((week) => week.id) }
       };
     });
-  };
-
-  const saveMeal = () => {
-    if (!mealForm.name.trim()) {
-      setSaveErrors(["Meal name is required."]);
-      return;
-    }
-    const payload: MealLibraryItem = {
-      id: mealForm.id || `meal-${Date.now()}`,
-      name: mealForm.name.trim(),
-      mealType: mealForm.mealType,
-      calories: Number(mealForm.calories),
-      protein: Number(mealForm.protein),
-      carbs: Number(mealForm.carbs),
-      fat: Number(mealForm.fat),
-      tags: parseStringList(mealForm.tags),
-      status: mealForm.status,
-      image: mealForm.image.trim() || undefined
-    };
-    setDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            mealLibrary: prev.mealLibrary?.some((meal) => meal.id === payload.id)
-              ? prev.mealLibrary.map((meal) => (meal.id === payload.id ? payload : meal))
-              : [...(prev.mealLibrary ?? []), payload]
-          }
-        : prev
-    );
-    setMealForm(createMealForm());
-    setSaveErrors([]);
-  };
-
-  const removeMeal = (mealId: string) => {
-    setDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            mealLibrary: (prev.mealLibrary ?? []).filter((meal) => meal.id !== mealId),
-            weekAssignments: prev.weekAssignments.map((week) => ({
-              ...week,
-              mealsByDate: Object.fromEntries(
-                Object.entries(week.mealsByDate).map(([dateIso, items]) => [dateIso, items.filter((item) => item.mealId !== mealId)])
-              )
-            })),
-            plan: {
-              ...prev.plan,
-              content: {
-                ...prev.plan.content,
-                customStepTwo: prev.plan.content?.customStepTwo
-                  ? {
-                      categories: prev.plan.content.customStepTwo.categories.map((category) => ({
-                        ...category,
-                        mealIds: category.mealIds.filter((id) => id !== mealId)
-                      }))
-                    }
-                  : undefined
-              }
-            }
-          }
-        : prev
-    );
   };
 
   const saveAssignment = () => {
@@ -1026,298 +933,6 @@ export default function MonthlyPlanDetailEditorPage() {
           </div>
         ) : null}
 
-        {activeTab === "pricing" ? (
-          <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Base Fee</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={draft.pricing.basePriceFormula.baseFee}
-                  onChange={(event) =>
-                    setDraft((prev) =>
-                      prev
-                        ? { ...prev, pricing: { ...prev.pricing, basePriceFormula: { ...prev.pricing.basePriceFormula, baseFee: Number(event.target.value) } } }
-                        : prev
-                    )
-                  }
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Price Per Meal</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={draft.pricing.basePriceFormula.pricePerMeal}
-                  onChange={(event) =>
-                    setDraft((prev) =>
-                      prev
-                        ? { ...prev, pricing: { ...prev.pricing, basePriceFormula: { ...prev.pricing.basePriceFormula, pricePerMeal: Number(event.target.value) } } }
-                        : prev
-                    )
-                  }
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Day Multiplier</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={draft.pricing.basePriceFormula.dayMultiplier}
-                  onChange={(event) =>
-                    setDraft((prev) =>
-                      prev
-                        ? { ...prev, pricing: { ...prev.pricing, basePriceFormula: { ...prev.pricing.basePriceFormula, dayMultiplier: Number(event.target.value) } } }
-                        : prev
-                    )
-                  }
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Snacks Add-on</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={draft.pricing.snacksAddonPrice}
-                  onChange={(event) => setDraft((prev) => (prev ? { ...prev, pricing: { ...prev.pricing, snacksAddonPrice: Number(event.target.value) } } : prev))}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">VAT %</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={draft.pricing.vatPercent}
-                  onChange={(event) => setDraft((prev) => (prev ? { ...prev, pricing: { ...prev.pricing, vatPercent: Number(event.target.value) } } : prev))}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Safety Bag Fee</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={draft.pricing.safetyBagFee}
-                  onChange={(event) => setDraft((prev) => (prev ? { ...prev, pricing: { ...prev.pricing, safetyBagFee: Number(event.target.value) } } : prev))}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-            </div>
-            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-              <p className="text-sm font-semibold text-white">Gift Code Rule</p>
-              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <label className="flex items-center gap-2 rounded-xl border border-zinc-700/70 bg-zinc-900/55 px-3 py-2 text-sm text-zinc-100">
-                  <input
-                    type="checkbox"
-                    checked={draft.pricing.giftCodeRule.enabled}
-                    onChange={(event) =>
-                      setDraft((prev) =>
-                        prev ? { ...prev, pricing: { ...prev.pricing, giftCodeRule: { ...prev.pricing.giftCodeRule, enabled: event.target.checked } } } : prev
-                      )
-                    }
-                  />
-                  Enabled
-                </label>
-                <select
-                  value={draft.pricing.giftCodeRule.type}
-                  onChange={(event) =>
-                    setDraft((prev) =>
-                      prev ? { ...prev, pricing: { ...prev.pricing, giftCodeRule: { ...prev.pricing.giftCodeRule, type: event.target.value as "percent" | "fixed" } } } : prev
-                    )
-                  }
-                  className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                >
-                  <option value="percent">percent</option>
-                  <option value="fixed">fixed</option>
-                </select>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={draft.pricing.giftCodeRule.value}
-                  onChange={(event) =>
-                    setDraft((prev) =>
-                      prev ? { ...prev, pricing: { ...prev.pricing, giftCodeRule: { ...prev.pricing.giftCodeRule, value: Number(event.target.value) } } } : prev
-                    )
-                  }
-                  className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={draft.pricing.giftCodeRule.maxDiscount}
-                  onChange={(event) =>
-                    setDraft((prev) =>
-                      prev ? { ...prev, pricing: { ...prev.pricing, giftCodeRule: { ...prev.pricing.giftCodeRule, maxDiscount: Number(event.target.value) } } } : prev
-                    )
-                  }
-                  className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </div>
-            </div>
-
-            {pricingPreview ? (
-              <div className="grid gap-3 sm:grid-cols-3">
-                <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
-                  <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Subtotal</p>
-                  <p className="mt-2 text-2xl font-semibold text-white">{pricingPreview.subtotal.toFixed(2)}</p>
-                </article>
-                <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
-                  <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">VAT</p>
-                  <p className="mt-2 text-2xl font-semibold text-white">{pricingPreview.vat.toFixed(2)}</p>
-                </article>
-                <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
-                  <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Estimated Total</p>
-                  <p className="mt-2 text-2xl font-semibold text-white">{pricingPreview.total.toFixed(2)}</p>
-                </article>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {activeTab === "meals" ? (
-          <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Name</span>
-                <input
-                  value={mealForm.name}
-                  onChange={(event) => setMealForm((prev) => ({ ...prev, name: event.target.value }))}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Type</span>
-                <select
-                  value={mealForm.mealType}
-                  onChange={(event) => setMealForm((prev) => ({ ...prev, mealType: event.target.value as MealType }))}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                >
-                  {mealTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Status</span>
-                <select
-                  value={mealForm.status}
-                  onChange={(event) => setMealForm((prev) => ({ ...prev, status: event.target.value as MealLibraryItem["status"] }))}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                >
-                  <option value="active">active</option>
-                  <option value="inactive">inactive</option>
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Image URL</span>
-                <input
-                  value={mealForm.image}
-                  onChange={(event) => setMealForm((prev) => ({ ...prev, image: event.target.value }))}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Calories</span>
-                <input type="number" min={0} value={mealForm.calories} onChange={(event) => setMealForm((prev) => ({ ...prev, calories: Number(event.target.value) }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Protein</span>
-                <input type="number" min={0} value={mealForm.protein} onChange={(event) => setMealForm((prev) => ({ ...prev, protein: Number(event.target.value) }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Carbs</span>
-                <input type="number" min={0} value={mealForm.carbs} onChange={(event) => setMealForm((prev) => ({ ...prev, carbs: Number(event.target.value) }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Fat</span>
-                <input type="number" min={0} value={mealForm.fat} onChange={(event) => setMealForm((prev) => ({ ...prev, fat: Number(event.target.value) }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
-              </label>
-              <label className="space-y-1 md:col-span-2">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Tags</span>
-                <input
-                  value={mealForm.tags}
-                  onChange={(event) => setMealForm((prev) => ({ ...prev, tags: event.target.value }))}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-            </div>
-            <div className="flex gap-2">
-              <button type="button" onClick={saveMeal} className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900">
-                {mealForm.id ? "Update Meal" : "Add Meal"}
-              </button>
-              {mealForm.id ? (
-                <button type="button" onClick={() => setMealForm(createMealForm())} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-4 py-2.5 text-sm text-zinc-100">
-                  Cancel Edit
-                </button>
-              ) : null}
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-zinc-700/70 bg-zinc-900/40 p-3">
-              <table className="admin-table min-w-full text-left text-sm">
-                <thead>
-                  <tr>
-                    <th className="pb-2 pr-4 font-medium">Meal</th>
-                    <th className="pb-2 pr-4 font-medium">Type</th>
-                    <th className="pb-2 pr-4 font-medium">Macros</th>
-                    <th className="pb-2 pr-4 font-medium">Tags</th>
-                    <th className="pb-2 pr-4 font-medium">Status</th>
-                    <th className="pb-2 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {meals.map((meal) => (
-                    <tr key={meal.id}>
-                      <td className="py-3 pr-4 text-zinc-100">{meal.name}</td>
-                      <td className="py-3 pr-4 text-zinc-300">{meal.mealType}</td>
-                      <td className="py-3 pr-4 text-zinc-300">kcal:{meal.calories} P:{meal.protein} C:{meal.carbs} F:{meal.fat}</td>
-                      <td className="py-3 pr-4 text-zinc-300">{meal.tags.join(", ") || "-"}</td>
-                      <td className="py-3 pr-4 text-zinc-300">{meal.status}</td>
-                      <td className="py-3">
-                        <div className="flex flex-wrap gap-2">
-                          <button type="button" onClick={() => setMealForm(createMealForm(meal))} className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900">
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setDraft((prev) =>
-                                prev
-                                  ? { ...prev, mealLibrary: (prev.mealLibrary ?? []).map((item) => (item.id === meal.id ? { ...item, status: item.status === "active" ? "inactive" : "active" } : item)) }
-                                  : prev
-                              )
-                            }
-                            className="rounded-lg border border-zinc-600 bg-zinc-900/70 px-3 py-1.5 text-xs text-zinc-100"
-                          >
-                            {meal.status === "active" ? "Deactivate" : "Activate"}
-                          </button>
-                          <button type="button" onClick={() => removeMeal(meal.id)} className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-100">
-                            Remove
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : null}
-
         {activeTab === "assignments" ? (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
@@ -1367,7 +982,7 @@ export default function MonthlyPlanDetailEditorPage() {
                 <div className="flex flex-wrap gap-2">
                   {selectedWeekDates.map((dateIso) => (
                     <button key={dateIso} type="button" onClick={() => setSelectedDate(dateIso)} className={`rounded-xl px-3 py-1.5 text-xs ${selectedDate === dateIso ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"}`}>
-                      {dateIso}
+                      {formatDatePillLabel(dateIso)}
                     </button>
                   ))}
                 </div>
@@ -1486,29 +1101,6 @@ export default function MonthlyPlanDetailEditorPage() {
           </div>
         ) : null}
 
-        {activeTab === "preview" ? (
-          <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-4">
-              <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Plan Kind</p>
-                <p className="mt-2 text-xl font-semibold text-white">{draft.plan.planKind}</p>
-              </article>
-              <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Status</p>
-                <p className="mt-2 text-xl font-semibold text-white">{draft.plan.status}</p>
-              </article>
-              <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meals</p>
-                <p className="mt-2 text-xl font-semibold text-white">{meals.length}</p>
-              </article>
-              <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Weeks</p>
-                <p className="mt-2 text-xl font-semibold text-white">{draft.weekAssignments.length}</p>
-              </article>
-            </div>
-            <pre className="overflow-x-auto rounded-2xl border border-zinc-700/70 bg-zinc-950/60 p-4 text-xs text-zinc-200">{previewJson}</pre>
-          </div>
-        ) : null}
       </section>
 
       {saveErrors.length ? (
