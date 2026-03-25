@@ -6,6 +6,7 @@ import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import {
   useArchiveMonthlyPlanMutation,
   useGetMonthlyPlanAdminListQuery,
+  useLazyGetMonthlyPlanDetailsQuery,
   useUpsertMonthlyPlanDetailsMutation
 } from "@/redux/api/adminApi";
 import type { MonthlyPlan, PlanKind } from "@/redux/monthlyPlans/types";
@@ -97,10 +98,11 @@ export default function MonthlyPlansPage() {
   const [createError, setCreateError] = useState("");
 
   const { data, isLoading, isError } = useGetMonthlyPlanAdminListQuery(filters);
+  const [getPlanDetails] = useLazyGetMonthlyPlanDetailsQuery();
   const [archivePlan, { isLoading: isArchiving }] = useArchiveMonthlyPlanMutation();
   const [upsertPlanDetails, { isLoading: isCreating }] = useUpsertMonthlyPlanDetailsMutation();
 
-  const plans = data?.data ?? [];
+  const plans = useMemo(() => data?.data ?? [], [data]);
 
   const summary = useMemo(
     () => ({
@@ -124,6 +126,50 @@ export default function MonthlyPlansPage() {
 
   const onArchive = async (id: string) => {
     await archivePlan(id).unwrap();
+  };
+
+  const onDuplicate = async (plan: MonthlyPlan) => {
+    setCreateError("");
+    try {
+      const source = await getPlanDetails(plan.id).unwrap();
+      if (!source.data) throw new Error("Missing plan details.");
+      const duplicated = createNewPlanDraft(source.data.plan.planKind);
+      await upsertPlanDetails({
+        ...duplicated,
+        plan: {
+          ...source.data.plan,
+          ...duplicated.plan,
+          title: `${source.data.plan.title} Copy`,
+          slug: `${source.data.plan.slug}-copy-${Date.now()}`,
+          status: "draft",
+          createdAt: duplicated.plan.createdAt,
+          updatedAt: duplicated.plan.updatedAt
+        },
+        rules: { ...source.data.rules, ...duplicated.rules, planId: duplicated.plan.id, id: duplicated.rules.id },
+        pricing: { ...source.data.pricing, ...duplicated.pricing, planId: duplicated.plan.id, id: duplicated.pricing.id },
+        weekAssignments: [],
+        mealLibrary: source.data.mealLibrary ?? []
+      }).unwrap();
+    } catch {
+      setCreateError("Failed to duplicate plan.");
+    }
+  };
+
+  const onToggleActive = async (plan: MonthlyPlan) => {
+    setCreateError("");
+    try {
+      const source = await getPlanDetails(plan.id).unwrap();
+      if (!source.data) throw new Error("Missing plan details.");
+      await upsertPlanDetails({
+        ...source.data,
+        plan: {
+          ...source.data.plan,
+          status: plan.status === "active" ? "inactive" : "active"
+        }
+      }).unwrap();
+    } catch {
+      setCreateError("Failed to update plan status.");
+    }
   };
 
   return (
@@ -228,6 +274,22 @@ export default function MonthlyPlansPage() {
                 >
                   Edit Details
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => void onDuplicate(plan)}
+                  disabled={isCreating}
+                  className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-2 text-sm font-medium text-zinc-100 transition hover:bg-zinc-800 disabled:opacity-50"
+                >
+                  Duplicate
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onToggleActive(plan)}
+                  disabled={plan.status === "archived" || isCreating}
+                  className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-2 text-sm font-medium text-zinc-100 transition hover:bg-zinc-800 disabled:opacity-50"
+                >
+                  {plan.status === "active" ? "Deactivate" : "Activate"}
+                </button>
                 <button
                   type="button"
                   onClick={() => void onArchive(plan.id)}

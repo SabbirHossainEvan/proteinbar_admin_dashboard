@@ -1,14 +1,13 @@
 import type {
   LocationRecord,
   MealLibraryItem,
+  MonthlyPlanDetails,
   MonthlyPlan,
   MonthlyPlanEntities,
   MonthlyPlanGlobalSettings,
   MonthlyPlanOverview,
   OrderRecord,
   PlanKind,
-  PlanRuleConfig,
-  PricingConfig,
   SubscriptionRecord,
   WeekAssignment
 } from "./types";
@@ -40,7 +39,13 @@ const entities: MonthlyPlanEntities = {
         heroTitle: "Build your personalized monthly nutrition plan",
         heroSubtitle: "Choose meals, days and snacks based on your goal.",
         selectMealsText: "Pick meals by week/date. Changes apply instantly to your checkout.",
-        checkoutText: "Review your selections and confirm your preferred delivery option."
+        checkoutText: "Review your selections and confirm your preferred delivery option.",
+        customStepTwo: {
+          categories: [
+            { name: "HIGH PROTEIN", mealIds: ["meal-b1", "meal-l1", "meal-s1"] },
+            { name: "DINNER FAVORITES", mealIds: ["meal-d1"] }
+          ]
+        }
       },
       weekAssignmentIds: ["wa-custom-week1", "wa-custom-week2"]
     },
@@ -407,12 +412,131 @@ const wait = async <T>(value: T, ms = 160) =>
     setTimeout(() => resolve(value), ms);
   });
 
-export interface MonthlyPlanDetailsPayload {
-  plan: MonthlyPlan;
-  rules: PlanRuleConfig;
-  pricing: PricingConfig;
-  weekAssignments: WeekAssignment[];
-}
+export type MonthlyPlanDetailsPayload = MonthlyPlanDetails;
+
+const normalizeContent = (content?: MonthlyPlan["content"]): NonNullable<MonthlyPlan["content"]> => ({
+  heroTitle: content?.heroTitle ?? "",
+  heroSubtitle: content?.heroSubtitle ?? "",
+  selectMealsText: content?.selectMealsText ?? "",
+  checkoutText: content?.checkoutText ?? "",
+  ...(content?.customStepTwo
+    ? {
+        customStepTwo: {
+          categories: content.customStepTwo.categories.map((category) => ({
+            name: category.name,
+            mealIds: [...category.mealIds]
+          }))
+        }
+      }
+    : {})
+});
+
+const cloneMeal = (meal: MealLibraryItem): MealLibraryItem => ({
+  ...meal,
+  tags: [...meal.tags]
+});
+
+const cloneWeekAssignment = (assignment: WeekAssignment): WeekAssignment => ({
+  ...assignment,
+  mealsByDate: Object.fromEntries(
+    Object.entries(assignment.mealsByDate).map(([dateIso, meals]) => [
+      dateIso,
+      meals.map((meal) => ({ ...meal, badges: [...meal.badges] }))
+    ])
+  )
+});
+
+const normalizePlan = (plan: MonthlyPlan): MonthlyPlan => ({
+  ...plan,
+  content: normalizeContent(plan.content),
+  weekAssignmentIds: [...plan.weekAssignmentIds]
+});
+
+const cloneDetails = (payload: MonthlyPlanDetailsPayload): MonthlyPlanDetailsPayload => ({
+  plan: normalizePlan(payload.plan),
+  rules: {
+    ...payload.rules,
+    allowedMealsPerDay: [...payload.rules.allowedMealsPerDay],
+    allowedDays: [...payload.rules.allowedDays],
+    allowedSnacks: [...payload.rules.allowedSnacks],
+    planTypeOptions: [...payload.rules.planTypeOptions],
+    deliveryDaysRule: {
+      ...payload.rules.deliveryDaysRule,
+      allowedWeekDays: [...payload.rules.deliveryDaysRule.allowedWeekDays]
+    },
+    defaults: {
+      ...payload.rules.defaults,
+      deliveryDays: [...payload.rules.defaults.deliveryDays]
+    },
+    deliveryOptionConfigs: payload.rules.deliveryOptionConfigs.map((config) => ({ ...config }))
+  },
+  pricing: {
+    ...payload.pricing,
+    basePriceFormula: { ...payload.pricing.basePriceFormula },
+    giftCodeRule: { ...payload.pricing.giftCodeRule }
+  },
+  weekAssignments: payload.weekAssignments.map(cloneWeekAssignment),
+  mealLibrary: (payload.mealLibrary ?? asArray(entities.mealLibrary)).map(cloneMeal)
+});
+
+const ensureValidDetailPayload = (payload: MonthlyPlanDetailsPayload) => {
+  const mealIds = new Set((payload.mealLibrary ?? []).map((meal) => meal.id));
+  const deliveryOptionSet = new Set<string>();
+
+  if (!payload.plan.title.trim()) throw new Error("Title is required.");
+  if (!payload.plan.slug.trim()) throw new Error("Slug is required.");
+  if (!payload.plan.planKind) throw new Error("Plan kind is required.");
+
+  if (payload.rules.defaults.meals && !payload.rules.allowedMealsPerDay.includes(payload.rules.defaults.meals)) {
+    throw new Error("Default meals must exist in allowed meals/day.");
+  }
+  if (payload.rules.defaults.days && !payload.rules.allowedDays.includes(payload.rules.defaults.days)) {
+    throw new Error("Default days must exist in allowed days.");
+  }
+  if (!payload.rules.allowedSnacks.includes(payload.rules.defaults.snacks)) {
+    throw new Error("Default snacks must exist in allowed snacks.");
+  }
+  if (payload.rules.defaults.planType && !payload.rules.planTypeOptions.includes(payload.rules.defaults.planType)) {
+    throw new Error("Default plan type must exist in plan type options.");
+  }
+  if (payload.rules.deliveryDaysRule.allowedWeekDays.some((day) => day < 0 || day > 6)) {
+    throw new Error("Allowed week days must stay within 0-6.");
+  }
+  if (payload.rules.defaults.deliveryDays.some((day) => !payload.rules.deliveryDaysRule.allowedWeekDays.includes(day))) {
+    throw new Error("Default delivery days must exist in allowed week days.");
+  }
+
+  payload.rules.deliveryOptionConfigs.forEach((config) => {
+    if (deliveryOptionSet.has(config.option)) {
+      throw new Error("Delivery option configs must not contain duplicates.");
+    }
+    deliveryOptionSet.add(config.option);
+  });
+
+  payload.weekAssignments.forEach((week) => {
+    if (week.startDate > week.endDate) {
+      throw new Error(`Week ${week.weekIndex} start date must be before end date.`);
+    }
+    Object.entries(week.mealsByDate).forEach(([dateIso, meals]) => {
+      if (dateIso < week.startDate || dateIso > week.endDate) {
+        throw new Error(`Assigned date ${dateIso} must stay inside week ${week.weekIndex}.`);
+      }
+      meals.forEach((meal) => {
+        if (!mealIds.has(meal.mealId)) {
+          throw new Error(`Assigned meal ${meal.mealName} references a missing meal library item.`);
+        }
+      });
+    });
+  });
+
+  payload.plan.content?.customStepTwo?.categories.forEach((category) => {
+    category.mealIds.forEach((mealId) => {
+      if (!mealIds.has(mealId)) {
+        throw new Error(`Category ${category.name} references a missing meal.`);
+      }
+    });
+  });
+};
 
 export const monthlyPlanMockAdapter = {
   async getOverview(): Promise<MonthlyPlanOverview> {
@@ -447,34 +571,44 @@ export const monthlyPlanMockAdapter = {
     const plan = entities.plans[id];
     if (!plan) return wait(null);
 
-    return wait({
-      plan,
+    return wait(cloneDetails({
+      plan: normalizePlan(plan),
       rules: entities.rules[plan.ruleConfigId],
       pricing: entities.pricing[plan.pricingConfigId],
-      weekAssignments: plan.weekAssignmentIds.map((item) => entities.weekAssignments[item]).filter(Boolean)
-    });
+      weekAssignments: plan.weekAssignmentIds.map((item) => entities.weekAssignments[item]).filter(Boolean),
+      mealLibrary: asArray(entities.mealLibrary).sort((a, b) => a.name.localeCompare(b.name))
+    }));
   },
 
   async upsertPlanDetails(payload: MonthlyPlanDetailsPayload): Promise<MonthlyPlanDetailsPayload> {
+    const normalizedPayload = cloneDetails(payload);
+    ensureValidDetailPayload(normalizedPayload);
     const now = new Date().toISOString();
-    const plan = { ...payload.plan, updatedAt: now };
+    const plan = normalizePlan({ ...normalizedPayload.plan, updatedAt: now });
 
     entities.plans[plan.id] = plan;
-    entities.rules[payload.rules.id] = payload.rules;
-    entities.pricing[payload.pricing.id] = payload.pricing;
+    entities.rules[normalizedPayload.rules.id] = normalizedPayload.rules;
+    entities.pricing[normalizedPayload.pricing.id] = normalizedPayload.pricing;
 
-    payload.weekAssignments.forEach((assignment) => {
-      entities.weekAssignments[assignment.id] = assignment;
+    (normalizedPayload.mealLibrary ?? []).forEach((meal) => {
+      entities.mealLibrary[meal.id] = cloneMeal(meal);
     });
 
-    entities.plans[plan.id].weekAssignmentIds = payload.weekAssignments.map((item) => item.id);
-
-    return wait({
-      plan: entities.plans[plan.id],
-      rules: entities.rules[payload.rules.id],
-      pricing: entities.pricing[payload.pricing.id],
-      weekAssignments: payload.weekAssignments.map((item) => entities.weekAssignments[item.id])
+    normalizedPayload.weekAssignments.forEach((assignment) => {
+      entities.weekAssignments[assignment.id] = cloneWeekAssignment(assignment);
     });
+
+    entities.plans[plan.id].weekAssignmentIds = normalizedPayload.weekAssignments.map((item) => item.id);
+
+    return wait(
+      cloneDetails({
+        plan: entities.plans[plan.id],
+        rules: entities.rules[normalizedPayload.rules.id],
+        pricing: entities.pricing[normalizedPayload.pricing.id],
+        weekAssignments: normalizedPayload.weekAssignments.map((item) => entities.weekAssignments[item.id]),
+        mealLibrary: asArray(entities.mealLibrary).sort((a, b) => a.name.localeCompare(b.name))
+      })
+    );
   },
 
   async archivePlan(id: string): Promise<{ id: string; status: MonthlyPlan["status"] } | null> {

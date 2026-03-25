@@ -1,5 +1,4 @@
-import type { MonthlyPlanDetailsPayload } from "./mockAdapter";
-import type { AssignedMeal } from "./types";
+import type { AssignedMeal, MonthlyPlanDetails } from "./types";
 
 const addDays = (isoDate: string, days: number) => {
   const date = new Date(`${isoDate}T00:00:00`);
@@ -14,11 +13,11 @@ export const createDateTabsFromSelection = (startDate: string, selectedDaysPerWe
   return Array.from({ length: totalDays }, (_, index) => addDays(startDate, index));
 };
 
-export const getMealsByDate = (details: MonthlyPlanDetailsPayload, dateIso: string): AssignedMeal[] => {
+export const getMealsByDate = (details: MonthlyPlanDetails, dateIso: string): AssignedMeal[] => {
   return details.weekAssignments.flatMap((assignment) => assignment.mealsByDate[dateIso] ?? []);
 };
 
-export const getVisiblePlanForFrontOffice = (details: MonthlyPlanDetailsPayload | null) => {
+export const getVisiblePlanForFrontOffice = (details: MonthlyPlanDetails | null) => {
   if (!details) return null;
   return details.plan.status === "active" ? details : null;
 };

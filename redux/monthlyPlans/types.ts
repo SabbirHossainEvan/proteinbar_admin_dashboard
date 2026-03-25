@@ -72,10 +72,10 @@ export interface WeekAssignment {
 }
 
 export interface MonthlyPlanContent {
-  heroTitle: string;
-  heroSubtitle: string;
-  selectMealsText: string;
-  checkoutText: string;
+  heroTitle?: string;
+  heroSubtitle?: string;
+  selectMealsText?: string;
+  checkoutText?: string;
   customStepTwo?: {
     categories: Array<{
       name: string;
@@ -97,8 +97,16 @@ export interface MonthlyPlan {
   updatedAt: string;
   ruleConfigId: string;
   pricingConfigId: string;
-  content: MonthlyPlanContent;
+  content?: MonthlyPlanContent;
   weekAssignmentIds: string[];
+}
+
+export interface MonthlyPlanDetails {
+  plan: MonthlyPlan;
+  rules: PlanRuleConfig;
+  pricing: PricingConfig;
+  weekAssignments: WeekAssignment[];
+  mealLibrary?: MealLibraryItem[];
 }
 
 export interface MealLibraryItem {

@@ -1,200 +1,461 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
-import {
-  useGetMealLibraryAdminQuery,
-  useGetMonthlyPlanDetailsQuery,
-  useUpsertMonthlyPlanDetailsMutation
-} from "@/redux/api/adminApi";
-import type { MonthlyPlanDetailsPayload } from "@/redux/monthlyPlans/mockAdapter";
-import type { MealType, WeekAssignment } from "@/redux/monthlyPlans/types";
+import { useGetMonthlyPlanDetailsQuery, useUpsertMonthlyPlanDetailsMutation } from "@/redux/api/adminApi";
+import type { DeliveryOptionConfig, MealLibraryItem, MealType, MonthlyPlanDetails, WeekAssignment } from "@/redux/monthlyPlans/types";
 
-type TabKey = "general" | "rules" | "assignment" | "pricing" | "content";
+type TabKey = "basic" | "content" | "rules" | "pricing" | "meals" | "assignments" | "preview";
+
+type MealFormState = {
+  id: string;
+  name: string;
+  mealType: MealType;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  tags: string;
+  status: MealLibraryItem["status"];
+  image: string;
+};
+
+type AssignmentFormState = {
+  id: string;
+  mealId: string;
+  mealName: string;
+  mealType: MealType;
+  badges: string;
+};
 
 const tabs: Array<{ key: TabKey; label: string }> = [
-  { key: "general", label: "General" },
-  { key: "rules", label: "Set Plan Rules" },
-  { key: "assignment", label: "Weekly Meal Assignment" },
+  { key: "basic", label: "Basic Info" },
+  { key: "content", label: "Content" },
+  { key: "rules", label: "Rules" },
   { key: "pricing", label: "Pricing" },
-  { key: "content", label: "Content" }
+  { key: "meals", label: "Meal Library" },
+  { key: "assignments", label: "Week Assignments" },
+  { key: "preview", label: "Preview / JSON" }
 ];
 
 const mealTypes: MealType[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
-const weekDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const weekDayOptions = [
+  { value: 0, label: "Sunday" },
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" }
+];
+const deliveryOptionIds: DeliveryOptionConfig["option"][] = [
+  "daily-delivery",
+  "daily-pickup",
+  "weekly-delivery",
+  "weekly-pickup"
+];
 
-const createEmptyWeek = (planId: string, weekIndex: number, startDate: string): WeekAssignment => {
-  const start = new Date(`${startDate}T00:00:00`);
-  const mealsByDate: WeekAssignment["mealsByDate"] = {};
-  for (let i = 0; i < 6; i += 1) {
-    const date = new Date(start);
-    date.setDate(start.getDate() + i);
-    mealsByDate[date.toISOString().slice(0, 10)] = [];
+const createMealForm = (meal?: MealLibraryItem): MealFormState => ({
+  id: meal?.id ?? "",
+  name: meal?.name ?? "",
+  mealType: meal?.mealType ?? "Lunch",
+  calories: meal?.calories ?? 0,
+  protein: meal?.protein ?? 0,
+  carbs: meal?.carbs ?? 0,
+  fat: meal?.fat ?? 0,
+  tags: meal?.tags.join(", ") ?? "",
+  status: meal?.status ?? "active",
+  image: meal?.image ?? ""
+});
+
+const createAssignmentForm = (): AssignmentFormState => ({
+  id: "",
+  mealId: "",
+  mealName: "",
+  mealType: "Lunch",
+  badges: ""
+});
+
+const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
+  ...details,
+  plan: {
+    ...details.plan,
+    content: {
+      heroTitle: details.plan.content?.heroTitle ?? "",
+      heroSubtitle: details.plan.content?.heroSubtitle ?? "",
+      selectMealsText: details.plan.content?.selectMealsText ?? "",
+      checkoutText: details.plan.content?.checkoutText ?? "",
+      ...(details.plan.content?.customStepTwo
+        ? {
+            customStepTwo: {
+              categories: details.plan.content.customStepTwo.categories.map((category) => ({
+                name: category.name,
+                mealIds: [...category.mealIds]
+              }))
+            }
+          }
+        : {})
+    },
+    weekAssignmentIds: [...(details.plan.weekAssignmentIds ?? [])]
+  },
+  rules: {
+    ...details.rules,
+    allowedMealsPerDay: [...details.rules.allowedMealsPerDay],
+    allowedDays: [...details.rules.allowedDays],
+    allowedSnacks: [...details.rules.allowedSnacks],
+    planTypeOptions: [...details.rules.planTypeOptions],
+    deliveryDaysRule: {
+      ...details.rules.deliveryDaysRule,
+      allowedWeekDays: [...details.rules.deliveryDaysRule.allowedWeekDays]
+    },
+    defaults: {
+      ...details.rules.defaults,
+      deliveryDays: [...details.rules.defaults.deliveryDays]
+    },
+    deliveryOptionConfigs: details.rules.deliveryOptionConfigs.map((config) => ({ ...config }))
+  },
+  pricing: {
+    ...details.pricing,
+    basePriceFormula: { ...details.pricing.basePriceFormula },
+    giftCodeRule: { ...details.pricing.giftCodeRule }
+  },
+  weekAssignments: details.weekAssignments.map((week) => ({
+    ...week,
+    mealsByDate: Object.fromEntries(
+      Object.entries(week.mealsByDate)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([dateIso, meals]) => [dateIso, meals.map((meal) => ({ ...meal, badges: [...meal.badges] }))])
+    )
+  })),
+  mealLibrary: (details.mealLibrary ?? []).map((meal) => ({ ...meal, tags: [...meal.tags] }))
+});
+
+const parseNumberList = (value: string, minValue = 0) =>
+  value
+    .split(",")
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isFinite(item) && item >= minValue);
+
+const parseStringList = (value: string) =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const addDays = (isoDate: string, days: number) => {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+
+const buildDatesInRange = (startDate: string, endDate: string) => {
+  if (!startDate || !endDate || startDate > endDate) return [];
+  const dates: string[] = [];
+  let cursor = startDate;
+  while (cursor <= endDate) {
+    dates.push(cursor);
+    cursor = addDays(cursor, 1);
   }
-  const endDate = new Date(start);
-  endDate.setDate(start.getDate() + 5);
+  return dates;
+};
 
-  return {
-    id: `wa-${planId}-${weekIndex}-${Date.now()}`,
+const syncWeekDates = (week: WeekAssignment): WeekAssignment => ({
+  ...week,
+  mealsByDate: Object.fromEntries(buildDatesInRange(week.startDate, week.endDate).map((dateIso) => [dateIso, week.mealsByDate[dateIso] ?? []]))
+});
+
+const createWeekDraft = (planId: string, nextWeekIndex: number, previousWeek?: WeekAssignment): WeekAssignment => {
+  const startDate = previousWeek ? addDays(previousWeek.endDate, 1) : new Date().toLocaleDateString("en-CA");
+  const endDate = addDays(startDate, 5);
+  return syncWeekDates({
+    id: `wa-${planId}-${nextWeekIndex}-${Date.now()}`,
     planId,
-    weekIndex,
-    startDate: startDate,
-    endDate: endDate.toISOString().slice(0, 10),
-    mealsByDate
-  };
+    weekIndex: nextWeekIndex,
+    startDate,
+    endDate,
+    mealsByDate: {}
+  });
+};
+
+const computePricingPreview = (details: MonthlyPlanDetails) => {
+  const { defaults } = details.rules;
+  const subtotal =
+    details.pricing.basePriceFormula.baseFee +
+    defaults.meals * defaults.days * details.pricing.basePriceFormula.pricePerMeal * details.pricing.basePriceFormula.dayMultiplier +
+    defaults.snacks * details.pricing.snacksAddonPrice;
+  const vat = subtotal * (details.pricing.vatPercent / 100);
+  return { subtotal, vat, total: subtotal + vat + details.pricing.safetyBagFee };
+};
+
+const validateDetails = (details: MonthlyPlanDetails) => {
+  const errors: string[] = [];
+  const mealIds = new Set((details.mealLibrary ?? []).map((meal) => meal.id));
+  const deliveryOptionIdsSeen = new Set<string>();
+
+  if (!details.plan.title.trim()) errors.push("Title is required.");
+  if (!details.plan.slug.trim()) errors.push("Slug is required.");
+  if (!details.plan.description.trim()) errors.push("Description is required.");
+  if (!["custom", "normal"].includes(details.plan.planKind)) errors.push("Plan kind must be custom or normal.");
+  if (!["draft", "active", "inactive", "archived"].includes(details.plan.status)) errors.push("Status is invalid.");
+  if (
+    [
+      details.pricing.basePriceFormula.baseFee,
+      details.pricing.basePriceFormula.pricePerMeal,
+      details.pricing.basePriceFormula.dayMultiplier,
+      details.pricing.snacksAddonPrice,
+      details.pricing.vatPercent,
+      details.pricing.safetyBagFee,
+      details.pricing.giftCodeRule.value,
+      details.pricing.giftCodeRule.maxDiscount
+    ].some((value) => value < 0)
+  ) {
+    errors.push("Pricing values must be non-negative.");
+  }
+  if (!details.rules.allowedMealsPerDay.includes(details.rules.defaults.meals)) errors.push("Default meals must exist inside allowed meals/day.");
+  if (!details.rules.allowedDays.includes(details.rules.defaults.days)) errors.push("Default days must exist inside allowed days.");
+  if (!details.rules.allowedSnacks.includes(details.rules.defaults.snacks)) errors.push("Default snacks must exist inside allowed snacks.");
+  if (details.plan.planKind === "custom" && !details.rules.planTypeOptions.length) errors.push("Custom plans require at least one plan type option.");
+  if (details.rules.defaults.planType && !details.rules.planTypeOptions.includes(details.rules.defaults.planType)) errors.push("Default plan type must exist inside plan type options.");
+  if (details.rules.deliveryDaysRule.allowedWeekDays.some((day) => day < 0 || day > 6)) errors.push("Allowed week days must stay within 0-6.");
+  if (details.rules.defaults.deliveryDays.some((day) => !details.rules.deliveryDaysRule.allowedWeekDays.includes(day))) errors.push("Default delivery days must exist inside allowed week days.");
+  if (details.rules.deliveryDaysRule.min > details.rules.deliveryDaysRule.max) errors.push("Delivery day rule min must be less than or equal to max.");
+
+  details.rules.deliveryOptionConfigs.forEach((config) => {
+    if (deliveryOptionIdsSeen.has(config.option)) errors.push("Delivery option configs must not contain duplicates.");
+    deliveryOptionIdsSeen.add(config.option);
+  });
+
+  (details.mealLibrary ?? []).forEach((meal) => {
+    if (!meal.name.trim()) errors.push(`Meal ${meal.id || "(new)"} requires a name.`);
+    if ([meal.calories, meal.protein, meal.carbs, meal.fat].some((value) => value < 0)) errors.push(`Meal ${meal.name || meal.id} cannot contain negative macros.`);
+  });
+
+  details.weekAssignments.forEach((week) => {
+    if (week.startDate > week.endDate) errors.push(`Week ${week.weekIndex} has an invalid date range.`);
+    Object.entries(week.mealsByDate).forEach(([dateIso, meals]) => {
+      if (dateIso < week.startDate || dateIso > week.endDate) errors.push(`Week ${week.weekIndex} contains date ${dateIso} outside its range.`);
+      meals.forEach((meal) => {
+        if (!mealIds.has(meal.mealId)) errors.push(`Assigned meal ${meal.mealName} references a missing meal library item.`);
+      });
+    });
+  });
+
+  details.plan.content?.customStepTwo?.categories.forEach((category) => {
+    if (!category.name.trim()) errors.push("Custom categories require a name.");
+    category.mealIds.forEach((mealId) => {
+      if (!mealIds.has(mealId)) errors.push(`Category ${category.name} references a missing meal.`);
+    });
+  });
+
+  return [...new Set(errors)];
 };
 
 export default function MonthlyPlanDetailEditorPage() {
   const params = useParams<{ id: string }>();
   const planId = params.id;
-  const [activeTab, setActiveTab] = useState<TabKey>("general");
-  const [draft, setDraft] = useState<MonthlyPlanDetailsPayload | null>(null);
-  const [selectedWeekId, setSelectedWeekId] = useState<string>("");
-  const [selectedDate, setSelectedDate] = useState<string>("");
-  const [newAssignment, setNewAssignment] = useState<{ mealType: MealType; mealId: string; badges: string }>({
-    mealType: "Lunch",
-    mealId: "",
-    badges: ""
-  });
+  const [activeTab, setActiveTab] = useState<TabKey>("basic");
+  const [draft, setDraft] = useState<MonthlyPlanDetails | null>(null);
+  const [selectedWeekId, setSelectedWeekId] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [mealForm, setMealForm] = useState<MealFormState>(createMealForm());
+  const [assignmentForm, setAssignmentForm] = useState<AssignmentFormState>(createAssignmentForm());
   const [activeCategory, setActiveCategory] = useState("All");
-  const [detailMealId, setDetailMealId] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [categoryMealDraft, setCategoryMealDraft] = useState("");
-  const [newCardDate, setNewCardDate] = useState("");
-  const [saveError, setSaveError] = useState("");
+  const [categoryRenameDraft, setCategoryRenameDraft] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [saveErrors, setSaveErrors] = useState<string[]>([]);
 
   const { data, isLoading, isError } = useGetMonthlyPlanDetailsQuery(planId);
-  const { data: mealsData } = useGetMealLibraryAdminQuery();
   const [upsertPlanDetails, { isLoading: isSaving }] = useUpsertMonthlyPlanDetailsMutation();
 
   useEffect(() => {
-    const details = data?.data;
-    if (!details) return;
-    setDraft(structuredClone(details));
+    if (!data?.data) return;
+    setDraft(normalizeDetails(data.data));
+    setMealForm(createMealForm());
+    setAssignmentForm(createAssignmentForm());
   }, [data]);
 
   useEffect(() => {
-    if (!draft) return;
-    if (!draft.weekAssignments.length) return;
+    if (!draft?.weekAssignments.length) return;
     if (!selectedWeekId || !draft.weekAssignments.some((week) => week.id === selectedWeekId)) {
       setSelectedWeekId(draft.weekAssignments[0].id);
     }
   }, [draft, selectedWeekId]);
 
+  const selectedWeek = useMemo(() => draft?.weekAssignments.find((week) => week.id === selectedWeekId) ?? null, [draft, selectedWeekId]);
+  const selectedWeekDates = useMemo(() => (selectedWeek ? Object.keys(selectedWeek.mealsByDate).sort((a, b) => a.localeCompare(b)) : []), [selectedWeek]);
+
   useEffect(() => {
-    if (!draft || !selectedWeekId) return;
-    const week = draft.weekAssignments.find((item) => item.id === selectedWeekId);
-    if (!week) return;
-    const dates = Object.keys(week.mealsByDate);
-    if (!dates.length) return;
-    if (!selectedDate || !week.mealsByDate[selectedDate]) {
-      setSelectedDate(dates[0]);
+    if (!selectedWeekDates.length) return;
+    if (!selectedDate || !selectedWeekDates.includes(selectedDate)) {
+      setSelectedDate(selectedWeekDates[0]);
     }
-  }, [draft, selectedWeekId, selectedDate]);
+  }, [selectedDate, selectedWeekDates]);
 
-  const selectedWeek = useMemo(
-    () => draft?.weekAssignments.find((week) => week.id === selectedWeekId) ?? null,
-    [draft, selectedWeekId]
-  );
-
-  const meals = mealsData?.data ?? [];
-  const customCategories = draft?.plan.content.customStepTwo?.categories ?? [];
-  const customCategoryNames = customCategories.map((item) => item.name);
-
-  const mealCategories = useMemo(() => {
-    const categories = new Set<string>();
-    meals
-      .filter((meal) => meal.status === "active")
-      .forEach((meal) => {
-        if (meal.tags.length) {
-          meal.tags.forEach((tag) => categories.add(tag.toUpperCase()));
-        } else {
-          categories.add(meal.mealType.toUpperCase());
-        }
-      });
-    customCategoryNames.forEach((name) => categories.add(name));
-    return ["All", ...Array.from(categories)];
-  }, [meals, customCategoryNames]);
-
-  const categoryMeals = useMemo(() => {
-    const activeMeals = meals.filter((meal) => meal.status === "active");
-    if (activeCategory === "All") return activeMeals;
-    const selectedCustom = customCategories.find((item) => item.name === activeCategory);
-    if (selectedCustom) {
-      return activeMeals.filter((meal) => selectedCustom.mealIds.includes(meal.id));
-    }
-    return activeMeals.filter(
-      (meal) =>
-        meal.tags.map((tag) => tag.toUpperCase()).includes(activeCategory) ||
-        meal.mealType.toUpperCase() === activeCategory
-    );
-  }, [meals, activeCategory, customCategories]);
-
-  const selectableMeals = useMemo(
-    () => meals.filter((meal) => meal.status === "active" && meal.mealType === newAssignment.mealType),
-    [meals, newAssignment.mealType]
-  );
-
+  const meals = draft?.mealLibrary ?? [];
+  const activeMeals = meals.filter((meal) => meal.status === "active");
   const selectedMealsOnDate = selectedWeek && selectedDate ? selectedWeek.mealsByDate[selectedDate] ?? [] : [];
-  const detailMeal = meals.find((meal) => meal.id === detailMealId) ?? null;
   const isCustomPlan = draft?.plan.planKind === "custom";
+  const pricingPreview = draft ? computePricingPreview(draft) : null;
+  const categories = draft?.plan.content?.customStepTwo?.categories ?? [];
+  const categoryNames = categories.map((category) => category.name);
+  const activeCategoryMeals =
+    activeCategory === "All"
+      ? activeMeals
+      : activeMeals.filter((meal) => {
+          const customCategory = categories.find((category) => category.name === activeCategory);
+          if (customCategory) return customCategory.mealIds.includes(meal.id);
+          return meal.tags.some((tag) => tag.toUpperCase() === activeCategory);
+        });
+  const previewJson = draft ? JSON.stringify(draft, null, 2) : "";
 
-  const formatDayDate = (isoDate: string) => {
-    const date = new Date(`${isoDate}T00:00:00`);
-    return `${weekDays[date.getDay()]}, ${isoDate}`;
+  const setPlanField = <K extends keyof MonthlyPlanDetails["plan"]>(field: K, value: MonthlyPlanDetails["plan"][K]) => {
+    setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, [field]: value } } : prev));
   };
 
-  const addCustomCategory = () => {
-    const normalized = newCategoryName.trim().toUpperCase();
-    if (!normalized) return;
-    if (!draft) return;
-    if (mealCategories.includes(normalized)) return;
+  const setContentField = (field: keyof NonNullable<MonthlyPlanDetails["plan"]["content"]>, value: string) => {
+    setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, [field]: value } } } : prev));
+  };
+
+  const setRulesField = <K extends keyof MonthlyPlanDetails["rules"]>(field: K, value: MonthlyPlanDetails["rules"][K]) => {
+    setDraft((prev) => (prev ? { ...prev, rules: { ...prev.rules, [field]: value } } : prev));
+  };
+
+  const updateWeek = (weekId: string, updater: (week: WeekAssignment) => WeekAssignment) => {
     setDraft((prev) =>
       prev
         ? {
             ...prev,
+            weekAssignments: prev.weekAssignments.map((week) => (week.id === weekId ? updater(week) : week))
+          }
+        : prev
+    );
+  };
+
+  const addWeek = () => {
+    if (!draft) return;
+    const lastWeek = [...draft.weekAssignments].sort((a, b) => a.weekIndex - b.weekIndex).at(-1);
+    const newWeek = createWeekDraft(draft.plan.id, draft.weekAssignments.length + 1, lastWeek);
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            weekAssignments: [...prev.weekAssignments, newWeek],
+            plan: { ...prev.plan, weekAssignmentIds: [...prev.plan.weekAssignmentIds, newWeek.id] }
+          }
+        : prev
+    );
+    setSelectedWeekId(newWeek.id);
+  };
+
+  const removeWeek = (weekId: string) => {
+    setDraft((prev) => {
+      if (!prev || prev.weekAssignments.length === 1) return prev;
+      const nextWeeks = prev.weekAssignments.filter((week) => week.id !== weekId).map((week, index) => ({ ...week, weekIndex: index + 1 }));
+      return {
+        ...prev,
+        weekAssignments: nextWeeks,
+        plan: { ...prev.plan, weekAssignmentIds: nextWeeks.map((week) => week.id) }
+      };
+    });
+  };
+
+  const saveMeal = () => {
+    if (!mealForm.name.trim()) {
+      setSaveErrors(["Meal name is required."]);
+      return;
+    }
+    const payload: MealLibraryItem = {
+      id: mealForm.id || `meal-${Date.now()}`,
+      name: mealForm.name.trim(),
+      mealType: mealForm.mealType,
+      calories: Number(mealForm.calories),
+      protein: Number(mealForm.protein),
+      carbs: Number(mealForm.carbs),
+      fat: Number(mealForm.fat),
+      tags: parseStringList(mealForm.tags),
+      status: mealForm.status,
+      image: mealForm.image.trim() || undefined
+    };
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            mealLibrary: prev.mealLibrary?.some((meal) => meal.id === payload.id)
+              ? prev.mealLibrary.map((meal) => (meal.id === payload.id ? payload : meal))
+              : [...(prev.mealLibrary ?? []), payload]
+          }
+        : prev
+    );
+    setMealForm(createMealForm());
+    setSaveErrors([]);
+  };
+
+  const removeMeal = (mealId: string) => {
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            mealLibrary: (prev.mealLibrary ?? []).filter((meal) => meal.id !== mealId),
+            weekAssignments: prev.weekAssignments.map((week) => ({
+              ...week,
+              mealsByDate: Object.fromEntries(
+                Object.entries(week.mealsByDate).map(([dateIso, items]) => [dateIso, items.filter((item) => item.mealId !== mealId)])
+              )
+            })),
             plan: {
               ...prev.plan,
               content: {
                 ...prev.plan.content,
-                customStepTwo: {
-                  categories: [...(prev.plan.content.customStepTwo?.categories ?? []), { name: normalized, mealIds: [] }]
-                }
+                customStepTwo: prev.plan.content?.customStepTwo
+                  ? {
+                      categories: prev.plan.content.customStepTwo.categories.map((category) => ({
+                        ...category,
+                        mealIds: category.mealIds.filter((id) => id !== mealId)
+                      }))
+                    }
+                  : undefined
               }
             }
           }
         : prev
     );
-    setNewCategoryName("");
-    setActiveCategory(normalized);
   };
 
-  const removeCustomCategory = (categoryName: string) => {
-    if (!draft) return;
-    setDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            plan: {
-              ...prev.plan,
-              content: {
-                ...prev.plan.content,
-                customStepTwo: {
-                  categories: (prev.plan.content.customStepTwo?.categories ?? []).filter((item) => item.name !== categoryName)
-                }
-              }
-            }
+  const saveAssignment = () => {
+    if (!selectedWeek || !selectedDate || !assignmentForm.mealId) return;
+    const selectedMeal = meals.find((meal) => meal.id === assignmentForm.mealId);
+    const mealType = assignmentForm.mealType || selectedMeal?.mealType || "Lunch";
+    const mealName = assignmentForm.mealName.trim() || selectedMeal?.name || "";
+    if (!mealName) {
+      setSaveErrors(["Assigned meal name is required."]);
+      return;
+    }
+    updateWeek(selectedWeek.id, (week) => ({
+      ...week,
+      mealsByDate: {
+        ...week.mealsByDate,
+        [selectedDate]: [
+          ...(week.mealsByDate[selectedDate] ?? []).filter((item) => item.id !== assignmentForm.id),
+          {
+            id: assignmentForm.id || `assigned-${Date.now()}`,
+            mealId: assignmentForm.mealId,
+            mealName,
+            mealType,
+            date: selectedDate,
+            badges: parseStringList(assignmentForm.badges)
           }
-        : prev
-    );
-    if (activeCategory === categoryName) setActiveCategory("All");
+        ]
+      }
+    }));
+    setAssignmentForm(createAssignmentForm());
+    setSaveErrors([]);
   };
 
-  const addMealToCustomCategory = () => {
-    if (!draft || !categoryMealDraft || !activeCategory) return;
+  const updateCategoryMeals = (categoryName: string, mealIds: string[]) => {
     setDraft((prev) =>
       prev
         ? {
@@ -204,10 +465,8 @@ export default function MonthlyPlanDetailEditorPage() {
               content: {
                 ...prev.plan.content,
                 customStepTwo: {
-                  categories: (prev.plan.content.customStepTwo?.categories ?? []).map((item) =>
-                    item.name === activeCategory && !item.mealIds.includes(categoryMealDraft)
-                      ? { ...item, mealIds: [...item.mealIds, categoryMealDraft] }
-                      : item
+                  categories: (prev.plan.content?.customStepTwo?.categories ?? []).map((category) =>
+                    category.name === categoryName ? { ...category, mealIds } : category
                   )
                 }
               }
@@ -215,151 +474,111 @@ export default function MonthlyPlanDetailEditorPage() {
           }
         : prev
     );
-    setCategoryMealDraft("");
   };
 
-  const addYourCardDate = () => {
-    if (!draft || !selectedWeek || !newCardDate) return;
-    setDraft((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        weekAssignments: prev.weekAssignments.map((week) => {
-          if (week.id !== selectedWeek.id) return week;
-          if (week.mealsByDate[newCardDate]) return week;
-          return {
-            ...week,
-            mealsByDate: {
-              ...week.mealsByDate,
-              [newCardDate]: []
-            }
-          };
-        })
-      };
-    });
-    setNewCardDate("");
-  };
-
-  const validate = (payload: MonthlyPlanDetailsPayload) => {
-    if (!payload.plan.title.trim()) return "Title is required.";
-    if (!payload.plan.description.trim()) return "Description is required.";
-    if (payload.plan.planKind === "custom" && payload.rules.planTypeOptions.length === 0) {
-      return "Custom plans require at least one planType option.";
-    }
-    if (payload.rules.allowedMealsPerDay.length === 0 || payload.rules.allowedDays.length === 0) {
-      return "Rules must include meals/day and days options.";
-    }
-    return "";
-  };
-
-  const saveAll = async () => {
-    if (!draft) return;
-    setSaveMessage("");
-    const errorText = validate(draft);
-    if (errorText) {
-      setSaveError(errorText);
+  const addCategory = () => {
+    const name = newCategoryName.trim().toUpperCase();
+    if (!name || !draft) return;
+    if (categoryNames.includes(name)) {
+      setSaveErrors([`Category ${name} already exists.`]);
       return;
     }
-    setSaveError("");
-    await upsertPlanDetails(draft).unwrap();
-    setSaveMessage("Saved.");
-  };
-
-  const handlePlanImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, image: result } } : prev));
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const addWeek = () => {
-    if (!draft) return;
-    const nextWeekIndex = draft.weekAssignments.length + 1;
-    const fallbackStart = new Date();
-    fallbackStart.setDate(fallbackStart.getDate() + nextWeekIndex * 7);
-    const startDate = fallbackStart.toISOString().slice(0, 10);
-    const week = createEmptyWeek(draft.plan.id, nextWeekIndex, startDate);
     setDraft((prev) =>
       prev
         ? {
             ...prev,
-            weekAssignments: [...prev.weekAssignments, week],
-            plan: { ...prev.plan, weekAssignmentIds: [...prev.plan.weekAssignmentIds, week.id] }
+            plan: {
+              ...prev.plan,
+              content: {
+                ...prev.plan.content,
+                customStepTwo: {
+                  categories: [...(prev.plan.content?.customStepTwo?.categories ?? []), { name, mealIds: [] }]
+                }
+              }
+            }
           }
         : prev
     );
-    setSelectedWeekId(week.id);
+    setNewCategoryName("");
+    setCategoryRenameDraft(name);
+    setActiveCategory(name);
+    setSaveErrors([]);
   };
 
-  const assignMealToDate = (selectedMealId: string, mealType: MealType, badgeText: string) => {
-    if (!draft || !selectedWeek || !selectedDate) return;
-    const selectedMeal = meals.find((meal) => meal.id === selectedMealId);
-    if (!selectedMeal) return;
-    setDraft((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        weekAssignments: prev.weekAssignments.map((week) => {
-          if (week.id !== selectedWeek.id) return week;
-          const current = week.mealsByDate[selectedDate] ?? [];
-          return {
-            ...week,
-            mealsByDate: {
-              ...week.mealsByDate,
-              [selectedDate]: [
-                ...current,
-                {
-                  id: `assigned-${Date.now()}`,
-                  mealId: selectedMeal.id,
-                  mealName: selectedMeal.name,
-                  mealType,
-                  date: selectedDate,
-                  badges: badgeText
-                    .split(",")
-                    .map((tag) => tag.trim())
-                    .filter(Boolean)
+  const renameCategory = () => {
+    if (!activeCategory || activeCategory === "All") return;
+    const nextName = categoryRenameDraft.trim().toUpperCase();
+    if (!nextName || !draft) return;
+    if (nextName !== activeCategory && categoryNames.includes(nextName)) {
+      setSaveErrors([`Category ${nextName} already exists.`]);
+      return;
+    }
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            plan: {
+              ...prev.plan,
+              content: {
+                ...prev.plan.content,
+                customStepTwo: {
+                  categories: (prev.plan.content?.customStepTwo?.categories ?? []).map((category) =>
+                    category.name === activeCategory ? { ...category, name: nextName } : category
+                  )
                 }
-              ]
+              }
             }
-          };
-        })
-      };
-    });
+          }
+        : prev
+    );
+    setActiveCategory(nextName);
+    setSaveErrors([]);
   };
 
-  const addMealToDate = () => {
-    if (!newAssignment.mealId) return;
-    assignMealToDate(newAssignment.mealId, newAssignment.mealType, newAssignment.badges);
-    setNewAssignment((prev) => ({ ...prev, mealId: "", badges: "" }));
-  };
-
-  const removeAssignedMeal = (mealId: string) => {
-    if (!selectedWeek || !selectedDate) return;
-    setDraft((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        weekAssignments: prev.weekAssignments.map((week) => {
-          if (week.id !== selectedWeek.id) return week;
-          return {
-            ...week,
-            mealsByDate: {
-              ...week.mealsByDate,
-              [selectedDate]: (week.mealsByDate[selectedDate] ?? []).filter((item) => item.id !== mealId)
+  const removeCategory = (categoryName: string) => {
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            plan: {
+              ...prev.plan,
+              content: {
+                ...prev.plan.content,
+                customStepTwo: {
+                  categories: (prev.plan.content?.customStepTwo?.categories ?? []).filter((category) => category.name !== categoryName)
+                }
+              }
             }
-          };
-        })
-      };
-    });
+          }
+        : prev
+    );
+    setActiveCategory("All");
+    setCategoryRenameDraft("");
   };
 
-  if (isLoading || !draft) return <LoadingState label="Loading monthly plan details..." />;
+  const saveAll = async () => {
+    if (!draft) return;
+    const payload = normalizeDetails(draft);
+    const errors = validateDetails(payload);
+    if (errors.length) {
+      setSaveErrors(errors);
+      setSaveMessage("");
+      return;
+    }
+    try {
+      const response = await upsertPlanDetails(payload).unwrap();
+      setDraft(normalizeDetails(response.data));
+      setSaveErrors([]);
+      setSaveMessage("Monthly plan saved.");
+    } catch (error) {
+      setSaveErrors([error instanceof Error ? error.message : "Failed to save monthly plan."]);
+      setSaveMessage("");
+    }
+  };
+
+  if (isLoading) return <LoadingState label="Loading monthly plan details..." />;
   if (isError || !data?.data) return <ErrorState label="Failed to load monthly plan detail." />;
+  if (!draft) return <LoadingState label="Preparing editor..." />;
 
   return (
     <section className="space-y-7">
@@ -367,7 +586,7 @@ export default function MonthlyPlanDetailEditorPage() {
         <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Plan Editor</p>
         <h2 className="mt-1 text-3xl font-semibold text-white">{draft.plan.title}</h2>
         <p className="mt-2 text-sm text-zinc-300">
-          Edit every dynamic config that powers `/[planKind]/[planId]/set-plan`, `/select-meals`, and `/checkout`.
+          Manage the data used by `/{draft.plan.planKind}/{draft.plan.id}/set-plan`, `/select-meals`, and `/checkout`.
         </p>
       </div>
 
@@ -387,212 +606,719 @@ export default function MonthlyPlanDetailEditorPage() {
       </div>
 
       <section className="admin-panel rounded-2xl p-5">
-        {activeTab === "general" ? (
+        {activeTab === "basic" ? (
           <div className="grid gap-3 md:grid-cols-2">
-            <input
-              value={draft.plan.title}
-              onChange={(event) => setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, title: event.target.value } } : prev))}
-              placeholder="Title"
-              className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-            />
-            <input
-              value={draft.plan.badge ?? ""}
-              onChange={(event) => setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, badge: event.target.value } } : prev))}
-              placeholder="Badge"
-              className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-            />
-            <select
-              value={draft.plan.status}
-              onChange={(event) =>
-                setDraft((prev) =>
-                  prev ? { ...prev, plan: { ...prev.plan, status: event.target.value as typeof prev.plan.status } } : prev
-                )
-              }
-              className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-            >
-              <option value="draft">Draft</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="archived">Archived</option>
-            </select>
-            <select
-              value={draft.plan.planKind}
-              onChange={(event) =>
-                setDraft((prev) =>
-                  prev ? { ...prev, plan: { ...prev.plan, planKind: event.target.value as typeof prev.plan.planKind } } : prev
-                )
-              }
-              className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-            >
-              <option value="custom">custom</option>
-              <option value="normal">normal</option>
-            </select>
-            <input
-              value={draft.plan.image}
-              onChange={(event) => setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, image: event.target.value } } : prev))}
-              placeholder="Image URL"
-              className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300 md:col-span-2"
-            />
-            <div className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-200 md:col-span-2">
-              <label htmlFor="plan-image-upload" className="mb-2 block text-xs uppercase tracking-[0.12em] text-zinc-400">
-                Upload Plan Image
-              </label>
+            <label className="space-y-1">
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Title</span>
               <input
-                id="plan-image-upload"
-                type="file"
-                accept="image/*"
-                onChange={handlePlanImageUpload}
-                className="text-sm text-zinc-300 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-300 file:px-3 file:py-1.5 file:font-semibold file:text-zinc-900"
+                value={draft.plan.title}
+                onChange={(event) => setPlanField("title", event.target.value)}
+                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
               />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Slug</span>
+              <input
+                value={draft.plan.slug}
+                onChange={(event) => setPlanField("slug", event.target.value)}
+                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Badge</span>
+              <input
+                value={draft.plan.badge ?? ""}
+                onChange={(event) => setPlanField("badge", event.target.value)}
+                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Status</span>
+              <select
+                value={draft.plan.status}
+                onChange={(event) => setPlanField("status", event.target.value as MonthlyPlanDetails["plan"]["status"])}
+                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+              >
+                <option value="draft">draft</option>
+                <option value="active">active</option>
+                <option value="inactive">inactive</option>
+                <option value="archived">archived</option>
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Plan Kind</span>
+              <select
+                value={draft.plan.planKind}
+                onChange={(event) => setPlanField("planKind", event.target.value as MonthlyPlanDetails["plan"]["planKind"])}
+                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+              >
+                <option value="custom">custom</option>
+                <option value="normal">normal</option>
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Image URL</span>
+              <input
+                value={draft.plan.image}
+                onChange={(event) => setPlanField("image", event.target.value)}
+                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+              />
+            </label>
+            <label className="space-y-1 md:col-span-2">
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Description</span>
+              <textarea
+                value={draft.plan.description}
+                onChange={(event) => setPlanField("description", event.target.value)}
+                className="min-h-28 w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+              />
+            </label>
+          </div>
+        ) : null}
+
+        {activeTab === "content" ? (
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Hero Title</span>
+                <input
+                  value={draft.plan.content?.heroTitle ?? ""}
+                  onChange={(event) => setContentField("heroTitle", event.target.value)}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Hero Subtitle</span>
+                <input
+                  value={draft.plan.content?.heroSubtitle ?? ""}
+                  onChange={(event) => setContentField("heroSubtitle", event.target.value)}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
             </div>
-            {draft.plan.image ? (
-              <div className="overflow-hidden rounded-xl border border-zinc-700 md:col-span-2">
-                <img src={draft.plan.image} alt="Plan preview" className="h-40 w-full object-cover" />
+            <label className="space-y-1">
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Select Meals Text</span>
+              <textarea
+                value={draft.plan.content?.selectMealsText ?? ""}
+                onChange={(event) => setContentField("selectMealsText", event.target.value)}
+                className="min-h-24 w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+              />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Checkout Text</span>
+              <textarea
+                value={draft.plan.content?.checkoutText ?? ""}
+                onChange={(event) => setContentField("checkoutText", event.target.value)}
+                className="min-h-24 w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+              />
+            </label>
+
+            {isCustomPlan ? (
+              <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Custom Step Two Categories</p>
+                    <p className="text-xs text-zinc-400">Create, rename, delete, and assign meal ids to custom plan categories.</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveCategory("All")}
+                    className={`rounded-xl px-3 py-2 text-xs ${activeCategory === "All" ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"}`}
+                  >
+                    All
+                  </button>
+                  {categories.map((category) => (
+                    <button
+                      key={category.name}
+                      type="button"
+                      onClick={() => {
+                        setActiveCategory(category.name);
+                        setCategoryRenameDraft(category.name);
+                      }}
+                      className={`rounded-xl px-3 py-2 text-xs ${
+                        activeCategory === category.name ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"
+                      }`}
+                    >
+                      {category.name}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+                  <input
+                    value={newCategoryName}
+                    onChange={(event) => setNewCategoryName(event.target.value)}
+                    placeholder="New category name"
+                    className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                  />
+                  <button type="button" onClick={addCategory} className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900">
+                    Add Category
+                  </button>
+                </div>
+
+                {activeCategory !== "All" ? (
+                  <div className="mt-4 space-y-3 rounded-xl border border-zinc-700 bg-zinc-950/40 p-3">
+                    <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+                      <input
+                        value={categoryRenameDraft}
+                        onChange={(event) => setCategoryRenameDraft(event.target.value)}
+                        className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                      />
+                      <button type="button" onClick={renameCategory} className="rounded-xl border border-zinc-600 px-4 py-2 text-sm text-zinc-100">
+                        Rename
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeCategory(activeCategory)}
+                        className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-100"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {activeMeals.map((meal) => {
+                        const selected = categories.find((category) => category.name === activeCategory)?.mealIds.includes(meal.id) ?? false;
+                        return (
+                          <label key={`${activeCategory}-${meal.id}`} className="flex items-center gap-3 rounded-xl border border-zinc-700/70 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-100">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={(event) => {
+                                const currentIds = categories.find((category) => category.name === activeCategory)?.mealIds ?? [];
+                                updateCategoryMeals(
+                                  activeCategory,
+                                  event.target.checked ? [...currentIds, meal.id] : currentIds.filter((id) => id !== meal.id)
+                                );
+                              }}
+                            />
+                            <span>{meal.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
-            <textarea
-              value={draft.plan.description}
-              onChange={(event) =>
-                setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, description: event.target.value } } : prev))
-              }
-              placeholder="Description"
-              className="min-h-24 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300 md:col-span-2"
-            />
           </div>
         ) : null}
 
         {activeTab === "rules" ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Allowed Meals/Day</span>
-              <input
-                value={draft.rules.allowedMealsPerDay.join(",")}
-                onChange={(event) =>
-                  setDraft((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          rules: {
-                            ...prev.rules,
-                            allowedMealsPerDay: event.target.value
-                              .split(",")
-                              .map((v) => Number(v.trim()))
-                              .filter((v) => Number.isFinite(v) && v > 0)
-                          }
-                        }
-                      : prev
-                  )
-                }
-                placeholder="1,2,3,4"
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Allowed Days</span>
-              <input
-                value={draft.rules.allowedDays.join(",")}
-                onChange={(event) =>
-                  setDraft((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          rules: {
-                            ...prev.rules,
-                            allowedDays: event.target.value
-                              .split(",")
-                              .map((v) => Number(v.trim()))
-                              .filter((v) => Number.isFinite(v) && v > 0)
-                          }
-                        }
-                      : prev
-                  )
-                }
-                placeholder="3,4,5,6"
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Allowed Snacks</span>
-              <input
-                value={draft.rules.allowedSnacks.join(",")}
-                onChange={(event) =>
-                  setDraft((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          rules: {
-                            ...prev.rules,
-                            allowedSnacks: event.target.value
-                              .split(",")
-                              .map((v) => Number(v.trim()))
-                              .filter((v) => Number.isFinite(v) && v >= 0)
-                          }
-                        }
-                      : prev
-                  )
-                }
-                placeholder="0,1,2"
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Plan Type Options (Custom)</span>
-              <input
-                value={draft.rules.planTypeOptions.join(",")}
-                onChange={(event) =>
-                  setDraft((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          rules: {
-                            ...prev.rules,
-                            planTypeOptions: event.target.value
-                              .split(",")
-                              .map((v) => v.trim())
-                              .filter(Boolean)
-                          }
-                        }
-                      : prev
-                  )
-                }
-                placeholder="lose-weight,gain-weight,maintenance"
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Meals</span>
-              <input
-                value={draft.rules.defaults.meals}
-                onChange={(event) =>
-                  setDraft((prev) =>
-                    prev ? { ...prev, rules: { ...prev.rules, defaults: { ...prev.rules.defaults, meals: Number(event.target.value) } } } : prev
-                  )
-                }
-                type="number"
-                min={1}
-                placeholder="3"
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Days</span>
-              <input
-                value={draft.rules.defaults.days}
-                onChange={(event) =>
-                  setDraft((prev) =>
-                    prev ? { ...prev, rules: { ...prev.rules, defaults: { ...prev.rules.defaults, days: Number(event.target.value) } } } : prev
-                  )
-                }
-                type="number"
-                min={1}
-                placeholder="5"
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Allowed Meals / Day</span>
+                <input
+                  value={draft.rules.allowedMealsPerDay.join(",")}
+                  onChange={(event) => setRulesField("allowedMealsPerDay", parseNumberList(event.target.value, 1))}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Allowed Days</span>
+                <input
+                  value={draft.rules.allowedDays.join(",")}
+                  onChange={(event) => setRulesField("allowedDays", parseNumberList(event.target.value, 1))}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Allowed Snacks</span>
+                <input
+                  value={draft.rules.allowedSnacks.join(",")}
+                  onChange={(event) => setRulesField("allowedSnacks", parseNumberList(event.target.value, 0))}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Plan Type Options</span>
+                <input
+                  value={draft.rules.planTypeOptions.join(",")}
+                  onChange={(event) => setRulesField("planTypeOptions", parseStringList(event.target.value))}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Delivery Day Min</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={draft.rules.deliveryDaysRule.min}
+                  onChange={(event) => setRulesField("deliveryDaysRule", { ...draft.rules.deliveryDaysRule, min: Number(event.target.value) })}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Delivery Day Max</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={draft.rules.deliveryDaysRule.max}
+                  onChange={(event) => setRulesField("deliveryDaysRule", { ...draft.rules.deliveryDaysRule, max: Number(event.target.value) })}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+              <p className="text-sm font-semibold text-white">Allowed Week Days</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {weekDayOptions.map((day) => {
+                  const checked = draft.rules.deliveryDaysRule.allowedWeekDays.includes(day.value);
+                  return (
+                    <label key={day.value} className="flex items-center gap-2 rounded-xl border border-zinc-700/70 bg-zinc-900/55 px-3 py-2 text-sm text-zinc-100">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) => {
+                          const next = event.target.checked
+                            ? [...draft.rules.deliveryDaysRule.allowedWeekDays, day.value]
+                            : draft.rules.deliveryDaysRule.allowedWeekDays.filter((value) => value !== day.value);
+                          setRulesField("deliveryDaysRule", {
+                            ...draft.rules.deliveryDaysRule,
+                            allowedWeekDays: [...new Set(next)].sort((a, b) => a - b)
+                          });
+                        }}
+                      />
+                      <span>{day.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+              <p className="text-sm font-semibold text-white">Default Selection</p>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <label className="space-y-1">
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Meals</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={draft.rules.defaults.meals}
+                    onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, meals: Number(event.target.value) })}
+                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Days</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={draft.rules.defaults.days}
+                    onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, days: Number(event.target.value) })}
+                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Snacks</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={draft.rules.defaults.snacks}
+                    onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, snacks: Number(event.target.value) })}
+                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Plan Type</span>
+                  <input
+                    value={draft.rules.defaults.planType ?? ""}
+                    onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, planType: event.target.value || undefined })}
+                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                  />
+                </label>
+                <label className="space-y-1 md:col-span-2">
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Default Delivery Days</span>
+                  <input
+                    value={draft.rules.defaults.deliveryDays.join(",")}
+                    onChange={(event) => setRulesField("defaults", { ...draft.rules.defaults, deliveryDays: parseNumberList(event.target.value, 0) })}
+                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+              <p className="text-sm font-semibold text-white">Delivery Options</p>
+              <div className="mt-3 space-y-3">
+                {draft.rules.deliveryOptionConfigs.map((config, index) => (
+                  <div key={`${config.option}-${index}`} className="grid gap-3 rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-3 md:grid-cols-2 xl:grid-cols-6">
+                    <select
+                      value={config.option}
+                      onChange={(event) => {
+                        const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, option: event.target.value as DeliveryOptionConfig["option"] } : item
+                        );
+                        setRulesField("deliveryOptionConfigs", next);
+                      }}
+                      className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                    >
+                      {deliveryOptionIds.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={config.label}
+                      onChange={(event) => {
+                        const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, label: event.target.value } : item
+                        );
+                        setRulesField("deliveryOptionConfigs", next);
+                      }}
+                      className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                    />
+                    <label className="flex items-center gap-2 rounded-xl border border-zinc-700/70 bg-zinc-900/55 px-3 py-2 text-sm text-zinc-100">
+                      <input
+                        type="checkbox"
+                        checked={config.enabled}
+                        onChange={(event) => {
+                          const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
+                            itemIndex === index ? { ...item, enabled: event.target.checked } : item
+                          );
+                          setRulesField("deliveryOptionConfigs", next);
+                        }}
+                      />
+                      Enabled
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={config.serviceFee}
+                      onChange={(event) => {
+                        const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, serviceFee: Number(event.target.value) } : item
+                        );
+                        setRulesField("deliveryOptionConfigs", next);
+                      }}
+                      className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      value={config.minDays}
+                      onChange={(event) => {
+                        const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, minDays: Number(event.target.value) } : item
+                        );
+                        setRulesField("deliveryOptionConfigs", next);
+                      }}
+                      className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      value={config.maxDays}
+                      onChange={(event) => {
+                        const next = draft.rules.deliveryOptionConfigs.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, maxDays: Number(event.target.value) } : item
+                        );
+                        setRulesField("deliveryOptionConfigs", next);
+                      }}
+                      className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         ) : null}
 
-        {activeTab === "assignment" ? (
+        {activeTab === "pricing" ? (
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Base Fee</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={draft.pricing.basePriceFormula.baseFee}
+                  onChange={(event) =>
+                    setDraft((prev) =>
+                      prev
+                        ? { ...prev, pricing: { ...prev.pricing, basePriceFormula: { ...prev.pricing.basePriceFormula, baseFee: Number(event.target.value) } } }
+                        : prev
+                    )
+                  }
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Price Per Meal</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={draft.pricing.basePriceFormula.pricePerMeal}
+                  onChange={(event) =>
+                    setDraft((prev) =>
+                      prev
+                        ? { ...prev, pricing: { ...prev.pricing, basePriceFormula: { ...prev.pricing.basePriceFormula, pricePerMeal: Number(event.target.value) } } }
+                        : prev
+                    )
+                  }
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Day Multiplier</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={draft.pricing.basePriceFormula.dayMultiplier}
+                  onChange={(event) =>
+                    setDraft((prev) =>
+                      prev
+                        ? { ...prev, pricing: { ...prev.pricing, basePriceFormula: { ...prev.pricing.basePriceFormula, dayMultiplier: Number(event.target.value) } } }
+                        : prev
+                    )
+                  }
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Snacks Add-on</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={draft.pricing.snacksAddonPrice}
+                  onChange={(event) => setDraft((prev) => (prev ? { ...prev, pricing: { ...prev.pricing, snacksAddonPrice: Number(event.target.value) } } : prev))}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">VAT %</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={draft.pricing.vatPercent}
+                  onChange={(event) => setDraft((prev) => (prev ? { ...prev, pricing: { ...prev.pricing, vatPercent: Number(event.target.value) } } : prev))}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Safety Bag Fee</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={draft.pricing.safetyBagFee}
+                  onChange={(event) => setDraft((prev) => (prev ? { ...prev, pricing: { ...prev.pricing, safetyBagFee: Number(event.target.value) } } : prev))}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+            </div>
+            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+              <p className="text-sm font-semibold text-white">Gift Code Rule</p>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <label className="flex items-center gap-2 rounded-xl border border-zinc-700/70 bg-zinc-900/55 px-3 py-2 text-sm text-zinc-100">
+                  <input
+                    type="checkbox"
+                    checked={draft.pricing.giftCodeRule.enabled}
+                    onChange={(event) =>
+                      setDraft((prev) =>
+                        prev ? { ...prev, pricing: { ...prev.pricing, giftCodeRule: { ...prev.pricing.giftCodeRule, enabled: event.target.checked } } } : prev
+                      )
+                    }
+                  />
+                  Enabled
+                </label>
+                <select
+                  value={draft.pricing.giftCodeRule.type}
+                  onChange={(event) =>
+                    setDraft((prev) =>
+                      prev ? { ...prev, pricing: { ...prev.pricing, giftCodeRule: { ...prev.pricing.giftCodeRule, type: event.target.value as "percent" | "fixed" } } } : prev
+                    )
+                  }
+                  className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                >
+                  <option value="percent">percent</option>
+                  <option value="fixed">fixed</option>
+                </select>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={draft.pricing.giftCodeRule.value}
+                  onChange={(event) =>
+                    setDraft((prev) =>
+                      prev ? { ...prev, pricing: { ...prev.pricing, giftCodeRule: { ...prev.pricing.giftCodeRule, value: Number(event.target.value) } } } : prev
+                    )
+                  }
+                  className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={draft.pricing.giftCodeRule.maxDiscount}
+                  onChange={(event) =>
+                    setDraft((prev) =>
+                      prev ? { ...prev, pricing: { ...prev.pricing, giftCodeRule: { ...prev.pricing.giftCodeRule, maxDiscount: Number(event.target.value) } } } : prev
+                    )
+                  }
+                  className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </div>
+            </div>
+
+            {pricingPreview ? (
+              <div className="grid gap-3 sm:grid-cols-3">
+                <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
+                  <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Subtotal</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{pricingPreview.subtotal.toFixed(2)}</p>
+                </article>
+                <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
+                  <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">VAT</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{pricingPreview.vat.toFixed(2)}</p>
+                </article>
+                <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
+                  <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Estimated Total</p>
+                  <p className="mt-2 text-2xl font-semibold text-white">{pricingPreview.total.toFixed(2)}</p>
+                </article>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {activeTab === "meals" ? (
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Name</span>
+                <input
+                  value={mealForm.name}
+                  onChange={(event) => setMealForm((prev) => ({ ...prev, name: event.target.value }))}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Type</span>
+                <select
+                  value={mealForm.mealType}
+                  onChange={(event) => setMealForm((prev) => ({ ...prev, mealType: event.target.value as MealType }))}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                >
+                  {mealTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Status</span>
+                <select
+                  value={mealForm.status}
+                  onChange={(event) => setMealForm((prev) => ({ ...prev, status: event.target.value as MealLibraryItem["status"] }))}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                >
+                  <option value="active">active</option>
+                  <option value="inactive">inactive</option>
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Image URL</span>
+                <input
+                  value={mealForm.image}
+                  onChange={(event) => setMealForm((prev) => ({ ...prev, image: event.target.value }))}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Calories</span>
+                <input type="number" min={0} value={mealForm.calories} onChange={(event) => setMealForm((prev) => ({ ...prev, calories: Number(event.target.value) }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Protein</span>
+                <input type="number" min={0} value={mealForm.protein} onChange={(event) => setMealForm((prev) => ({ ...prev, protein: Number(event.target.value) }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Carbs</span>
+                <input type="number" min={0} value={mealForm.carbs} onChange={(event) => setMealForm((prev) => ({ ...prev, carbs: Number(event.target.value) }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Fat</span>
+                <input type="number" min={0} value={mealForm.fat} onChange={(event) => setMealForm((prev) => ({ ...prev, fat: Number(event.target.value) }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+              </label>
+              <label className="space-y-1 md:col-span-2">
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Tags</span>
+                <input
+                  value={mealForm.tags}
+                  onChange={(event) => setMealForm((prev) => ({ ...prev, tags: event.target.value }))}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                />
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={saveMeal} className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900">
+                {mealForm.id ? "Update Meal" : "Add Meal"}
+              </button>
+              {mealForm.id ? (
+                <button type="button" onClick={() => setMealForm(createMealForm())} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-4 py-2.5 text-sm text-zinc-100">
+                  Cancel Edit
+                </button>
+              ) : null}
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-zinc-700/70 bg-zinc-900/40 p-3">
+              <table className="admin-table min-w-full text-left text-sm">
+                <thead>
+                  <tr>
+                    <th className="pb-2 pr-4 font-medium">Meal</th>
+                    <th className="pb-2 pr-4 font-medium">Type</th>
+                    <th className="pb-2 pr-4 font-medium">Macros</th>
+                    <th className="pb-2 pr-4 font-medium">Tags</th>
+                    <th className="pb-2 pr-4 font-medium">Status</th>
+                    <th className="pb-2 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {meals.map((meal) => (
+                    <tr key={meal.id}>
+                      <td className="py-3 pr-4 text-zinc-100">{meal.name}</td>
+                      <td className="py-3 pr-4 text-zinc-300">{meal.mealType}</td>
+                      <td className="py-3 pr-4 text-zinc-300">kcal:{meal.calories} P:{meal.protein} C:{meal.carbs} F:{meal.fat}</td>
+                      <td className="py-3 pr-4 text-zinc-300">{meal.tags.join(", ") || "-"}</td>
+                      <td className="py-3 pr-4 text-zinc-300">{meal.status}</td>
+                      <td className="py-3">
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => setMealForm(createMealForm(meal))} className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900">
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDraft((prev) =>
+                                prev
+                                  ? { ...prev, mealLibrary: (prev.mealLibrary ?? []).map((item) => (item.id === meal.id ? { ...item, status: item.status === "active" ? "inactive" : "active" } : item)) }
+                                  : prev
+                              )
+                            }
+                            className="rounded-lg border border-zinc-600 bg-zinc-900/70 px-3 py-1.5 text-xs text-zinc-100"
+                          >
+                            {meal.status === "active" ? "Deactivate" : "Activate"}
+                          </button>
+                          <button type="button" onClick={() => removeMeal(meal.id)} className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-100">
+                            Remove
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
+        {activeTab === "assignments" ? (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
               {draft.weekAssignments.map((week) => (
@@ -600,252 +1326,157 @@ export default function MonthlyPlanDetailEditorPage() {
                   key={week.id}
                   type="button"
                   onClick={() => setSelectedWeekId(week.id)}
-                  className={`rounded-xl px-3 py-2 text-sm ${
-                    selectedWeekId === week.id ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-200"
-                  }`}
+                  className={`rounded-xl px-3 py-2 text-sm ${selectedWeekId === week.id ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-200"}`}
                 >
                   Week {week.weekIndex}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={addWeek}
-                className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100"
-              >
+              <button type="button" onClick={addWeek} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100">
                 + Add Week
               </button>
             </div>
 
             {selectedWeek ? (
               <>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <label className="space-y-1">
+                    <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Week Index</span>
+                    <input type="number" min={1} value={selectedWeek.weekIndex} onChange={(event) => updateWeek(selectedWeek.id, (week) => ({ ...week, weekIndex: Number(event.target.value) || week.weekIndex }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Start Date</span>
+                    <input type="date" value={selectedWeek.startDate} onChange={(event) => updateWeek(selectedWeek.id, (week) => syncWeekDates({ ...week, startDate: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">End Date</span>
+                    <input type="date" value={selectedWeek.endDate} onChange={(event) => updateWeek(selectedWeek.id, (week) => syncWeekDates({ ...week, endDate: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                  </label>
+                </div>
+
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => updateWeek(selectedWeek.id, (week) => syncWeekDates(week))} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100">
+                    Sync Dates To Range
+                  </button>
+                  {draft.weekAssignments.length > 1 ? (
+                    <button type="button" onClick={() => removeWeek(selectedWeek.id)} className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
+                      Remove Week
+                    </button>
+                  ) : null}
+                </div>
+
                 <div className="flex flex-wrap gap-2">
-                  {Object.keys(selectedWeek.mealsByDate).map((dateIso) => (
-                    <button
-                      key={dateIso}
-                      type="button"
-                      onClick={() => setSelectedDate(dateIso)}
-                      className={`rounded-xl px-3 py-1.5 text-xs ${
-                        selectedDate === dateIso ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"
-                      }`}
-                    >
+                  {selectedWeekDates.map((dateIso) => (
+                    <button key={dateIso} type="button" onClick={() => setSelectedDate(dateIso)} className={`rounded-xl px-3 py-1.5 text-xs ${selectedDate === dateIso ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"}`}>
                       {dateIso}
                     </button>
                   ))}
                 </div>
 
-                {isCustomPlan ? (
-                  <>
-                    <div className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-3">
-                      <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Category Navigation (Custom Plan Step 2)</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {mealCategories.map((category) => (
-                          <div key={category} className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setActiveCategory(category)}
-                              className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                                activeCategory === category ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"
-                              }`}
-                            >
-                              {category}
-                            </button>
-                            {customCategoryNames.includes(category) ? (
-                              <button
-                                type="button"
-                                onClick={() => removeCustomCategory(category)}
-                                className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-2 py-1 text-[10px] text-rose-100"
-                                title={`Remove ${category}`}
-                              >
-                                Remove
-                              </button>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
-                        <input
-                          value={newCategoryName}
-                          onChange={(event) => setNewCategoryName(event.target.value)}
-                          placeholder="New category name (e.g. CHICKEN)"
-                          className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                        />
-                        <button
-                          type="button"
-                          onClick={addCustomCategory}
-                          className="rounded-xl bg-amber-300 px-3 py-2 text-sm font-semibold text-zinc-900"
+                <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
+                  <div className="space-y-4 rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="space-y-1">
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Library Item</span>
+                        <select
+                          value={assignmentForm.mealId}
+                          onChange={(event) => {
+                            const selectedMeal = meals.find((meal) => meal.id === event.target.value);
+                            setAssignmentForm((prev) => ({ ...prev, mealId: event.target.value, mealName: prev.mealName || selectedMeal?.name || "", mealType: selectedMeal?.mealType ?? prev.mealType }));
+                          }}
+                          className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
                         >
-                          Add Category
+                          <option value="">Select meal</option>
+                          {meals.map((meal) => (
+                            <option key={meal.id} value={meal.id}>
+                              {meal.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Type</span>
+                        <select value={assignmentForm.mealType} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, mealType: event.target.value as MealType }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300">
+                          {mealTypes.map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="space-y-1 md:col-span-2">
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Name Override</span>
+                        <input value={assignmentForm.mealName} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, mealName: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                      </label>
+                      <label className="space-y-1 md:col-span-2">
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Badges</span>
+                        <input value={assignmentForm.badges} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, badges: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                      </label>
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={saveAssignment} className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900">
+                        {assignmentForm.id ? "Update Assigned Meal" : "Add Meal To Date"}
+                      </button>
+                      {assignmentForm.id ? (
+                        <button type="button" onClick={() => setAssignmentForm(createAssignmentForm())} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-4 py-2.5 text-sm text-zinc-100">
+                          Cancel Edit
                         </button>
-                      </div>
-                      {customCategoryNames.includes(activeCategory) ? (
-                        <div className="mt-3 space-y-2 rounded-xl border border-zinc-700 bg-zinc-950/40 p-3">
-                          <p className="text-xs text-zinc-400">Manage custom category: {activeCategory}</p>
-                          <div className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
-                            <select
-                              value={categoryMealDraft}
-                              onChange={(event) => setCategoryMealDraft(event.target.value)}
-                              className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                            >
-                              <option value="">Select meal to add in this category</option>
-                              {meals
-                                .filter((meal) => meal.status === "active")
-                                .map((meal) => (
-                                  <option key={`cat-meal-${meal.id}`} value={meal.id}>
-                                    {meal.name}
-                                  </option>
-                                ))}
-                            </select>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+                    <p className="text-sm font-semibold text-white">Meals For {selectedDate || "Selected Date"}</p>
+                    {selectedMealsOnDate.map((item) => (
+                      <div key={item.id} className="rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">{item.mealName}</p>
+                            <p className="text-xs text-zinc-400">{item.mealType} | {item.badges.join(", ") || "No badges"}</p>
+                          </div>
+                          <div className="flex gap-2">
                             <button
                               type="button"
-                              onClick={addMealToCustomCategory}
-                              className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-xs text-zinc-100"
+                              onClick={() => setAssignmentForm({ id: item.id, mealId: item.mealId, mealName: item.mealName, mealType: item.mealType, badges: item.badges.join(", ") })}
+                              className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900"
                             >
-                              Add Item
+                              Edit
                             </button>
                             <button
                               type="button"
-                              onClick={() => removeCustomCategory(activeCategory)}
-                              className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-100"
+                              onClick={() =>
+                                updateWeek(selectedWeek.id, (week) => ({
+                                  ...week,
+                                  mealsByDate: { ...week.mealsByDate, [selectedDate]: (week.mealsByDate[selectedDate] ?? []).filter((meal) => meal.id !== item.id) }
+                                }))
+                              }
+                              className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-100"
                             >
-                              Remove Category
+                              Remove
                             </button>
                           </div>
                         </div>
-                      ) : null}
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      {categoryMeals.map((meal) => (
-                        <article key={meal.id} className="rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-4">
-                          <div className="h-28 rounded-lg bg-gradient-to-br from-zinc-700/70 via-zinc-800/70 to-zinc-900/70" />
-                          <h4 className="mt-3 text-base font-semibold text-white">{meal.name}</h4>
-                          <p className="text-xs text-zinc-400">{meal.mealType}</p>
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {meal.tags.map((tag) => (
-                              <span key={`${meal.id}-${tag}`} className="rounded-full border border-zinc-600 px-2 py-0.5 text-[10px] text-zinc-300">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                          <div className="mt-3 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setDetailMealId(meal.id)}
-                              className="flex-1 rounded-lg border border-zinc-600 bg-zinc-950/70 px-3 py-1.5 text-xs text-zinc-100"
-                            >
-                              Details
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => assignMealToDate(meal.id, meal.mealType, meal.tags.join(","))}
-                              className="flex-1 rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900"
-                            >
-                              Select
-                            </button>
-                          </div>
-                        </article>
-                      ))}
-                      {!categoryMeals.length ? (
-                        <p className="text-sm text-zinc-400">এই category-তে কোন active food item নেই।</p>
-                      ) : null}
-                    </div>
-                  </>
-                ) : null}
-
-                <div className="grid gap-3 md:grid-cols-4">
-                  <select
-                    value={newAssignment.mealType}
-                    onChange={(event) =>
-                      setNewAssignment((prev) => ({ ...prev, mealType: event.target.value as MealType, mealId: "" }))
-                    }
-                    className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                  >
-                    {mealTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={newAssignment.mealId}
-                    onChange={(event) => setNewAssignment((prev) => ({ ...prev, mealId: event.target.value }))}
-                    className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                  >
-                    <option value="">Select meal</option>
-                    {selectableMeals.map((meal) => (
-                      <option key={meal.id} value={meal.id}>
-                        {meal.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    value={newAssignment.badges}
-                    onChange={(event) => setNewAssignment((prev) => ({ ...prev, badges: event.target.value }))}
-                    placeholder="Badges (comma separated)"
-                    className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                  />
-                  <button
-                    type="button"
-                    onClick={addMealToDate}
-                    className="rounded-xl bg-amber-300 px-3 py-2 text-sm font-semibold text-zinc-900"
-                  >
-                    Assign Meal
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  {selectedMealsOnDate.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-zinc-700/70 bg-zinc-900/55 px-3 py-2">
-                      <div className="text-sm text-zinc-100">
-                        {item.mealName} <span className="text-zinc-400">({item.mealType})</span>
-                        <p className="text-xs text-zinc-400">{item.badges.join(", ") || "No badges"}</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeAssignedMeal(item.id)}
-                        className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-2.5 py-1 text-xs text-rose-100"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  {!selectedMealsOnDate.length ? <p className="text-sm text-zinc-400">No meals assigned for this date yet.</p> : null}
+                    ))}
+                    {!selectedMealsOnDate.length ? <p className="text-sm text-zinc-400">No meals assigned to this date yet.</p> : null}
+                  </div>
                 </div>
 
                 {isCustomPlan ? (
-                  <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/55 p-4">
-                    <h4 className="text-2xl font-semibold text-white">Your Cards</h4>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <input
-                        type="date"
-                        value={newCardDate}
-                        onChange={(event) => setNewCardDate(event.target.value)}
-                        className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                      />
-                      <button
-                        type="button"
-                        onClick={addYourCardDate}
-                        className="rounded-xl bg-amber-300 px-3 py-2 text-sm font-semibold text-zinc-900"
-                      >
-                        Add Your Card Date
-                      </button>
-                    </div>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {Object.keys(selectedWeek.mealsByDate).map((dateIso) => {
-                        const items = selectedWeek.mealsByDate[dateIso] ?? [];
-                        const mealCount = items.filter((item) => item.mealType !== "Snack").length;
-                        const snackCount = items.filter((item) => item.mealType === "Snack").length;
-                        return (
-                          <article key={`card-${dateIso}`} className="rounded-xl border border-zinc-700/70 bg-zinc-900/70 p-3">
-                            <p className="text-xs text-amber-200">{formatDayDate(dateIso)}</p>
-                            <p className="mt-2 text-sm font-semibold text-white">Meals</p>
-                            <p className="text-xs text-zinc-300">{mealCount} selected</p>
-                            <p className="mt-2 text-sm font-semibold text-white">Snacks</p>
-                            <p className="text-xs text-zinc-300">{snackCount} selected</p>
-                          </article>
-                        );
-                      })}
-                    </div>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {activeCategoryMeals.map((meal) => (
+                      <article key={meal.id} className="rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <h4 className="text-base font-semibold text-white">{meal.name}</h4>
+                            <p className="text-xs text-zinc-400">{meal.mealType}</p>
+                          </div>
+                          <button type="button" onClick={() => setAssignmentForm({ id: "", mealId: meal.id, mealName: meal.name, mealType: meal.mealType, badges: meal.tags.join(", ") })} className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900">
+                            Use
+                          </button>
+                        </div>
+                        <p className="mt-3 text-xs text-zinc-300">Tags: {meal.tags.join(", ") || "-"}</p>
+                      </article>
+                    ))}
                   </div>
                 ) : null}
               </>
@@ -855,219 +1486,39 @@ export default function MonthlyPlanDetailEditorPage() {
           </div>
         ) : null}
 
-        {activeTab === "pricing" ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Base Fee</span>
-              <input
-                type="number"
-                min={0}
-                value={draft.pricing.basePriceFormula.baseFee}
-                onChange={(event) =>
-                  setDraft((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          pricing: {
-                            ...prev.pricing,
-                            basePriceFormula: { ...prev.pricing.basePriceFormula, baseFee: Number(event.target.value) }
-                          }
-                        }
-                      : prev
-                  )
-                }
-                placeholder="150"
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Price Per Meal</span>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={draft.pricing.basePriceFormula.pricePerMeal}
-                onChange={(event) =>
-                  setDraft((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          pricing: {
-                            ...prev.pricing,
-                            basePriceFormula: { ...prev.pricing.basePriceFormula, pricePerMeal: Number(event.target.value) }
-                          }
-                        }
-                      : prev
-                  )
-                }
-                placeholder="6.25"
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Snacks Add-on</span>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={draft.pricing.snacksAddonPrice}
-                onChange={(event) =>
-                  setDraft((prev) => (prev ? { ...prev, pricing: { ...prev.pricing, snacksAddonPrice: Number(event.target.value) } } : prev))
-                }
-                placeholder="2"
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">VAT %</span>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={draft.pricing.vatPercent}
-                onChange={(event) =>
-                  setDraft((prev) => (prev ? { ...prev, pricing: { ...prev.pricing, vatPercent: Number(event.target.value) } } : prev))
-                }
-                placeholder="15"
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Safety Bag Fee</span>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={draft.pricing.safetyBagFee}
-                onChange={(event) =>
-                  setDraft((prev) => (prev ? { ...prev, pricing: { ...prev.pricing, safetyBagFee: Number(event.target.value) } } : prev))
-                }
-                placeholder="2"
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Gift Code Value</span>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={draft.pricing.giftCodeRule.value}
-                onChange={(event) =>
-                  setDraft((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          pricing: { ...prev.pricing, giftCodeRule: { ...prev.pricing.giftCodeRule, value: Number(event.target.value) } }
-                        }
-                      : prev
-                  )
-                }
-                placeholder="15"
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-          </div>
-        ) : null}
-
-        {activeTab === "content" ? (
-          <div className="grid gap-3">
-            <input
-              value={draft.plan.content.heroTitle}
-              onChange={(event) =>
-                setDraft((prev) =>
-                  prev ? { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, heroTitle: event.target.value } } } : prev
-                )
-              }
-              placeholder="Hero title"
-              className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-            />
-            <input
-              value={draft.plan.content.heroSubtitle}
-              onChange={(event) =>
-                setDraft((prev) =>
-                  prev ? { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, heroSubtitle: event.target.value } } } : prev
-                )
-              }
-              placeholder="Hero subtitle"
-              className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-            />
-            <textarea
-              value={draft.plan.content.selectMealsText}
-              onChange={(event) =>
-                setDraft((prev) =>
-                  prev ? { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, selectMealsText: event.target.value } } } : prev
-                )
-              }
-              placeholder="Select-meals page text"
-              className="min-h-24 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-            />
-            <textarea
-              value={draft.plan.content.checkoutText}
-              onChange={(event) =>
-                setDraft((prev) =>
-                  prev ? { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, checkoutText: event.target.value } } } : prev
-                )
-              }
-              placeholder="Checkout page text"
-              className="min-h-24 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-            />
+        {activeTab === "preview" ? (
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-4">
+              <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Plan Kind</p>
+                <p className="mt-2 text-xl font-semibold text-white">{draft.plan.planKind}</p>
+              </article>
+              <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Status</p>
+                <p className="mt-2 text-xl font-semibold text-white">{draft.plan.status}</p>
+              </article>
+              <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meals</p>
+                <p className="mt-2 text-xl font-semibold text-white">{meals.length}</p>
+              </article>
+              <article className="rounded-xl border border-zinc-700/70 bg-zinc-900/55 p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Weeks</p>
+                <p className="mt-2 text-xl font-semibold text-white">{draft.weekAssignments.length}</p>
+              </article>
+            </div>
+            <pre className="overflow-x-auto rounded-2xl border border-zinc-700/70 bg-zinc-950/60 p-4 text-xs text-zinc-200">{previewJson}</pre>
           </div>
         ) : null}
       </section>
 
-      {saveError ? <ErrorState label={saveError} /> : null}
-      {saveMessage ? <p className="text-sm text-emerald-300">{saveMessage}</p> : null}
-
-      {isCustomPlan && detailMeal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/70 p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-zinc-700 bg-zinc-900 p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-2xl font-semibold text-white">{detailMeal.name}</h3>
-                <p className="text-sm text-zinc-400">{detailMeal.mealType}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDetailMealId(null)}
-                className="rounded-lg border border-zinc-600 px-3 py-1.5 text-xs text-zinc-200"
-              >
-                Close
-              </button>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-              <div className="rounded-lg border border-zinc-700 bg-zinc-950/50 p-3">
-                <p className="text-xs text-zinc-400">Calories</p>
-                <p className="mt-1 text-lg font-semibold text-white">{detailMeal.calories}</p>
-              </div>
-              <div className="rounded-lg border border-zinc-700 bg-zinc-950/50 p-3">
-                <p className="text-xs text-zinc-400">Fat</p>
-                <p className="mt-1 text-lg font-semibold text-white">{detailMeal.fat}</p>
-              </div>
-              <div className="rounded-lg border border-zinc-700 bg-zinc-950/50 p-3">
-                <p className="text-xs text-zinc-400">Protein</p>
-                <p className="mt-1 text-lg font-semibold text-white">{detailMeal.protein}</p>
-              </div>
-              <div className="rounded-lg border border-zinc-700 bg-zinc-950/50 p-3">
-                <p className="text-xs text-zinc-400">Carb</p>
-                <p className="mt-1 text-lg font-semibold text-white">{detailMeal.carbs}</p>
-              </div>
-            </div>
-            <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  assignMealToDate(detailMeal.id, detailMeal.mealType, detailMeal.tags.join(","));
-                  setDetailMealId(null);
-                }}
-                className="rounded-xl bg-amber-300 px-5 py-2 text-sm font-semibold text-zinc-900"
-              >
-                Select
-              </button>
-            </div>
-          </div>
+      {saveErrors.length ? (
+        <div className="space-y-2">
+          {saveErrors.map((error) => (
+            <ErrorState key={error} label={error} />
+          ))}
         </div>
       ) : null}
+      {saveMessage ? <p className="text-sm text-emerald-300">{saveMessage}</p> : null}
 
       <div className="flex items-center gap-2">
         <button
@@ -1076,7 +1527,7 @@ export default function MonthlyPlanDetailEditorPage() {
           disabled={isSaving}
           className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200 disabled:opacity-60"
         >
-          {isSaving ? "Saving..." : "Save All Tabs"}
+          {isSaving ? "Saving..." : "Save Monthly Plan"}
         </button>
       </div>
     </section>

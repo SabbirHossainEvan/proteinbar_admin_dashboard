@@ -3,6 +3,7 @@ import { monthlyPlanMockAdapter, type MonthlyPlanDetailsPayload } from "@/redux/
 import type {
   LocationRecord,
   MealLibraryItem,
+  MonthlyPlanDetails,
   MonthlyPlan,
   MonthlyPlanGlobalSettings,
   MonthlyPlanOverview,
@@ -212,7 +213,7 @@ export const adminApi = createApi({
       },
       providesTags: ["MonthlyPlanAdmin"]
     }),
-    getMonthlyPlanDetails: builder.query<ApiResponse<MonthlyPlanDetailsPayload | null>, string>({
+    getMonthlyPlanDetails: builder.query<ApiResponse<MonthlyPlanDetails | null>, string>({
       queryFn: async (id) => {
         const data = await monthlyPlanMockAdapter.getPlanById(id);
         return { data: { success: true, data } };
@@ -362,6 +363,7 @@ export const {
   useGetMonthlyPlanOverviewQuery,
   useGetMonthlyPlanAdminListQuery,
   useGetMonthlyPlanDetailsQuery,
+  useLazyGetMonthlyPlanDetailsQuery,
   useUpsertMonthlyPlanDetailsMutation,
   useArchiveMonthlyPlanMutation,
   useGetMealLibraryAdminQuery,
