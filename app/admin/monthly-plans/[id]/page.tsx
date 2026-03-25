@@ -7,7 +7,7 @@ import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import { useGetMonthlyPlanDetailsQuery, useUpsertMonthlyPlanDetailsMutation } from "@/redux/api/adminApi";
 import type { DeliveryOptionConfig, MealType, MonthlyPlanDetails, WeekAssignment } from "@/redux/monthlyPlans/types";
 
-type TabKey = "basic" | "content" | "rules" | "assignments";
+type TabKey = "basic" | "rules" | "assignments";
 
 type AssignmentFormState = {
   id: string;
@@ -19,7 +19,6 @@ type AssignmentFormState = {
 
 const tabs: Array<{ key: TabKey; label: string }> = [
   { key: "basic", label: "Basic Info" },
-  { key: "content", label: "Content" },
   { key: "rules", label: "Rules" },
   { key: "assignments", label: "Week Assignments" }
 ];
@@ -235,9 +234,6 @@ export default function MonthlyPlanDetailEditorPage() {
   const [selectedWeekId, setSelectedWeekId] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [assignmentForm, setAssignmentForm] = useState<AssignmentFormState>(createAssignmentForm());
-  const [activeCategory, setActiveCategory] = useState("All");
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [categoryRenameDraft, setCategoryRenameDraft] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [saveErrors, setSaveErrors] = useState<string[]>([]);
 
@@ -271,22 +267,8 @@ export default function MonthlyPlanDetailEditorPage() {
   const activeMeals = meals.filter((meal) => meal.status === "active");
   const selectedMealsOnDate = selectedWeek && selectedDate ? selectedWeek.mealsByDate[selectedDate] ?? [] : [];
   const isCustomPlan = draft?.plan.planKind === "custom";
-  const categories = draft?.plan.content?.customStepTwo?.categories ?? [];
-  const categoryNames = categories.map((category) => category.name);
-  const activeCategoryMeals =
-    activeCategory === "All"
-      ? activeMeals
-      : activeMeals.filter((meal) => {
-          const customCategory = categories.find((category) => category.name === activeCategory);
-          if (customCategory) return customCategory.mealIds.includes(meal.id);
-          return meal.tags.some((tag) => tag.toUpperCase() === activeCategory);
-        });
   const setPlanField = <K extends keyof MonthlyPlanDetails["plan"]>(field: K, value: MonthlyPlanDetails["plan"][K]) => {
     setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, [field]: value } } : prev));
-  };
-
-  const setContentField = (field: keyof NonNullable<MonthlyPlanDetails["plan"]["content"]>, value: string) => {
-    setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, [field]: value } } } : prev));
   };
 
   const setRulesField = <K extends keyof MonthlyPlanDetails["rules"]>(field: K, value: MonthlyPlanDetails["rules"][K]) => {
@@ -360,107 +342,6 @@ export default function MonthlyPlanDetailEditorPage() {
     }));
     setAssignmentForm(createAssignmentForm());
     setSaveErrors([]);
-  };
-
-  const updateCategoryMeals = (categoryName: string, mealIds: string[]) => {
-    setDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            plan: {
-              ...prev.plan,
-              content: {
-                ...prev.plan.content,
-                customStepTwo: {
-                  categories: (prev.plan.content?.customStepTwo?.categories ?? []).map((category) =>
-                    category.name === categoryName ? { ...category, mealIds } : category
-                  )
-                }
-              }
-            }
-          }
-        : prev
-    );
-  };
-
-  const addCategory = () => {
-    const name = newCategoryName.trim().toUpperCase();
-    if (!name || !draft) return;
-    if (categoryNames.includes(name)) {
-      setSaveErrors([`Category ${name} already exists.`]);
-      return;
-    }
-    setDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            plan: {
-              ...prev.plan,
-              content: {
-                ...prev.plan.content,
-                customStepTwo: {
-                  categories: [...(prev.plan.content?.customStepTwo?.categories ?? []), { name, mealIds: [] }]
-                }
-              }
-            }
-          }
-        : prev
-    );
-    setNewCategoryName("");
-    setCategoryRenameDraft(name);
-    setActiveCategory(name);
-    setSaveErrors([]);
-  };
-
-  const renameCategory = () => {
-    if (!activeCategory || activeCategory === "All") return;
-    const nextName = categoryRenameDraft.trim().toUpperCase();
-    if (!nextName || !draft) return;
-    if (nextName !== activeCategory && categoryNames.includes(nextName)) {
-      setSaveErrors([`Category ${nextName} already exists.`]);
-      return;
-    }
-    setDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            plan: {
-              ...prev.plan,
-              content: {
-                ...prev.plan.content,
-                customStepTwo: {
-                  categories: (prev.plan.content?.customStepTwo?.categories ?? []).map((category) =>
-                    category.name === activeCategory ? { ...category, name: nextName } : category
-                  )
-                }
-              }
-            }
-          }
-        : prev
-    );
-    setActiveCategory(nextName);
-    setSaveErrors([]);
-  };
-
-  const removeCategory = (categoryName: string) => {
-    setDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            plan: {
-              ...prev.plan,
-              content: {
-                ...prev.plan.content,
-                customStepTwo: {
-                  categories: (prev.plan.content?.customStepTwo?.categories ?? []).filter((category) => category.name !== categoryName)
-                }
-              }
-            }
-          }
-        : prev
-    );
-    setActiveCategory("All");
-    setCategoryRenameDraft("");
   };
 
   const saveAll = async () => {
@@ -579,134 +460,6 @@ export default function MonthlyPlanDetailEditorPage() {
                 className="min-h-28 w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
               />
             </label>
-          </div>
-        ) : null}
-
-        {activeTab === "content" ? (
-          <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Hero Title</span>
-                <input
-                  value={draft.plan.content?.heroTitle ?? ""}
-                  onChange={(event) => setContentField("heroTitle", event.target.value)}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Hero Subtitle</span>
-                <input
-                  value={draft.plan.content?.heroSubtitle ?? ""}
-                  onChange={(event) => setContentField("heroSubtitle", event.target.value)}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-            </div>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Select Meals Text</span>
-              <textarea
-                value={draft.plan.content?.selectMealsText ?? ""}
-                onChange={(event) => setContentField("selectMealsText", event.target.value)}
-                className="min-h-24 w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Checkout Text</span>
-              <textarea
-                value={draft.plan.content?.checkoutText ?? ""}
-                onChange={(event) => setContentField("checkoutText", event.target.value)}
-                className="min-h-24 w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
-
-            {isCustomPlan ? (
-              <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-white">Custom Step Two Categories</p>
-                    <p className="text-xs text-zinc-400">Create, rename, delete, and assign meal ids to custom plan categories.</p>
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveCategory("All")}
-                    className={`rounded-xl px-3 py-2 text-xs ${activeCategory === "All" ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"}`}
-                  >
-                    All
-                  </button>
-                  {categories.map((category) => (
-                    <button
-                      key={category.name}
-                      type="button"
-                      onClick={() => {
-                        setActiveCategory(category.name);
-                        setCategoryRenameDraft(category.name);
-                      }}
-                      className={`rounded-xl px-3 py-2 text-xs ${
-                        activeCategory === category.name ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"
-                      }`}
-                    >
-                      {category.name}
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-                  <input
-                    value={newCategoryName}
-                    onChange={(event) => setNewCategoryName(event.target.value)}
-                    placeholder="New category name"
-                    className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                  />
-                  <button type="button" onClick={addCategory} className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900">
-                    Add Category
-                  </button>
-                </div>
-
-                {activeCategory !== "All" ? (
-                  <div className="mt-4 space-y-3 rounded-xl border border-zinc-700 bg-zinc-950/40 p-3">
-                    <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
-                      <input
-                        value={categoryRenameDraft}
-                        onChange={(event) => setCategoryRenameDraft(event.target.value)}
-                        className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                      />
-                      <button type="button" onClick={renameCategory} className="rounded-xl border border-zinc-600 px-4 py-2 text-sm text-zinc-100">
-                        Rename
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeCategory(activeCategory)}
-                        className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-100"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                    <div className="grid gap-2 md:grid-cols-2">
-                      {activeMeals.map((meal) => {
-                        const selected = categories.find((category) => category.name === activeCategory)?.mealIds.includes(meal.id) ?? false;
-                        return (
-                          <label key={`${activeCategory}-${meal.id}`} className="flex items-center gap-3 rounded-xl border border-zinc-700/70 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-100">
-                            <input
-                              type="checkbox"
-                              checked={selected}
-                              onChange={(event) => {
-                                const currentIds = categories.find((category) => category.name === activeCategory)?.mealIds ?? [];
-                                updateCategoryMeals(
-                                  activeCategory,
-                                  event.target.checked ? [...currentIds, meal.id] : currentIds.filter((id) => id !== meal.id)
-                                );
-                              }}
-                            />
-                            <span>{meal.name}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
           </div>
         ) : null}
 
@@ -1078,7 +831,7 @@ export default function MonthlyPlanDetailEditorPage() {
 
                 {isCustomPlan ? (
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {activeCategoryMeals.map((meal) => (
+                    {activeMeals.map((meal) => (
                       <article key={meal.id} className="rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-4">
                         <div className="flex items-center justify-between gap-3">
                           <div>
