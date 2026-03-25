@@ -629,6 +629,20 @@ export const monthlyPlanMockAdapter = {
     return wait({ id, status: entities.plans[id].status });
   },
 
+  async deletePlan(id: string): Promise<{ id: string } | null> {
+    const plan = entities.plans[id];
+    if (!plan) return wait(null);
+
+    delete entities.rules[plan.ruleConfigId];
+    delete entities.pricing[plan.pricingConfigId];
+    plan.weekAssignmentIds.forEach((assignmentId) => {
+      delete entities.weekAssignments[assignmentId];
+    });
+    delete entities.plans[id];
+
+    return wait({ id });
+  },
+
   async listMealLibrary(): Promise<MealLibraryItem[]> {
     return wait(asArray(entities.mealLibrary).sort((a, b) => a.name.localeCompare(b.name)));
   },

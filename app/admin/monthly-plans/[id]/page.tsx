@@ -383,22 +383,43 @@ export default function MonthlyPlanDetailEditorPage() {
 
   return (
     <section className="space-y-7">
-      <div>
-        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Plan Editor</p>
-        <h2 className="mt-1 text-3xl font-semibold text-white">{draft.plan.title}</h2>
-        <p className="mt-2 text-sm text-zinc-300">
-          Manage the data used by `/{draft.plan.planKind}/{draft.plan.id}/set-plan`, `/select-meals`, and `/checkout`.
-        </p>
+      <div className="overflow-hidden rounded-[28px] border border-zinc-800 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_transparent_28%),linear-gradient(180deg,rgba(24,24,27,0.96),rgba(9,9,11,0.96))] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.28)]">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs uppercase tracking-[0.22em] text-amber-200/70">Plan Editor</p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">{draft.plan.title}</h2>
+            <p className="mt-3 text-sm leading-6 text-zinc-300">
+              Manage the data used by `/{draft.plan.planKind}/{draft.plan.id}/set-plan`, `/select-meals`, and `/checkout`.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/45 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">Plan Kind</p>
+              <p className="mt-1 text-sm font-semibold text-white">{draft.plan.planKind}</p>
+            </div>
+            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/45 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">Status</p>
+              <p className="mt-1 text-sm font-semibold text-white">{draft.plan.status}</p>
+            </div>
+            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/45 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">Weeks</p>
+              <p className="mt-1 text-sm font-semibold text-white">{draft.weekAssignments.length}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-zinc-800/80 bg-zinc-950/40 p-2">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             type="button"
             onClick={() => setActiveTab(tab.key)}
-            className={`rounded-xl px-3.5 py-2 text-sm font-medium transition ${
-              activeTab === tab.key ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 bg-zinc-900/60 text-zinc-200"
+            className={`rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+              activeTab === tab.key
+                ? "bg-amber-300 text-zinc-900 shadow-[0_12px_30px_rgba(251,191,36,0.22)]"
+                : "border border-zinc-700 bg-zinc-900/55 text-zinc-300 hover:border-zinc-500 hover:text-white"
             }`}
           >
             {tab.label}
@@ -406,39 +427,45 @@ export default function MonthlyPlanDetailEditorPage() {
         ))}
       </div>
 
-      <section className="admin-panel rounded-2xl p-5">
+      <section className="admin-panel rounded-[28px] border border-zinc-800/80 p-6 shadow-[0_18px_55px_rgba(0,0,0,0.22)]">
         {activeTab === "basic" ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1">
+          <div className="space-y-6">
+            <div className="border-b border-zinc-800 pb-4">
+              <p className="text-lg font-semibold text-white">Basic Info</p>
+              <p className="mt-1 text-sm text-zinc-400">Update the plan identity, visibility, and cover image used across the monthly plan flow.</p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-1.5">
               <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Title</span>
               <input
                 value={draft.plan.title}
                 onChange={(event) => setPlanField("title", event.target.value)}
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                className="w-full rounded-2xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none transition focus:border-amber-300 focus:bg-zinc-900"
               />
             </label>
-            <label className="space-y-1">
+            <label className="space-y-1.5">
               <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Slug</span>
               <input
                 value={draft.plan.slug}
                 onChange={(event) => setPlanField("slug", event.target.value)}
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                className="w-full rounded-2xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none transition focus:border-amber-300 focus:bg-zinc-900"
               />
             </label>
-            <label className="space-y-1">
+            <label className="space-y-1.5">
               <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Badge</span>
               <input
                 value={draft.plan.badge ?? ""}
                 onChange={(event) => setPlanField("badge", event.target.value)}
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                className="w-full rounded-2xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none transition focus:border-amber-300 focus:bg-zinc-900"
               />
             </label>
-            <label className="space-y-1">
+            <label className="space-y-1.5">
               <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Status</span>
               <select
                 value={draft.plan.status}
                 onChange={(event) => setPlanField("status", event.target.value as MonthlyPlanDetails["plan"]["status"])}
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                className="w-full rounded-2xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none transition focus:border-amber-300 focus:bg-zinc-900"
               >
                 <option value="draft">draft</option>
                 <option value="active">active</option>
@@ -446,41 +473,49 @@ export default function MonthlyPlanDetailEditorPage() {
                 <option value="archived">archived</option>
               </select>
             </label>
-            <label className="space-y-1">
+            <label className="space-y-1.5">
               <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Plan Kind</span>
               <select
                 value={draft.plan.planKind}
                 onChange={(event) => setPlanField("planKind", event.target.value as MonthlyPlanDetails["plan"]["planKind"])}
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                className="w-full rounded-2xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none transition focus:border-amber-300 focus:bg-zinc-900"
               >
                 <option value="custom">custom</option>
                 <option value="normal">normal</option>
               </select>
             </label>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Plan Image Upload</span>
-              <label className="flex cursor-pointer items-center justify-center rounded-xl border border-dashed border-zinc-600 bg-zinc-900/70 px-4 py-4 text-sm text-zinc-200 transition hover:border-amber-300 hover:text-white">
+              <label className="group flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-[24px] border border-dashed border-zinc-600 bg-[linear-gradient(180deg,rgba(24,24,27,0.88),rgba(15,15,17,0.92))] px-5 py-6 text-center transition hover:border-amber-300 hover:bg-zinc-900/90">
                 <input type="file" accept="image/*" onChange={handlePlanImageUpload} className="hidden" />
-                Upload image
+                <span className="rounded-full border border-zinc-600 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-zinc-400 transition group-hover:border-amber-300/60 group-hover:text-amber-200">
+                  Image
+                </span>
+                <span className="text-sm font-medium text-zinc-100">Upload plan cover</span>
+                <span className="text-xs text-zinc-500">JPG, PNG, or WebP. Click to choose a file.</span>
               </label>
             </div>
-            {draft.plan.image ? (
-              <div className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900/50">
-                <Image src={draft.plan.image} alt="Plan preview" width={1200} height={320} className="h-32 w-full object-cover" unoptimized />
-              </div>
-            ) : (
-              <div className="flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 py-4 text-sm text-zinc-500">
-                No image uploaded
-              </div>
-            )}
-            <label className="space-y-1 md:col-span-2">
+            <div className="rounded-[24px] border border-zinc-800 bg-zinc-950/40 p-3">
+              {draft.plan.image ? (
+                <div className="overflow-hidden rounded-[20px] border border-zinc-700 bg-zinc-900/50">
+                  <Image src={draft.plan.image} alt="Plan preview" width={1200} height={320} className="h-40 w-full object-cover" unoptimized />
+                </div>
+              ) : (
+                <div className="flex h-40 items-center justify-center rounded-[20px] border border-zinc-800 bg-zinc-900/40 px-4 text-sm text-zinc-500">
+                  No image uploaded yet
+                </div>
+              )}
+              <p className="px-1 pt-3 text-xs text-zinc-500">This preview helps you confirm the cover before saving the plan.</p>
+            </div>
+            <label className="space-y-1.5 md:col-span-2">
               <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Description</span>
               <textarea
                 value={draft.plan.description}
                 onChange={(event) => setPlanField("description", event.target.value)}
-                className="min-h-28 w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                className="min-h-32 w-full rounded-[24px] border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none transition focus:border-amber-300 focus:bg-zinc-900"
               />
             </label>
+            </div>
           </div>
         ) : null}
 
@@ -877,12 +912,13 @@ export default function MonthlyPlanDetailEditorPage() {
       ) : null}
       {saveMessage ? <p className="text-sm text-emerald-300">{saveMessage}</p> : null}
 
-      <div className="flex items-center gap-2">
+      <div className="sticky bottom-4 z-10 flex items-center gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/75 px-4 py-3 backdrop-blur">
+        <p className="hidden text-sm text-zinc-400 md:block">Save changes after updating the monthly plan configuration.</p>
         <button
           type="button"
           onClick={() => void saveAll()}
           disabled={isSaving}
-          className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200 disabled:opacity-60"
+          className="rounded-xl bg-amber-300 px-5 py-2.5 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200 disabled:opacity-60"
         >
           {isSaving ? "Saving..." : "Save Monthly Plan"}
         </button>

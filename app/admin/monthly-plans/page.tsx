@@ -4,9 +4,8 @@ import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import {
-  useArchiveMonthlyPlanMutation,
+  useDeleteMonthlyPlanAdminMutation,
   useGetMonthlyPlanAdminListQuery,
-  useLazyGetMonthlyPlanDetailsQuery,
   useUpsertMonthlyPlanDetailsMutation
 } from "@/redux/api/adminApi";
 import type { MonthlyPlan, PlanKind } from "@/redux/monthlyPlans/types";
@@ -98,8 +97,7 @@ export default function MonthlyPlansPage() {
   const [createError, setCreateError] = useState("");
 
   const { data, isLoading, isError } = useGetMonthlyPlanAdminListQuery(filters);
-  const [getPlanDetails] = useLazyGetMonthlyPlanDetailsQuery();
-  const [archivePlan, { isLoading: isArchiving }] = useArchiveMonthlyPlanMutation();
+  const [deletePlan, { isLoading: isDeleting }] = useDeleteMonthlyPlanAdminMutation();
   const [upsertPlanDetails, { isLoading: isCreating }] = useUpsertMonthlyPlanDetailsMutation();
 
   const plans = useMemo(() => data?.data ?? [], [data]);
@@ -124,51 +122,12 @@ export default function MonthlyPlansPage() {
     }
   };
 
-  const onArchive = async (id: string) => {
-    await archivePlan(id).unwrap();
-  };
-
-  const onDuplicate = async (plan: MonthlyPlan) => {
+  const onDelete = async (id: string) => {
     setCreateError("");
     try {
-      const source = await getPlanDetails(plan.id).unwrap();
-      if (!source.data) throw new Error("Missing plan details.");
-      const duplicated = createNewPlanDraft(source.data.plan.planKind);
-      await upsertPlanDetails({
-        ...duplicated,
-        plan: {
-          ...source.data.plan,
-          ...duplicated.plan,
-          title: `${source.data.plan.title} Copy`,
-          slug: `${source.data.plan.slug}-copy-${Date.now()}`,
-          status: "draft",
-          createdAt: duplicated.plan.createdAt,
-          updatedAt: duplicated.plan.updatedAt
-        },
-        rules: { ...source.data.rules, ...duplicated.rules, planId: duplicated.plan.id, id: duplicated.rules.id },
-        pricing: { ...source.data.pricing, ...duplicated.pricing, planId: duplicated.plan.id, id: duplicated.pricing.id },
-        weekAssignments: [],
-        mealLibrary: source.data.mealLibrary ?? []
-      }).unwrap();
+      await deletePlan(id).unwrap();
     } catch {
-      setCreateError("Failed to duplicate plan.");
-    }
-  };
-
-  const onToggleActive = async (plan: MonthlyPlan) => {
-    setCreateError("");
-    try {
-      const source = await getPlanDetails(plan.id).unwrap();
-      if (!source.data) throw new Error("Missing plan details.");
-      await upsertPlanDetails({
-        ...source.data,
-        plan: {
-          ...source.data.plan,
-          status: plan.status === "active" ? "inactive" : "active"
-        }
-      }).unwrap();
-    } catch {
-      setCreateError("Failed to update plan status.");
+      setCreateError("Failed to delete plan.");
     }
   };
 
@@ -177,7 +136,7 @@ export default function MonthlyPlansPage() {
       <div>
         <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Monthly Plan Catalog</p>
         <h2 className="mt-1 text-3xl font-semibold text-white">Monthly Plans</h2>
-        <p className="mt-2 text-sm text-zinc-300">List, filter, create draft, edit with tabbed details, and archive plans.</p>
+        <p className="mt-2 text-sm text-zinc-300">List, filter, create draft, edit plan details, and delete plans.</p>
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -276,27 +235,11 @@ export default function MonthlyPlansPage() {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => void onDuplicate(plan)}
-                  disabled={isCreating}
-                  className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-2 text-sm font-medium text-zinc-100 transition hover:bg-zinc-800 disabled:opacity-50"
-                >
-                  Duplicate
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onToggleActive(plan)}
-                  disabled={plan.status === "archived" || isCreating}
-                  className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-2 text-sm font-medium text-zinc-100 transition hover:bg-zinc-800 disabled:opacity-50"
-                >
-                  {plan.status === "active" ? "Deactivate" : "Activate"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onArchive(plan.id)}
-                  disabled={plan.status === "archived" || isArchiving}
+                  onClick={() => void onDelete(plan.id)}
+                  disabled={isDeleting}
                   className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3.5 py-2 text-sm font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:opacity-50"
                 >
-                  Archive
+                  Delete
                 </button>
               </div>
             </article>

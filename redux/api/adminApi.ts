@@ -237,6 +237,13 @@ export const adminApi = createApi({
       },
       invalidatesTags: ["MonthlyPlanAdmin"]
     }),
+    deleteMonthlyPlanAdmin: builder.mutation<ApiResponse<{ id: string } | null>, string>({
+      queryFn: async (id) => {
+        const data = await monthlyPlanMockAdapter.deletePlan(id);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["MonthlyPlanAdmin"]
+    }),
     getMealLibraryAdmin: builder.query<ApiResponse<MealLibraryItem[]>, void>({
       queryFn: async () => {
         const data = await monthlyPlanMockAdapter.listMealLibrary();
@@ -366,6 +373,7 @@ export const {
   useLazyGetMonthlyPlanDetailsQuery,
   useUpsertMonthlyPlanDetailsMutation,
   useArchiveMonthlyPlanMutation,
+  useDeleteMonthlyPlanAdminMutation,
   useGetMealLibraryAdminQuery,
   useUpsertMealLibraryAdminMutation,
   useDeleteMealLibraryAdminMutation,
