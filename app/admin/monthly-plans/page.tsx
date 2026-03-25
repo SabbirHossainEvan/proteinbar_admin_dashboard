@@ -97,10 +97,14 @@ export default function MonthlyPlansPage() {
   const [createError, setCreateError] = useState("");
 
   const { data, isLoading, isError } = useGetMonthlyPlanAdminListQuery(filters);
+  const { data: allPlansData } = useGetMonthlyPlanAdminListQuery();
   const [deletePlan, { isLoading: isDeleting }] = useDeleteMonthlyPlanAdminMutation();
   const [upsertPlanDetails, { isLoading: isCreating }] = useUpsertMonthlyPlanDetailsMutation();
 
   const plans = useMemo(() => data?.data ?? [], [data]);
+  const allPlans = useMemo(() => allPlansData?.data ?? [], [allPlansData]);
+  const hasCustomPlan = useMemo(() => allPlans.some((item) => item.planKind === "custom"), [allPlans]);
+  const selectedQuickCreateKind = hasCustomPlan && quickCreateKind === "custom" ? "normal" : quickCreateKind;
 
   const summary = useMemo(
     () => ({
@@ -115,8 +119,12 @@ export default function MonthlyPlansPage() {
   const onCreate = async (event: FormEvent) => {
     event.preventDefault();
     setCreateError("");
+    if (selectedQuickCreateKind === "custom" && hasCustomPlan) {
+      setCreateError("Only one custom plan can exist. Delete the current custom plan to create a new one.");
+      return;
+    }
     try {
-      await upsertPlanDetails(createNewPlanDraft(quickCreateKind)).unwrap();
+      await upsertPlanDetails(createNewPlanDraft(selectedQuickCreateKind)).unwrap();
     } catch {
       setCreateError("Failed to create plan draft.");
     }
@@ -188,21 +196,26 @@ export default function MonthlyPlansPage() {
 
       <section className="admin-panel rounded-2xl p-5">
         <h3 className="text-lg font-semibold text-white">Quick Create</h3>
+        {hasCustomPlan ? (
+          <p className="mt-2 text-sm text-zinc-400">Custom plan already exists. You can still create multiple pre-made plans.</p>
+        ) : null}
         <form onSubmit={onCreate} className="mt-3 flex flex-wrap items-end gap-3">
           <label className="space-y-1">
             <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Plan kind</span>
             <select
-              value={quickCreateKind}
+              value={selectedQuickCreateKind}
               onChange={(event) => setQuickCreateKind(event.target.value as PlanKind)}
               className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
             >
-              <option value="custom">Custom</option>
+              <option value="custom" disabled={hasCustomPlan}>
+                Custom
+              </option>
               <option value="normal">Pre-made</option>
             </select>
           </label>
           <button
             type="submit"
-            disabled={isCreating}
+            disabled={isCreating || (selectedQuickCreateKind === "custom" && hasCustomPlan)}
             className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200 disabled:opacity-60"
           >
             {isCreating ? "Creating..." : "Create Draft"}
