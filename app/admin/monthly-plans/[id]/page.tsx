@@ -1,7 +1,8 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import { useGetMonthlyPlanDetailsQuery, useUpsertMonthlyPlanDetailsMutation } from "@/redux/api/adminApi";
@@ -364,6 +365,18 @@ export default function MonthlyPlanDetailEditorPage() {
     }
   };
 
+  const handlePlanImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      setPlanField("image", result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   if (isLoading) return <LoadingState label="Loading monthly plan details..." />;
   if (isError || !data?.data) return <ErrorState label="Failed to load monthly plan detail." />;
   if (!draft) return <LoadingState label="Preparing editor..." />;
@@ -444,14 +457,22 @@ export default function MonthlyPlanDetailEditorPage() {
                 <option value="normal">normal</option>
               </select>
             </label>
-            <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Image URL</span>
-              <input
-                value={draft.plan.image}
-                onChange={(event) => setPlanField("image", event.target.value)}
-                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-              />
-            </label>
+            <div className="space-y-1">
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Plan Image Upload</span>
+              <label className="flex cursor-pointer items-center justify-center rounded-xl border border-dashed border-zinc-600 bg-zinc-900/70 px-4 py-4 text-sm text-zinc-200 transition hover:border-amber-300 hover:text-white">
+                <input type="file" accept="image/*" onChange={handlePlanImageUpload} className="hidden" />
+                Upload image
+              </label>
+            </div>
+            {draft.plan.image ? (
+              <div className="overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900/50">
+                <Image src={draft.plan.image} alt="Plan preview" width={1200} height={320} className="h-32 w-full object-cover" unoptimized />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/40 px-4 py-4 text-sm text-zinc-500">
+                No image uploaded
+              </div>
+            )}
             <label className="space-y-1 md:col-span-2">
               <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Description</span>
               <textarea
@@ -465,58 +486,45 @@ export default function MonthlyPlanDetailEditorPage() {
 
         {activeTab === "rules" ? (
           <div className="space-y-4">
+            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+              <p className="text-sm font-semibold text-white">Website Set-plan Dropdown Options</p>
+              <p className="mt-1 text-xs text-zinc-400">
+                These values control the `Number Of Meals *` and `Number Of Days *` dropdown options shown on the public website.
+              </p>
+            </div>
+
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Allowed Meals / Day</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Number Of Meals Dropdown</span>
                 <input
                   value={draft.rules.allowedMealsPerDay.join(",")}
                   onChange={(event) => setRulesField("allowedMealsPerDay", parseNumberList(event.target.value, 1))}
+                  placeholder="1,2,3"
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {draft.rules.allowedMealsPerDay.map((value) => (
+                    <span key={`meals-${value}`} className="rounded-full border border-zinc-600 px-2 py-1 text-xs text-zinc-200">
+                      {value}
+                    </span>
+                  ))}
+                </div>
               </label>
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Allowed Days</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Number Of Days Dropdown</span>
                 <input
                   value={draft.rules.allowedDays.join(",")}
                   onChange={(event) => setRulesField("allowedDays", parseNumberList(event.target.value, 1))}
+                  placeholder="3,4,5,6"
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Allowed Snacks</span>
-                <input
-                  value={draft.rules.allowedSnacks.join(",")}
-                  onChange={(event) => setRulesField("allowedSnacks", parseNumberList(event.target.value, 0))}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Plan Type Options</span>
-                <input
-                  value={draft.rules.planTypeOptions.join(",")}
-                  onChange={(event) => setRulesField("planTypeOptions", parseStringList(event.target.value))}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Delivery Day Min</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={draft.rules.deliveryDaysRule.min}
-                  onChange={(event) => setRulesField("deliveryDaysRule", { ...draft.rules.deliveryDaysRule, min: Number(event.target.value) })}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Delivery Day Max</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={draft.rules.deliveryDaysRule.max}
-                  onChange={(event) => setRulesField("deliveryDaysRule", { ...draft.rules.deliveryDaysRule, max: Number(event.target.value) })}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {draft.rules.allowedDays.map((value) => (
+                    <span key={`days-${value}`} className="rounded-full border border-zinc-600 px-2 py-1 text-xs text-zinc-200">
+                      {value}
+                    </span>
+                  ))}
+                </div>
               </label>
             </div>
 
