@@ -459,7 +459,16 @@ const cloneWeekAssignment = (assignment: WeekAssignment): WeekAssignment => ({
 
 const normalizePlan = (plan: MonthlyPlan): MonthlyPlan => ({
   ...plan,
-  content: normalizeContent(plan.content),
+  content: {
+    ...normalizeContent(plan.content),
+    ...(plan.planKind === "custom" && !plan.content?.customStepTwo
+      ? {
+          customStepTwo: {
+            categories: []
+          }
+        }
+      : {})
+  },
   weekAssignmentIds: [...plan.weekAssignmentIds]
 });
 

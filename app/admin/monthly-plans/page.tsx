@@ -35,7 +35,14 @@ const createNewPlanDraft = (kind: PlanKind) => {
         heroTitle: "Hero title",
         heroSubtitle: "Hero subtitle",
         selectMealsText: "Select meals content",
-        checkoutText: "Checkout content"
+        checkoutText: "Checkout content",
+        ...(kind === "custom"
+          ? {
+              customStepTwo: {
+                categories: []
+              }
+            }
+          : {})
       },
       weekAssignmentIds: []
     },

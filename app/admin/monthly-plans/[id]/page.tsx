@@ -18,6 +18,11 @@ type AssignmentFormState = {
   badges: string;
 };
 
+type CustomCategoryDraft = {
+  name: string;
+  mealIds: string[];
+};
+
 const tabs: Array<{ key: TabKey; label: string }> = [
   { key: "basic", label: "Basic Info" },
   { key: "rules", label: "Rules" },
@@ -35,6 +40,11 @@ const createAssignmentForm = (): AssignmentFormState => ({
   badges: ""
 });
 
+const createCustomCategoryDraft = (index: number): CustomCategoryDraft => ({
+  name: `Category ${index + 1}`,
+  mealIds: []
+});
+
 const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
   ...details,
   plan: {
@@ -44,10 +54,10 @@ const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
       heroSubtitle: details.plan.content?.heroSubtitle ?? "",
       selectMealsText: details.plan.content?.selectMealsText ?? "",
       checkoutText: details.plan.content?.checkoutText ?? "",
-      ...(details.plan.content?.customStepTwo
+      ...((details.plan.planKind === "custom" || details.plan.content?.customStepTwo)
         ? {
             customStepTwo: {
-              categories: details.plan.content.customStepTwo.categories.map((category) => ({
+              categories: (details.plan.content?.customStepTwo?.categories ?? []).map((category) => ({
                 name: category.name,
                 mealIds: [...category.mealIds]
               }))
@@ -100,6 +110,8 @@ const parseStringList = (value: string) =>
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+
+const uniqueValues = <T,>(items: T[]) => [...new Set(items)];
 
 const addDays = (isoDate: string, days: number) => {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -204,7 +216,7 @@ const validateDetails = (details: MonthlyPlanDetails) => {
 
   details.plan.content?.customStepTwo?.categories.forEach((category) => {
     if (!category.name.trim()) errors.push("Custom categories require a name.");
-    category.mealIds.forEach((mealId) => {
+    uniqueValues(category.mealIds).forEach((mealId) => {
       if (!mealIds.has(mealId)) errors.push(`Category ${category.name} references a missing meal.`);
     });
   });
@@ -219,6 +231,8 @@ export default function MonthlyPlanDetailEditorPage() {
   const [draft, setDraft] = useState<MonthlyPlanDetails | null>(null);
   const [selectedWeekId, setSelectedWeekId] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
+  const [selectedCategoryIndex, setSelectedCategoryIndex] = useState(0);
+  const [selectedCategoryMealId, setSelectedCategoryMealId] = useState("");
   const [assignmentForm, setAssignmentForm] = useState<AssignmentFormState>(createAssignmentForm());
   const [saveMessage, setSaveMessage] = useState("");
   const [saveErrors, setSaveErrors] = useState<string[]>([]);
@@ -249,10 +263,18 @@ export default function MonthlyPlanDetailEditorPage() {
     }
   }, [selectedDate, selectedWeekDates]);
 
-  const meals = draft?.mealLibrary ?? [];
+  const meals = useMemo(() => draft?.mealLibrary ?? [], [draft?.mealLibrary]);
   const activeMeals = meals.filter((meal) => meal.status === "active");
   const selectedMealsOnDate = selectedWeek && selectedDate ? selectedWeek.mealsByDate[selectedDate] ?? [] : [];
   const isCustomPlan = draft?.plan.planKind === "custom";
+  const customCategories = useMemo(() => draft?.plan.content?.customStepTwo?.categories ?? [], [draft?.plan.content?.customStepTwo?.categories]);
+  const selectedCategory = customCategories[selectedCategoryIndex] ?? null;
+  const selectedCategoryMeals = selectedCategory
+    ? selectedCategory.mealIds.flatMap((mealId) => {
+        const meal = meals.find((item) => item.id === mealId);
+        return meal ? [meal] : [];
+      })
+    : [];
   const setPlanField = <K extends keyof MonthlyPlanDetails["plan"]>(field: K, value: MonthlyPlanDetails["plan"][K]) => {
     setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, [field]: value } } : prev));
   };
@@ -260,6 +282,37 @@ export default function MonthlyPlanDetailEditorPage() {
   const setRulesField = <K extends keyof MonthlyPlanDetails["rules"]>(field: K, value: MonthlyPlanDetails["rules"][K]) => {
     setDraft((prev) => (prev ? { ...prev, rules: { ...prev.rules, [field]: value } } : prev));
   };
+
+  const updateCustomCategories = (updater: (categories: CustomCategoryDraft[]) => CustomCategoryDraft[]) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const currentCategories = prev.plan.content?.customStepTwo?.categories ?? [];
+      return {
+        ...prev,
+        plan: {
+          ...prev.plan,
+          content: {
+            ...prev.plan.content,
+            customStepTwo: {
+              categories: updater(currentCategories)
+            }
+          }
+        }
+      };
+    });
+  };
+
+  useEffect(() => {
+    if (!customCategories.length) {
+      setSelectedCategoryIndex(0);
+      setSelectedCategoryMealId("");
+      return;
+    }
+
+    if (selectedCategoryIndex >= customCategories.length) {
+      setSelectedCategoryIndex(customCategories.length - 1);
+    }
+  }, [customCategories, selectedCategoryIndex]);
 
   const updateWeek = (weekId: string, updater: (week: WeekAssignment) => WeekAssignment) => {
     setDraft((prev) =>
@@ -298,6 +351,38 @@ export default function MonthlyPlanDetailEditorPage() {
         plan: { ...prev.plan, weekAssignmentIds: nextWeeks.map((week) => week.id) }
       };
     });
+  };
+
+  const addCustomCategory = () => {
+    updateCustomCategories((categories) => {
+      const nextCategories = [...categories, createCustomCategoryDraft(categories.length)];
+      setSelectedCategoryIndex(nextCategories.length - 1);
+      return nextCategories;
+    });
+  };
+
+  const updateCustomCategory = (index: number, updater: (category: CustomCategoryDraft) => CustomCategoryDraft) => {
+    updateCustomCategories((categories) => categories.map((category, categoryIndex) => (categoryIndex === index ? updater(category) : category)));
+  };
+
+  const removeCustomCategory = (index: number) => {
+    updateCustomCategories((categories) => categories.filter((_, categoryIndex) => categoryIndex !== index));
+  };
+
+  const addMealToCustomCategory = () => {
+    if (!selectedCategory || !selectedCategoryMealId) return;
+    updateCustomCategory(selectedCategoryIndex, (category) => ({
+      ...category,
+      mealIds: uniqueValues([...category.mealIds, selectedCategoryMealId])
+    }));
+    setSelectedCategoryMealId("");
+  };
+
+  const removeMealFromCustomCategory = (mealId: string) => {
+    updateCustomCategory(selectedCategoryIndex, (category) => ({
+      ...category,
+      mealIds: category.mealIds.filter((item) => item !== mealId)
+    }));
   };
 
   const saveAssignment = () => {
@@ -555,168 +640,317 @@ export default function MonthlyPlanDetailEditorPage() {
 
         {activeTab === "assignments" ? (
           <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {draft.weekAssignments.map((week) => (
-                <button
-                  key={week.id}
-                  type="button"
-                  onClick={() => setSelectedWeekId(week.id)}
-                  className={`rounded-xl px-3 py-2 text-sm ${selectedWeekId === week.id ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-200"}`}
-                >
-                  Week {week.weekIndex}
-                </button>
-              ))}
-              <button type="button" onClick={addWeek} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100">
-                + Add Week
-              </button>
-            </div>
-
-            {selectedWeek ? (
+            {isCustomPlan ? (
               <>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <label className="space-y-1">
-                    <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Week Index</span>
-                    <input type="number" min={1} value={selectedWeek.weekIndex} onChange={(event) => updateWeek(selectedWeek.id, (week) => ({ ...week, weekIndex: Number(event.target.value) || week.weekIndex }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Start Date</span>
-                    <input type="date" value={selectedWeek.startDate} onChange={(event) => updateWeek(selectedWeek.id, (week) => syncWeekDates({ ...week, startDate: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">End Date</span>
-                    <input type="date" value={selectedWeek.endDate} onChange={(event) => updateWeek(selectedWeek.id, (week) => syncWeekDates({ ...week, endDate: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
-                  </label>
-                </div>
-
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => updateWeek(selectedWeek.id, (week) => syncWeekDates(week))} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100">
-                    Sync Dates To Range
-                  </button>
-                  {draft.weekAssignments.length > 1 ? (
-                    <button type="button" onClick={() => removeWeek(selectedWeek.id)} className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
-                      Remove Week
+                <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+                  <p className="text-sm font-semibold text-white">Custom Plan Tab Navigation</p>
+                  <p className="mt-1 text-xs text-zinc-400">
+                    `Make Your Plan` always stays fixed. Add, rename, or delete the other tabs here and assign meals for each tab.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900">
+                      Make Your Plan
                     </button>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {selectedWeekDates.map((dateIso) => (
-                    <button key={dateIso} type="button" onClick={() => setSelectedDate(dateIso)} className={`rounded-xl px-3 py-1.5 text-xs ${selectedDate === dateIso ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"}`}>
-                      {formatDatePillLabel(dateIso)}
-                    </button>
-                  ))}
+                    {customCategories.map((category, index) => (
+                      <button
+                        key={`custom-category-tab-${index}`}
+                        type="button"
+                        onClick={() => setSelectedCategoryIndex(index)}
+                        className={`rounded-xl px-4 py-2 text-sm transition ${
+                          selectedCategoryIndex === index
+                            ? "bg-white text-zinc-950"
+                            : "border border-zinc-600 bg-zinc-950/40 text-zinc-200"
+                        }`}
+                      >
+                        {category.name || `Category ${index + 1}`}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
                   <div className="space-y-4 rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <label className="space-y-1">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Library Item</span>
-                        <select
-                          value={assignmentForm.mealId}
-                          onChange={(event) => {
-                            const selectedMeal = meals.find((meal) => meal.id === event.target.value);
-                            setAssignmentForm((prev) => ({ ...prev, mealId: event.target.value, mealName: prev.mealName || selectedMeal?.name || "", mealType: selectedMeal?.mealType ?? prev.mealType }));
-                          }}
-                          className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                        >
-                          <option value="">Select meal</option>
-                          {meals.map((meal) => (
-                            <option key={meal.id} value={meal.id}>
-                              {meal.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="space-y-1">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Type</span>
-                        <select value={assignmentForm.mealType} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, mealType: event.target.value as MealType }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300">
-                          {mealTypes.map((type) => (
-                            <option key={type} value={type}>
-                              {type}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="space-y-1 md:col-span-2">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Name Override</span>
-                        <input value={assignmentForm.mealName} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, mealName: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
-                      </label>
-                      <label className="space-y-1 md:col-span-2">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Badges</span>
-                        <input value={assignmentForm.badges} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, badges: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
-                      </label>
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={saveAssignment} className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900">
-                        {assignmentForm.id ? "Update Assigned Meal" : "Add Meal To Date"}
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Manage Tabs</p>
+                        <p className="mt-1 text-xs text-zinc-400">These tabs appear beside `Make Your Plan` on the website.</p>
+                      </div>
+                      <button type="button" onClick={addCustomCategory} className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900">
+                        + Add Tab
                       </button>
-                      {assignmentForm.id ? (
-                        <button type="button" onClick={() => setAssignmentForm(createAssignmentForm())} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-4 py-2.5 text-sm text-zinc-100">
-                          Cancel Edit
-                        </button>
-                      ) : null}
+                    </div>
+
+                    <div className="space-y-3">
+                      {customCategories.map((category, index) => (
+                        <div key={`custom-category-editor-${index}`} className="rounded-2xl border border-zinc-700/70 bg-zinc-950/50 p-4">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                            <label className="flex-1 space-y-1">
+                              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Tab Name</span>
+                              <input
+                                value={category.name}
+                                onChange={(event) => updateCustomCategory(index, (item) => ({ ...item, name: event.target.value }))}
+                                placeholder={`Category ${index + 1}`}
+                                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                              />
+                            </label>
+                            <div className="flex gap-2 pt-5 md:pt-0">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedCategoryIndex(index)}
+                                className={`rounded-xl px-3 py-2 text-sm ${
+                                  selectedCategoryIndex === index ? "bg-amber-300 font-semibold text-zinc-900" : "border border-zinc-600 bg-zinc-900/60 text-zinc-100"
+                                }`}
+                              >
+                                Assign Meals
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeCustomCategory(index)}
+                                className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                          <p className="mt-3 text-xs text-zinc-400">{category.mealIds.length} meal(s) assigned to this tab.</p>
+                        </div>
+                      ))}
+                      {!customCategories.length ? <p className="text-sm text-zinc-400">No dynamic tabs added yet. Create one to start assigning meals.</p> : null}
                     </div>
                   </div>
 
-                  <div className="space-y-3 rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-                    <p className="text-sm font-semibold text-white">Meals For {selectedDate || "Selected Date"}</p>
-                    {selectedMealsOnDate.map((item) => (
-                      <div key={item.id} className="rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-white">{item.mealName}</p>
-                            <p className="text-xs text-zinc-400">{item.mealType} | {item.badges.join(", ") || "No badges"}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setAssignmentForm({ id: item.id, mealId: item.mealId, mealName: item.mealName, mealType: item.mealType, badges: item.badges.join(", ") })}
-                              className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateWeek(selectedWeek.id, (week) => ({
-                                  ...week,
-                                  mealsByDate: { ...week.mealsByDate, [selectedDate]: (week.mealsByDate[selectedDate] ?? []).filter((meal) => meal.id !== item.id) }
-                                }))
-                              }
-                              className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-100"
-                            >
-                              Remove
-                            </button>
-                          </div>
+                  <div className="space-y-4 rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{selectedCategory ? `Assign Meals For ${selectedCategory.name || "Selected Tab"}` : "Assign Meals"}</p>
+                      <p className="mt-1 text-xs text-zinc-400">Choose active meal library items and attach them to the selected custom tab.</p>
+                    </div>
+
+                    {selectedCategory ? (
+                      <>
+                        <div className="flex gap-2">
+                          <select
+                            value={selectedCategoryMealId}
+                            onChange={(event) => setSelectedCategoryMealId(event.target.value)}
+                            className="flex-1 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                          >
+                            <option value="">Select meal to assign</option>
+                            {activeMeals.map((meal) => (
+                              <option key={meal.id} value={meal.id}>
+                                {meal.name} | {meal.mealType}
+                              </option>
+                            ))}
+                          </select>
+                          <button type="button" onClick={addMealToCustomCategory} className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900">
+                            Add Meal
+                          </button>
                         </div>
-                      </div>
-                    ))}
-                    {!selectedMealsOnDate.length ? <p className="text-sm text-zinc-400">No meals assigned to this date yet.</p> : null}
+
+                        <div className="space-y-3">
+                          {selectedCategoryMeals.map((meal) => (
+                            <article key={meal.id} className="rounded-xl border border-zinc-700/70 bg-zinc-950/50 p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <h4 className="text-sm font-semibold text-white">{meal.name}</h4>
+                                  <p className="mt-1 text-xs text-zinc-400">
+                                    {meal.mealType} | {meal.calories} kcal | Protein {meal.protein}g
+                                  </p>
+                                  <p className="mt-2 text-xs text-zinc-500">Tags: {meal.tags.join(", ") || "-"}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeMealFromCustomCategory(meal.id)}
+                                  className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-100"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </article>
+                          ))}
+                          {!selectedCategoryMeals.length ? <p className="text-sm text-zinc-400">No meals assigned to this tab yet.</p> : null}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-zinc-400">Select or create a tab first, then assign meals here.</p>
+                    )}
                   </div>
                 </div>
 
-                {isCustomPlan ? (
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {activeMeals.map((meal) => (
-                      <article key={meal.id} className="rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <h4 className="text-base font-semibold text-white">{meal.name}</h4>
-                            <p className="text-xs text-zinc-400">{meal.mealType}</p>
-                          </div>
-                          <button type="button" onClick={() => setAssignmentForm({ id: "", mealId: meal.id, mealName: meal.name, mealType: meal.mealType, badges: meal.tags.join(", ") })} className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {activeMeals.map((meal) => (
+                    <article key={meal.id} className="rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <h4 className="text-base font-semibold text-white">{meal.name}</h4>
+                          <p className="text-xs text-zinc-400">{meal.mealType}</p>
+                        </div>
+                        {selectedCategory ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedCategoryMealId(meal.id);
+                              updateCustomCategory(selectedCategoryIndex, (category) => ({
+                                ...category,
+                                mealIds: uniqueValues([...category.mealIds, meal.id])
+                              }));
+                            }}
+                            className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900"
+                          >
                             Use
                           </button>
-                        </div>
-                        <p className="mt-3 text-xs text-zinc-300">Tags: {meal.tags.join(", ") || "-"}</p>
-                      </article>
-                    ))}
-                  </div>
-                ) : null}
+                        ) : null}
+                      </div>
+                      <p className="mt-3 text-xs text-zinc-300">Tags: {meal.tags.join(", ") || "-"}</p>
+                    </article>
+                  ))}
+                </div>
               </>
             ) : (
-              <p className="text-sm text-zinc-400">No week assignments available.</p>
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {draft.weekAssignments.map((week) => (
+                    <button
+                      key={week.id}
+                      type="button"
+                      onClick={() => setSelectedWeekId(week.id)}
+                      className={`rounded-xl px-3 py-2 text-sm ${selectedWeekId === week.id ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-200"}`}
+                    >
+                      Week {week.weekIndex}
+                    </button>
+                  ))}
+                  <button type="button" onClick={addWeek} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100">
+                    + Add Week
+                  </button>
+                </div>
+
+                {selectedWeek ? (
+                  <>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <label className="space-y-1">
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Week Index</span>
+                        <input type="number" min={1} value={selectedWeek.weekIndex} onChange={(event) => updateWeek(selectedWeek.id, (week) => ({ ...week, weekIndex: Number(event.target.value) || week.weekIndex }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Start Date</span>
+                        <input type="date" value={selectedWeek.startDate} onChange={(event) => updateWeek(selectedWeek.id, (week) => syncWeekDates({ ...week, startDate: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">End Date</span>
+                        <input type="date" value={selectedWeek.endDate} onChange={(event) => updateWeek(selectedWeek.id, (week) => syncWeekDates({ ...week, endDate: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                      </label>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => updateWeek(selectedWeek.id, (week) => syncWeekDates(week))} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100">
+                        Sync Dates To Range
+                      </button>
+                      {draft.weekAssignments.length > 1 ? (
+                        <button type="button" onClick={() => removeWeek(selectedWeek.id)} className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
+                          Remove Week
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {selectedWeekDates.map((dateIso) => (
+                        <button key={dateIso} type="button" onClick={() => setSelectedDate(dateIso)} className={`rounded-xl px-3 py-1.5 text-xs ${selectedDate === dateIso ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"}`}>
+                          {formatDatePillLabel(dateIso)}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
+                      <div className="space-y-4 rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <label className="space-y-1">
+                            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Library Item</span>
+                            <select
+                              value={assignmentForm.mealId}
+                              onChange={(event) => {
+                                const selectedMeal = meals.find((meal) => meal.id === event.target.value);
+                                setAssignmentForm((prev) => ({ ...prev, mealId: event.target.value, mealName: prev.mealName || selectedMeal?.name || "", mealType: selectedMeal?.mealType ?? prev.mealType }));
+                              }}
+                              className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                            >
+                              <option value="">Select meal</option>
+                              {meals.map((meal) => (
+                                <option key={meal.id} value={meal.id}>
+                                  {meal.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Type</span>
+                            <select value={assignmentForm.mealType} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, mealType: event.target.value as MealType }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300">
+                              {mealTypes.map((type) => (
+                                <option key={type} value={type}>
+                                  {type}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="space-y-1 md:col-span-2">
+                            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Name Override</span>
+                            <input value={assignmentForm.mealName} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, mealName: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                          </label>
+                          <label className="space-y-1 md:col-span-2">
+                            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Badges</span>
+                            <input value={assignmentForm.badges} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, badges: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                          </label>
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={saveAssignment} className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900">
+                            {assignmentForm.id ? "Update Assigned Meal" : "Add Meal To Date"}
+                          </button>
+                          {assignmentForm.id ? (
+                            <button type="button" onClick={() => setAssignmentForm(createAssignmentForm())} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-4 py-2.5 text-sm text-zinc-100">
+                              Cancel Edit
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+                        <p className="text-sm font-semibold text-white">Meals For {selectedDate || "Selected Date"}</p>
+                        {selectedMealsOnDate.map((item) => (
+                          <div key={item.id} className="rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-white">{item.mealName}</p>
+                                <p className="text-xs text-zinc-400">{item.mealType} | {item.badges.join(", ") || "No badges"}</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setAssignmentForm({ id: item.id, mealId: item.mealId, mealName: item.mealName, mealType: item.mealType, badges: item.badges.join(", ") })}
+                                  className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateWeek(selectedWeek.id, (week) => ({
+                                      ...week,
+                                      mealsByDate: { ...week.mealsByDate, [selectedDate]: (week.mealsByDate[selectedDate] ?? []).filter((meal) => meal.id !== item.id) }
+                                    }))
+                                  }
+                                  className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-100"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {!selectedMealsOnDate.length ? <p className="text-sm text-zinc-400">No meals assigned to this date yet.</p> : null}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-zinc-400">No week assignments available.</p>
+                )}
+              </>
             )}
           </div>
         ) : null}
