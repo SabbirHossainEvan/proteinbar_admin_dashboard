@@ -13,6 +13,8 @@ const navItems = [
   { href: "/admin/orders-of-day", label: "Orders of the Day" },
   { href: "/admin/printing", label: "Printing" },
   { href: "/admin/meal-library", label: "Meal Library" },
+  { href: "/admin/custom-plan-categories", label: "Custom Categories" },
+  { href: "/admin/custom-plan-food-items", label: "Custom Food Items" },
   { href: "/admin/locations", label: "Locations" },
   { href: "/admin/settings/monthly-plan", label: "Monthly Settings" },
   { href: "/admin/notifications", label: "Notifications" },

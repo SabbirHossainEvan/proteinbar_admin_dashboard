@@ -2,6 +2,7 @@ export type PlanKind = "custom" | "normal";
 export type PlanStatus = "draft" | "active" | "inactive" | "archived";
 export type MealType = "Breakfast" | "Lunch" | "Dinner" | "Snack";
 export type DeliveryOption = "daily-delivery" | "daily-pickup" | "weekly-delivery" | "weekly-pickup";
+export type SelectionMode = "single" | "multi";
 
 export interface DeliveryOptionConfig {
   option: DeliveryOption;
@@ -77,10 +78,8 @@ export interface MonthlyPlanContent {
   selectMealsText?: string;
   checkoutText?: string;
   customStepTwo?: {
-    categories: Array<{
-      name: string;
-      mealIds: string[];
-    }>;
+    categories: CustomPlanCategory[];
+    foodItems: CustomPlanFoodItem[];
   };
 }
 
@@ -120,6 +119,46 @@ export interface MealLibraryItem {
   tags: string[];
   status: "active" | "inactive";
   image?: string;
+}
+
+export interface CustomPlanCategory {
+  id: string;
+  planId: string;
+  name: string;
+  slug: string;
+  code?: string;
+  displayOrder: number;
+  selectionMode: SelectionMode;
+  isActive: boolean;
+  isRequired: boolean;
+  minSelect: number;
+  maxSelect?: number | null;
+}
+
+export interface CustomPlanFoodSize {
+  id: string;
+  foodItemId: string;
+  label: string;
+  unit?: string;
+  price: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface CustomPlanFoodItem {
+  id: string;
+  planId: string;
+  categoryId: string;
+  name: string;
+  imageUrl: string;
+  description?: string;
+  displayOrder: number;
+  isActive: boolean;
+  sizes: CustomPlanFoodSize[];
 }
 
 export interface SubscriptionRecord {
@@ -203,6 +242,8 @@ export interface MonthlyPlanEntities {
   pricing: Record<string, PricingConfig>;
   weekAssignments: Record<string, WeekAssignment>;
   mealLibrary: Record<string, MealLibraryItem>;
+  customPlanCategories: Record<string, CustomPlanCategory>;
+  customPlanFoodItems: Record<string, CustomPlanFoodItem>;
   subscriptions: Record<string, SubscriptionRecord>;
   orders: Record<string, OrderRecord>;
   locations: Record<string, LocationRecord>;

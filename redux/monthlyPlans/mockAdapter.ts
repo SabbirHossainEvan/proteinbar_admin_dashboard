@@ -1,4 +1,7 @@
 import type {
+  CustomPlanCategory,
+  CustomPlanFoodItem,
+  CustomPlanFoodSize,
   LocationRecord,
   MealLibraryItem,
   MonthlyPlanDetails,
@@ -16,6 +19,13 @@ type ListFilters = {
   kind?: PlanKind | "all";
   status?: MonthlyPlan["status"] | "all";
   search?: string;
+};
+
+type CustomPlanCategoryPayload = Omit<CustomPlanCategory, "id" | "slug" | "displayOrder"> & { id?: string; slug?: string; displayOrder?: number };
+type CustomPlanFoodItemPayload = Omit<CustomPlanFoodItem, "id" | "displayOrder" | "sizes"> & {
+  id?: string;
+  displayOrder?: number;
+  sizes: Array<Omit<CustomPlanFoodSize, "id" | "foodItemId" | "displayOrder"> & { id?: string; displayOrder?: number }>;
 };
 
 const today = "2026-03-08";
@@ -41,10 +51,8 @@ const entities: MonthlyPlanEntities = {
         selectMealsText: "Pick meals by week/date. Changes apply instantly to your checkout.",
         checkoutText: "Review your selections and confirm your preferred delivery option.",
         customStepTwo: {
-          categories: [
-            { name: "HIGH PROTEIN", mealIds: ["meal-b1", "meal-l1", "meal-s1"] },
-            { name: "DINNER FAVORITES", mealIds: ["meal-d1"] }
-          ]
+          categories: [],
+          foodItems: []
         }
       },
       weekAssignmentIds: ["wa-custom-week1", "wa-custom-week2"]
@@ -209,6 +217,8 @@ const entities: MonthlyPlanEntities = {
       status: "active"
     }
   },
+  customPlanCategories: {},
+  customPlanFoodItems: {},
   subscriptions: {
     "sub-1001": {
       id: "sub-1001",
@@ -416,7 +426,134 @@ entities.weekAssignments[customWeekTwo.id] = customWeekTwo;
 entities.weekAssignments[normalWeekOne.id] = normalWeekOne;
 entities.weekAssignments[normalWeekTwo.id] = normalWeekTwo;
 
+const seededCustomPlanCategories: CustomPlanCategory[] = [
+  {
+    id: "cat-protein",
+    planId: "plan-custom-core",
+    name: "Proteins",
+    slug: "proteins",
+    code: "protein",
+    displayOrder: 1,
+    selectionMode: "single",
+    isActive: true,
+    isRequired: true,
+    minSelect: 1,
+    maxSelect: 1
+  },
+  {
+    id: "cat-carbs",
+    planId: "plan-custom-core",
+    name: "Carbs",
+    slug: "carbs",
+    code: "carbs",
+    displayOrder: 2,
+    selectionMode: "single",
+    isActive: true,
+    isRequired: true,
+    minSelect: 1,
+    maxSelect: 1
+  },
+  {
+    id: "cat-fat",
+    planId: "plan-custom-core",
+    name: "Fat",
+    slug: "fat",
+    code: "fat",
+    displayOrder: 3,
+    selectionMode: "multi",
+    isActive: true,
+    isRequired: false,
+    minSelect: 0,
+    maxSelect: 2
+  },
+  {
+    id: "cat-sauces",
+    planId: "plan-custom-core",
+    name: "Sauces",
+    slug: "sauces",
+    code: "sauce",
+    displayOrder: 4,
+    selectionMode: "multi",
+    isActive: true,
+    isRequired: false,
+    minSelect: 0,
+    maxSelect: 2
+  }
+];
+
+const seededCustomPlanFoodItems: CustomPlanFoodItem[] = [
+  {
+    id: "food-chicken",
+    planId: "plan-custom-core",
+    categoryId: "cat-protein",
+    name: "Chicken Breast",
+    imageUrl: "https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=600",
+    description: "Lean grilled chicken breast.",
+    displayOrder: 1,
+    isActive: true,
+    sizes: [
+      { id: "size-chicken-100", foodItemId: "food-chicken", label: "100g", unit: "g", price: 35, calories: 165, protein: 31, carbs: 0, fat: 3.6, displayOrder: 1, isActive: true },
+      { id: "size-chicken-150", foodItemId: "food-chicken", label: "150g", unit: "g", price: 48, calories: 248, protein: 46.5, carbs: 0, fat: 5.4, displayOrder: 2, isActive: true }
+    ]
+  },
+  {
+    id: "food-rice",
+    planId: "plan-custom-core",
+    categoryId: "cat-carbs",
+    name: "Rice",
+    imageUrl: "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=600",
+    description: "Steamed basmati rice.",
+    displayOrder: 1,
+    isActive: true,
+    sizes: [
+      { id: "size-rice-100", foodItemId: "food-rice", label: "100g", unit: "g", price: 12, calories: 130, protein: 2.7, carbs: 28, fat: 0.3, displayOrder: 1, isActive: true },
+      { id: "size-rice-150", foodItemId: "food-rice", label: "150g", unit: "g", price: 16, calories: 195, protein: 4, carbs: 42, fat: 0.5, displayOrder: 2, isActive: true }
+    ]
+  },
+  {
+    id: "food-avocado",
+    planId: "plan-custom-core",
+    categoryId: "cat-fat",
+    name: "Avocado",
+    imageUrl: "https://images.unsplash.com/photo-1519162808019-7de1683fa2ad?w=600",
+    description: "Fresh sliced avocado.",
+    displayOrder: 1,
+    isActive: true,
+    sizes: [
+      { id: "size-avocado-50", foodItemId: "food-avocado", label: "50g", unit: "g", price: 18, calories: 80, protein: 1, carbs: 4, fat: 7.4, displayOrder: 1, isActive: true }
+    ]
+  },
+  {
+    id: "food-bbq",
+    planId: "plan-custom-core",
+    categoryId: "cat-sauces",
+    name: "BBQ Sauce",
+    imageUrl: "https://images.unsplash.com/photo-1472476443507-c7a5948772fc?w=600",
+    description: "Smoky house BBQ sauce.",
+    displayOrder: 1,
+    isActive: true,
+    sizes: [
+      { id: "size-bbq-30", foodItemId: "food-bbq", label: "30ml", unit: "ml", price: 4, calories: 35, protein: 0, carbs: 8, fat: 0, displayOrder: 1, isActive: true }
+    ]
+  }
+];
+
+seededCustomPlanCategories.forEach((category) => {
+  entities.customPlanCategories[category.id] = category;
+});
+
+seededCustomPlanFoodItems.forEach((item) => {
+  entities.customPlanFoodItems[item.id] = item;
+});
+
 const asArray = <T>(record: Record<string, T>) => Object.values(record);
+
+const slugify = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || `item-${Date.now()}`;
 
 const wait = async <T>(value: T, ms = 160) =>
   new Promise<T>((resolve) => {
@@ -434,12 +571,26 @@ const normalizeContent = (content?: MonthlyPlan["content"]): NonNullable<Monthly
     ? {
         customStepTwo: {
           categories: content.customStepTwo.categories.map((category) => ({
-            name: category.name,
-            mealIds: [...category.mealIds]
+            ...category,
+            maxSelect: category.maxSelect ?? null
+          })),
+          foodItems: content.customStepTwo.foodItems.map((item) => ({
+            ...item,
+            sizes: item.sizes.map((size) => ({ ...size }))
           }))
         }
       }
     : {})
+});
+
+const cloneCustomPlanCategory = (category: CustomPlanCategory): CustomPlanCategory => ({
+  ...category,
+  maxSelect: category.maxSelect ?? null
+});
+
+const cloneCustomPlanFoodItem = (item: CustomPlanFoodItem): CustomPlanFoodItem => ({
+  ...item,
+  sizes: item.sizes.map((size) => ({ ...size }))
 });
 
 const cloneMeal = (meal: MealLibraryItem): MealLibraryItem => ({
@@ -457,14 +608,27 @@ const cloneWeekAssignment = (assignment: WeekAssignment): WeekAssignment => ({
   )
 });
 
+const getCustomPlanCategoriesForPlan = (planId: string) =>
+  asArray(entities.customPlanCategories)
+    .filter((category) => category.planId === planId)
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .map(cloneCustomPlanCategory);
+
+const getCustomPlanFoodItemsForPlan = (planId: string) =>
+  asArray(entities.customPlanFoodItems)
+    .filter((item) => item.planId === planId)
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .map(cloneCustomPlanFoodItem);
+
 const normalizePlan = (plan: MonthlyPlan): MonthlyPlan => ({
   ...plan,
   content: {
     ...normalizeContent(plan.content),
-    ...(plan.planKind === "custom" && !plan.content?.customStepTwo
+    ...(plan.planKind === "custom"
       ? {
           customStepTwo: {
-            categories: []
+            categories: getCustomPlanCategoriesForPlan(plan.id),
+            foodItems: getCustomPlanFoodItemsForPlan(plan.id)
           }
         }
       : {})
@@ -550,9 +714,26 @@ const ensureValidDetailPayload = (payload: MonthlyPlanDetailsPayload) => {
   });
 
   payload.plan.content?.customStepTwo?.categories.forEach((category) => {
-    category.mealIds.forEach((mealId) => {
-      if (!mealIds.has(mealId)) {
-        throw new Error(`Category ${category.name} references a missing meal.`);
+    if (!category.name.trim()) throw new Error("Custom plan category name is required.");
+    if (category.selectionMode === "single" && category.maxSelect !== null && category.maxSelect !== undefined && category.maxSelect !== 1) {
+      throw new Error(`Category ${category.name} must have max select 1 when single-select.`);
+    }
+    if ((category.maxSelect ?? null) !== null && category.minSelect > (category.maxSelect ?? 0)) {
+      throw new Error(`Category ${category.name} has invalid min/max selection rules.`);
+    }
+  });
+
+  payload.plan.content?.customStepTwo?.foodItems.forEach((item) => {
+    if (!item.name.trim()) throw new Error("Custom plan food item name is required.");
+    if (!payload.plan.content?.customStepTwo?.categories.some((category) => category.id === item.categoryId)) {
+      throw new Error(`Food item ${item.name} references a missing category.`);
+    }
+    if (!item.imageUrl.trim()) throw new Error(`Food item ${item.name} requires an image URL.`);
+    if (!item.sizes.length) throw new Error(`Food item ${item.name} requires at least one size.`);
+    item.sizes.forEach((size) => {
+      if (!size.label.trim()) throw new Error(`Food item ${item.name} has a size without label.`);
+      if ([size.price, size.calories, size.protein, size.carbs, size.fat].some((value) => value < 0)) {
+        throw new Error(`Food item ${item.name} has invalid negative size values.`);
       }
     });
   });
@@ -618,6 +799,42 @@ export const monthlyPlanMockAdapter = {
       entities.weekAssignments[assignment.id] = cloneWeekAssignment(assignment);
     });
 
+    if (normalizedPayload.plan.planKind === "custom") {
+      asArray(entities.customPlanCategories)
+        .filter((category) => category.planId === plan.id)
+        .forEach((category) => {
+          delete entities.customPlanCategories[category.id];
+        });
+
+      asArray(entities.customPlanFoodItems)
+        .filter((item) => item.planId === plan.id)
+        .forEach((item) => {
+          delete entities.customPlanFoodItems[item.id];
+        });
+
+      normalizedPayload.plan.content?.customStepTwo?.categories.forEach((category, index) => {
+        entities.customPlanCategories[category.id] = cloneCustomPlanCategory({
+          ...category,
+          planId: plan.id,
+          displayOrder: category.displayOrder ?? index + 1,
+          slug: category.slug || slugify(category.name)
+        });
+      });
+
+      normalizedPayload.plan.content?.customStepTwo?.foodItems.forEach((item, index) => {
+        entities.customPlanFoodItems[item.id] = cloneCustomPlanFoodItem({
+          ...item,
+          planId: plan.id,
+          displayOrder: item.displayOrder ?? index + 1,
+          sizes: item.sizes.map((size, sizeIndex) => ({
+            ...size,
+            foodItemId: item.id,
+            displayOrder: size.displayOrder ?? sizeIndex + 1
+          }))
+        });
+      });
+    }
+
     entities.plans[plan.id].weekAssignmentIds = normalizedPayload.weekAssignments.map((item) => item.id);
 
     return wait(
@@ -664,6 +881,133 @@ export const monthlyPlanMockAdapter = {
   async deleteMealLibraryItem(id: string): Promise<{ id: string }> {
     delete entities.mealLibrary[id];
     return wait({ id });
+  },
+
+  async listCustomPlanCategories(planId: string): Promise<CustomPlanCategory[]> {
+    return wait(getCustomPlanCategoriesForPlan(planId));
+  },
+
+  async upsertCustomPlanCategory(payload: CustomPlanCategoryPayload): Promise<CustomPlanCategory> {
+    const existing = payload.id ? entities.customPlanCategories[payload.id] : null;
+    if (!payload.name.trim()) throw new Error("Category name is required.");
+    if (!payload.planId.trim()) throw new Error("Plan is required for category.");
+
+    const siblingCategories = asArray(entities.customPlanCategories).filter(
+      (category) => category.planId === payload.planId && category.id !== payload.id
+    );
+
+    const nextCategory: CustomPlanCategory = {
+      id: payload.id || `custom-category-${Date.now()}`,
+      planId: payload.planId,
+      name: payload.name.trim(),
+      slug: payload.slug?.trim() || slugify(payload.name),
+      code: payload.code?.trim() || undefined,
+      displayOrder: payload.displayOrder ?? existing?.displayOrder ?? siblingCategories.length + 1,
+      selectionMode: payload.selectionMode,
+      isActive: payload.isActive,
+      isRequired: payload.isRequired,
+      minSelect: payload.minSelect,
+      maxSelect: payload.maxSelect ?? null
+    };
+
+    if (nextCategory.selectionMode === "single") nextCategory.maxSelect = 1;
+    if (nextCategory.minSelect < 0) throw new Error("Min select cannot be negative.");
+    if ((nextCategory.maxSelect ?? null) !== null && nextCategory.minSelect > (nextCategory.maxSelect ?? 0)) {
+      throw new Error("Min select must be less than or equal to max select.");
+    }
+
+    entities.customPlanCategories[nextCategory.id] = cloneCustomPlanCategory(nextCategory);
+    return wait(cloneCustomPlanCategory(entities.customPlanCategories[nextCategory.id]));
+  },
+
+  async deleteCustomPlanCategory(id: string): Promise<{ id: string }> {
+    delete entities.customPlanCategories[id];
+    asArray(entities.customPlanFoodItems)
+      .filter((item) => item.categoryId === id)
+      .forEach((item) => {
+        delete entities.customPlanFoodItems[item.id];
+      });
+    return wait({ id });
+  },
+
+  async reorderCustomPlanCategories(planId: string, categoryIds: string[]): Promise<CustomPlanCategory[]> {
+    categoryIds.forEach((id, index) => {
+      if (entities.customPlanCategories[id] && entities.customPlanCategories[id].planId === planId) {
+        entities.customPlanCategories[id] = {
+          ...entities.customPlanCategories[id],
+          displayOrder: index + 1
+        };
+      }
+    });
+    return wait(getCustomPlanCategoriesForPlan(planId));
+  },
+
+  async listCustomPlanFoodItems(planId: string, categoryId?: string): Promise<CustomPlanFoodItem[]> {
+    const items = getCustomPlanFoodItemsForPlan(planId).filter((item) => !categoryId || item.categoryId === categoryId);
+    return wait(items);
+  },
+
+  async upsertCustomPlanFoodItem(payload: CustomPlanFoodItemPayload): Promise<CustomPlanFoodItem> {
+    const existing = payload.id ? entities.customPlanFoodItems[payload.id] : null;
+    if (!payload.name.trim()) throw new Error("Food item name is required.");
+    if (!payload.planId.trim()) throw new Error("Plan is required for food item.");
+    if (!payload.categoryId.trim()) throw new Error("Category is required for food item.");
+    if (!payload.imageUrl.trim()) throw new Error("Image is required for food item.");
+    if (!payload.sizes.length) throw new Error("At least one size is required.");
+    if (!entities.customPlanCategories[payload.categoryId]) throw new Error("Selected category does not exist.");
+
+    payload.sizes.forEach((size) => {
+      if (!size.label.trim()) throw new Error("Size label is required.");
+      if ([size.price, size.calories, size.protein, size.carbs, size.fat].some((value) => value < 0)) {
+        throw new Error("Size values cannot be negative.");
+      }
+    });
+
+    const siblingItems = asArray(entities.customPlanFoodItems).filter(
+      (item) => item.planId === payload.planId && item.categoryId === payload.categoryId && item.id !== payload.id
+    );
+
+    const nextItem: CustomPlanFoodItem = {
+      id: payload.id || `custom-food-${Date.now()}`,
+      planId: payload.planId,
+      categoryId: payload.categoryId,
+      name: payload.name.trim(),
+      imageUrl: payload.imageUrl.trim(),
+      description: payload.description?.trim() || "",
+      displayOrder: payload.displayOrder ?? existing?.displayOrder ?? siblingItems.length + 1,
+      isActive: payload.isActive,
+      sizes: payload.sizes.map((size, index) => ({
+        ...size,
+        id: size.id || `custom-size-${Date.now()}-${index}`,
+        foodItemId: payload.id || existing?.id || `custom-food-${Date.now()}`,
+        displayOrder: size.displayOrder ?? index + 1
+      }))
+    };
+
+    entities.customPlanFoodItems[nextItem.id] = cloneCustomPlanFoodItem({
+      ...nextItem,
+      sizes: nextItem.sizes.map((size) => ({ ...size, foodItemId: nextItem.id }))
+    });
+
+    return wait(cloneCustomPlanFoodItem(entities.customPlanFoodItems[nextItem.id]));
+  },
+
+  async deleteCustomPlanFoodItem(id: string): Promise<{ id: string }> {
+    delete entities.customPlanFoodItems[id];
+    return wait({ id });
+  },
+
+  async reorderCustomPlanFoodItems(planId: string, categoryId: string, itemIds: string[]): Promise<CustomPlanFoodItem[]> {
+    itemIds.forEach((id, index) => {
+      if (entities.customPlanFoodItems[id] && entities.customPlanFoodItems[id].planId === planId) {
+        entities.customPlanFoodItems[id] = {
+          ...entities.customPlanFoodItems[id],
+          categoryId,
+          displayOrder: index + 1
+        };
+      }
+    });
+    return wait(getCustomPlanFoodItemsForPlan(planId).filter((item) => item.categoryId === categoryId));
   },
 
   async listSubscriptions(): Promise<SubscriptionRecord[]> {

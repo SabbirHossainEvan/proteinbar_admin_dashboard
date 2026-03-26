@@ -3,6 +3,7 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import { useGetMonthlyPlanDetailsQuery, useUpsertMonthlyPlanDetailsMutation } from "@/redux/api/adminApi";
@@ -16,11 +17,6 @@ type AssignmentFormState = {
   mealName: string;
   mealType: MealType;
   badges: string;
-};
-
-type CustomCategoryDraft = {
-  name: string;
-  mealIds: string[];
 };
 
 const tabs: Array<{ key: TabKey; label: string }> = [
@@ -40,11 +36,6 @@ const createAssignmentForm = (): AssignmentFormState => ({
   badges: ""
 });
 
-const createCustomCategoryDraft = (index: number): CustomCategoryDraft => ({
-  name: `Category ${index + 1}`,
-  mealIds: []
-});
-
 const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
   ...details,
   plan: {
@@ -57,9 +48,10 @@ const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
       ...((details.plan.planKind === "custom" || details.plan.content?.customStepTwo)
         ? {
             customStepTwo: {
-              categories: (details.plan.content?.customStepTwo?.categories ?? []).map((category) => ({
-                name: category.name,
-                mealIds: [...category.mealIds]
+              categories: (details.plan.content?.customStepTwo?.categories ?? []).map((category) => ({ ...category })),
+              foodItems: (details.plan.content?.customStepTwo?.foodItems ?? []).map((item) => ({
+                ...item,
+                sizes: item.sizes.map((size) => ({ ...size }))
               }))
             }
           }
@@ -111,8 +103,6 @@ const parseStringList = (value: string) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-const uniqueValues = <T,>(items: T[]) => [...new Set(items)];
-
 const addDays = (isoDate: string, days: number) => {
   const [year, month, day] = isoDate.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -163,7 +153,6 @@ const createWeekDraft = (planId: string, nextWeekIndex: number, previousWeek?: W
 
 const validateDetails = (details: MonthlyPlanDetails) => {
   const errors: string[] = [];
-  const mealIds = new Set((details.mealLibrary ?? []).map((meal) => meal.id));
   const deliveryOptionIdsSeen = new Set<string>();
 
   if (!details.plan.title.trim()) errors.push("Title is required.");
@@ -209,16 +198,29 @@ const validateDetails = (details: MonthlyPlanDetails) => {
     Object.entries(week.mealsByDate).forEach(([dateIso, meals]) => {
       if (dateIso < week.startDate || dateIso > week.endDate) errors.push(`Week ${week.weekIndex} contains date ${dateIso} outside its range.`);
       meals.forEach((meal) => {
-        if (!mealIds.has(meal.mealId)) errors.push(`Assigned meal ${meal.mealName} references a missing meal library item.`);
+        if (!(details.mealLibrary ?? []).some((libraryMeal) => libraryMeal.id === meal.mealId)) {
+          errors.push(`Assigned meal ${meal.mealName} references a missing meal library item.`);
+        }
       });
     });
   });
 
+  const categoryIds = new Set(details.plan.content?.customStepTwo?.categories.map((category) => category.id) ?? []);
   details.plan.content?.customStepTwo?.categories.forEach((category) => {
     if (!category.name.trim()) errors.push("Custom categories require a name.");
-    uniqueValues(category.mealIds).forEach((mealId) => {
-      if (!mealIds.has(mealId)) errors.push(`Category ${category.name} references a missing meal.`);
-    });
+    if (category.selectionMode === "single" && category.maxSelect !== null && category.maxSelect !== 1) {
+      errors.push(`Category ${category.name} must use max select 1 for single-select.`);
+    }
+    if ((category.maxSelect ?? null) !== null && category.minSelect > (category.maxSelect ?? 0)) {
+      errors.push(`Category ${category.name} has invalid min/max selection.`);
+    }
+  });
+
+  details.plan.content?.customStepTwo?.foodItems.forEach((item) => {
+    if (!item.name.trim()) errors.push("Custom food items require a name.");
+    if (!categoryIds.has(item.categoryId)) errors.push(`Food item ${item.name} references a missing category.`);
+    if (!item.imageUrl.trim()) errors.push(`Food item ${item.name} requires an image URL.`);
+    if (!item.sizes.length) errors.push(`Food item ${item.name} requires at least one size.`);
   });
 
   return [...new Set(errors)];
@@ -231,8 +233,6 @@ export default function MonthlyPlanDetailEditorPage() {
   const [draft, setDraft] = useState<MonthlyPlanDetails | null>(null);
   const [selectedWeekId, setSelectedWeekId] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
-  const [selectedCategoryIndex, setSelectedCategoryIndex] = useState(0);
-  const [selectedCategoryMealId, setSelectedCategoryMealId] = useState("");
   const [assignmentForm, setAssignmentForm] = useState<AssignmentFormState>(createAssignmentForm());
   const [saveMessage, setSaveMessage] = useState("");
   const [saveErrors, setSaveErrors] = useState<string[]>([]);
@@ -264,17 +264,10 @@ export default function MonthlyPlanDetailEditorPage() {
   }, [selectedDate, selectedWeekDates]);
 
   const meals = useMemo(() => draft?.mealLibrary ?? [], [draft?.mealLibrary]);
-  const activeMeals = meals.filter((meal) => meal.status === "active");
   const selectedMealsOnDate = selectedWeek && selectedDate ? selectedWeek.mealsByDate[selectedDate] ?? [] : [];
   const isCustomPlan = draft?.plan.planKind === "custom";
   const customCategories = useMemo(() => draft?.plan.content?.customStepTwo?.categories ?? [], [draft?.plan.content?.customStepTwo?.categories]);
-  const selectedCategory = customCategories[selectedCategoryIndex] ?? null;
-  const selectedCategoryMeals = selectedCategory
-    ? selectedCategory.mealIds.flatMap((mealId) => {
-        const meal = meals.find((item) => item.id === mealId);
-        return meal ? [meal] : [];
-      })
-    : [];
+  const customFoodItems = useMemo(() => draft?.plan.content?.customStepTwo?.foodItems ?? [], [draft?.plan.content?.customStepTwo?.foodItems]);
   const setPlanField = <K extends keyof MonthlyPlanDetails["plan"]>(field: K, value: MonthlyPlanDetails["plan"][K]) => {
     setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, [field]: value } } : prev));
   };
@@ -282,37 +275,6 @@ export default function MonthlyPlanDetailEditorPage() {
   const setRulesField = <K extends keyof MonthlyPlanDetails["rules"]>(field: K, value: MonthlyPlanDetails["rules"][K]) => {
     setDraft((prev) => (prev ? { ...prev, rules: { ...prev.rules, [field]: value } } : prev));
   };
-
-  const updateCustomCategories = (updater: (categories: CustomCategoryDraft[]) => CustomCategoryDraft[]) => {
-    setDraft((prev) => {
-      if (!prev) return prev;
-      const currentCategories = prev.plan.content?.customStepTwo?.categories ?? [];
-      return {
-        ...prev,
-        plan: {
-          ...prev.plan,
-          content: {
-            ...prev.plan.content,
-            customStepTwo: {
-              categories: updater(currentCategories)
-            }
-          }
-        }
-      };
-    });
-  };
-
-  useEffect(() => {
-    if (!customCategories.length) {
-      setSelectedCategoryIndex(0);
-      setSelectedCategoryMealId("");
-      return;
-    }
-
-    if (selectedCategoryIndex >= customCategories.length) {
-      setSelectedCategoryIndex(customCategories.length - 1);
-    }
-  }, [customCategories, selectedCategoryIndex]);
 
   const updateWeek = (weekId: string, updater: (week: WeekAssignment) => WeekAssignment) => {
     setDraft((prev) =>
@@ -351,38 +313,6 @@ export default function MonthlyPlanDetailEditorPage() {
         plan: { ...prev.plan, weekAssignmentIds: nextWeeks.map((week) => week.id) }
       };
     });
-  };
-
-  const addCustomCategory = () => {
-    updateCustomCategories((categories) => {
-      const nextCategories = [...categories, createCustomCategoryDraft(categories.length)];
-      setSelectedCategoryIndex(nextCategories.length - 1);
-      return nextCategories;
-    });
-  };
-
-  const updateCustomCategory = (index: number, updater: (category: CustomCategoryDraft) => CustomCategoryDraft) => {
-    updateCustomCategories((categories) => categories.map((category, categoryIndex) => (categoryIndex === index ? updater(category) : category)));
-  };
-
-  const removeCustomCategory = (index: number) => {
-    updateCustomCategories((categories) => categories.filter((_, categoryIndex) => categoryIndex !== index));
-  };
-
-  const addMealToCustomCategory = () => {
-    if (!selectedCategory || !selectedCategoryMealId) return;
-    updateCustomCategory(selectedCategoryIndex, (category) => ({
-      ...category,
-      mealIds: uniqueValues([...category.mealIds, selectedCategoryMealId])
-    }));
-    setSelectedCategoryMealId("");
-  };
-
-  const removeMealFromCustomCategory = (mealId: string) => {
-    updateCustomCategory(selectedCategoryIndex, (category) => ({
-      ...category,
-      mealIds: category.mealIds.filter((item) => item !== mealId)
-    }));
   };
 
   const saveAssignment = () => {
@@ -643,138 +573,106 @@ export default function MonthlyPlanDetailEditorPage() {
             {isCustomPlan ? (
               <>
                 <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-                  <p className="text-sm font-semibold text-white">Custom Plan Tab Navigation</p>
+                  <p className="text-sm font-semibold text-white">Custom Plan Builder Overview</p>
                   <p className="mt-1 text-xs text-zinc-400">
-                    `Make Your Plan` always stays fixed. Add, rename, or delete the other tabs here and assign meals for each tab.
+                    `Make Your Plan` stays fixed on the website. The modal categories, food cards, size options, and selection rules are now managed from dedicated admin modules.
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button type="button" className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900">
                       Make Your Plan
                     </button>
-                    {customCategories.map((category, index) => (
-                      <button
-                        key={`custom-category-tab-${index}`}
-                        type="button"
-                        onClick={() => setSelectedCategoryIndex(index)}
-                        className={`rounded-xl px-4 py-2 text-sm transition ${
-                          selectedCategoryIndex === index
-                            ? "bg-white text-zinc-950"
-                            : "border border-zinc-600 bg-zinc-950/40 text-zinc-200"
-                        }`}
-                      >
-                        {category.name || `Category ${index + 1}`}
-                      </button>
-                    ))}
+                    {customCategories
+                      .filter((category) => category.isActive)
+                      .sort((a, b) => a.displayOrder - b.displayOrder)
+                      .map((category) => (
+                        <button key={category.id} type="button" className="rounded-xl border border-zinc-600 bg-zinc-950/40 px-4 py-2 text-sm text-zinc-200">
+                          {category.name}
+                        </button>
+                      ))}
                   </div>
                 </div>
 
-                <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
+                <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
                   <div className="space-y-4 rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-white">Manage Tabs</p>
-                        <p className="mt-1 text-xs text-zinc-400">These tabs appear beside `Make Your Plan` on the website.</p>
+                        <p className="text-sm font-semibold text-white">Category Configuration</p>
+                        <p className="mt-1 text-xs text-zinc-400">Create, rename, sort, enable, and control single or multi-select rules for each modal category.</p>
                       </div>
-                      <button type="button" onClick={addCustomCategory} className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900">
-                        + Add Tab
-                      </button>
+                      <Link href="/admin/custom-plan-categories" className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900">
+                        Manage Categories
+                      </Link>
                     </div>
 
                     <div className="space-y-3">
-                      {customCategories.map((category, index) => (
-                        <div key={`custom-category-editor-${index}`} className="rounded-2xl border border-zinc-700/70 bg-zinc-950/50 p-4">
-                          <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                            <label className="flex-1 space-y-1">
-                              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Tab Name</span>
-                              <input
-                                value={category.name}
-                                onChange={(event) => updateCustomCategory(index, (item) => ({ ...item, name: event.target.value }))}
-                                placeholder={`Category ${index + 1}`}
-                                className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                              />
-                            </label>
-                            <div className="flex gap-2 pt-5 md:pt-0">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedCategoryIndex(index)}
-                                className={`rounded-xl px-3 py-2 text-sm ${
-                                  selectedCategoryIndex === index ? "bg-amber-300 font-semibold text-zinc-900" : "border border-zinc-600 bg-zinc-900/60 text-zinc-100"
-                                }`}
-                              >
-                                Assign Meals
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeCustomCategory(index)}
-                                className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100"
-                              >
-                                Delete
-                              </button>
+                      {customCategories.map((category) => (
+                        <article key={category.id} className="rounded-2xl border border-zinc-700/70 bg-zinc-950/50 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-white">{category.name}</p>
+                              <p className="mt-1 text-xs text-zinc-400">
+                                code: {category.code || "-"} | mode: {category.selectionMode} | rule: {category.minSelect} to {category.maxSelect ?? "unlimited"}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              <span className="rounded-full border border-zinc-600 px-2 py-1 text-zinc-200">order: {category.displayOrder}</span>
+                              <span className="rounded-full border border-zinc-600 px-2 py-1 text-zinc-200">status: {category.isActive ? "active" : "inactive"}</span>
                             </div>
                           </div>
-                          <p className="mt-3 text-xs text-zinc-400">{category.mealIds.length} meal(s) assigned to this tab.</p>
-                        </div>
+                        </article>
                       ))}
-                      {!customCategories.length ? <p className="text-sm text-zinc-400">No dynamic tabs added yet. Create one to start assigning meals.</p> : null}
+                      {!customCategories.length ? <p className="text-sm text-zinc-400">No custom categories configured yet.</p> : null}
                     </div>
                   </div>
 
                   <div className="space-y-4 rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-                    <div>
-                      <p className="text-sm font-semibold text-white">{selectedCategory ? `Assign Meals For ${selectedCategory.name || "Selected Tab"}` : "Assign Meals"}</p>
-                      <p className="mt-1 text-xs text-zinc-400">Choose active meal library items and attach them to the selected custom tab.</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Food Card Configuration</p>
+                        <p className="mt-1 text-xs text-zinc-400">Manage modal food cards, images, sizes, pricing, and nutrition under each category.</p>
+                      </div>
+                      <Link href="/admin/custom-plan-food-items" className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900">
+                        Manage Food Items
+                      </Link>
                     </div>
 
-                    {selectedCategory ? (
-                      <>
-                        <div className="flex gap-2">
-                          <select
-                            value={selectedCategoryMealId}
-                            onChange={(event) => setSelectedCategoryMealId(event.target.value)}
-                            className="flex-1 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                          >
-                            <option value="">Select meal to assign</option>
-                            {activeMeals.map((meal) => (
-                              <option key={meal.id} value={meal.id}>
-                                {meal.name} | {meal.mealType}
-                              </option>
-                            ))}
-                          </select>
-                          <button type="button" onClick={addMealToCustomCategory} className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900">
-                            Add Meal
-                          </button>
-                        </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/45 p-4">
+                        <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Active Categories</p>
+                        <p className="mt-2 text-3xl font-semibold text-white">{customCategories.filter((category) => category.isActive).length}</p>
+                      </div>
+                      <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/45 p-4">
+                        <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Active Food Cards</p>
+                        <p className="mt-2 text-3xl font-semibold text-white">{customFoodItems.filter((item) => item.isActive).length}</p>
+                      </div>
+                    </div>
 
-                        <div className="space-y-3">
-                          {selectedCategoryMeals.map((meal) => (
-                            <article key={meal.id} className="rounded-xl border border-zinc-700/70 bg-zinc-950/50 p-4">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <h4 className="text-sm font-semibold text-white">{meal.name}</h4>
-                                  <p className="mt-1 text-xs text-zinc-400">
-                                    {meal.mealType} | {meal.calories} kcal | Protein {meal.protein}g
-                                  </p>
-                                  <p className="mt-2 text-xs text-zinc-500">Tags: {meal.tags.join(", ") || "-"}</p>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => removeMealFromCustomCategory(meal.id)}
-                                  className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-100"
-                                >
-                                  Remove
-                                </button>
+                    <div className="space-y-3">
+                      {customCategories.map((category) => {
+                        const categoryItems = customFoodItems.filter((item) => item.categoryId === category.id);
+                        return (
+                          <article key={`${category.id}-foods`} className="rounded-2xl border border-zinc-700/70 bg-zinc-950/50 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-white">{category.name}</p>
+                                <p className="mt-1 text-xs text-zinc-400">{categoryItems.length} food item(s) assigned</p>
                               </div>
-                            </article>
-                          ))}
-                          {!selectedCategoryMeals.length ? <p className="text-sm text-zinc-400">No meals assigned to this tab yet.</p> : null}
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-sm text-zinc-400">Select or create a tab first, then assign meals here.</p>
-                    )}
+                              <span className="rounded-full border border-zinc-600 px-2 py-1 text-xs text-zinc-200">{category.selectionMode}</span>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {categoryItems.slice(0, 4).map((item) => (
+                                <span key={item.id} className="rounded-full border border-zinc-700 px-2 py-1 text-xs text-zinc-300">
+                                  {item.name}
+                                </span>
+                              ))}
+                              {!categoryItems.length ? <span className="text-xs text-zinc-500">No food items yet</span> : null}
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-
               </>
             ) : (
               <>

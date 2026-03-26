@@ -39,7 +39,8 @@ const createNewPlanDraft = (kind: PlanKind) => {
         ...(kind === "custom"
           ? {
               customStepTwo: {
-                categories: []
+                categories: [],
+                foodItems: []
               }
             }
           : {})
