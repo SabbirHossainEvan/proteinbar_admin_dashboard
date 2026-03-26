@@ -19,12 +19,6 @@ type AssignmentFormState = {
   badges: string;
 };
 
-const tabs: Array<{ key: TabKey; label: string }> = [
-  { key: "basic", label: "Basic Info" },
-  { key: "rules", label: "Rules" },
-  { key: "assignments", label: "Week Assignments" }
-];
-
 const mealTypes: MealType[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
 const weekDayFormatter = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" });
 
@@ -380,6 +374,12 @@ export default function MonthlyPlanDetailEditorPage() {
   if (isLoading) return <LoadingState label="Loading monthly plan details..." />;
   if (isError || !data?.data) return <ErrorState label="Failed to load monthly plan detail." />;
   if (!draft) return <LoadingState label="Preparing editor..." />;
+
+  const tabs: Array<{ key: TabKey; label: string }> = [
+    { key: "basic", label: "Basic Info" },
+    { key: "rules", label: "Rules" },
+    { key: "assignments", label: isCustomPlan ? "Meal Assignments" : "Week Assignments" }
+  ];
 
   return (
     <section className="space-y-7">
