@@ -775,34 +775,6 @@ export default function MonthlyPlanDetailEditorPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {activeMeals.map((meal) => (
-                    <article key={meal.id} className="rounded-xl border border-zinc-700/70 bg-zinc-900/60 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <h4 className="text-base font-semibold text-white">{meal.name}</h4>
-                          <p className="text-xs text-zinc-400">{meal.mealType}</p>
-                        </div>
-                        {selectedCategory ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedCategoryMealId(meal.id);
-                              updateCustomCategory(selectedCategoryIndex, (category) => ({
-                                ...category,
-                                mealIds: uniqueValues([...category.mealIds, meal.id])
-                              }));
-                            }}
-                            className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900"
-                          >
-                            Use
-                          </button>
-                        ) : null}
-                      </div>
-                      <p className="mt-3 text-xs text-zinc-300">Tags: {meal.tags.join(", ") || "-"}</p>
-                    </article>
-                  ))}
-                </div>
               </>
             ) : (
               <>
