@@ -26,11 +26,26 @@ const initialForm = {
   supportedOptions: [...defaultSupportedOptions] as DeliveryOption[]
 };
 
+const toLocationFormState = (item?: Partial<LocationRecord>) => ({
+  id: item?.id ?? "",
+  name: item?.name ?? "",
+  type: item?.type ?? ("both" as LocationRecord["type"]),
+  address: item?.address ?? "",
+  image: item?.image ?? "",
+  phone: item?.phone ?? "",
+  googleMapsUrl: item?.googleMapsUrl ?? "",
+  ratingText: item?.ratingText ?? "",
+  isActive: item?.isActive ?? true,
+  deliveryFee: item?.deliveryFee ?? 0,
+  cutoffTime: item?.cutoffTime ?? "10:00",
+  supportedOptions: item?.supportedOptions?.length ? [...item.supportedOptions] : [...defaultSupportedOptions]
+});
+
 export default function LocationsPage() {
   const { data, isLoading, isError } = useGetMonthlyLocationsAdminQuery();
   const [upsertLocation, { isLoading: isSaving }] = useUpsertMonthlyLocationAdminMutation();
   const [deleteLocation, { isLoading: isDeleting }] = useDeleteMonthlyLocationAdminMutation();
-  const [form, setForm] = useState(initialForm);
+  const [form, setForm] = useState(() => toLocationFormState(initialForm));
   const [submitError, setSubmitError] = useState("");
 
   const locations = data?.data ?? [];
@@ -69,17 +84,11 @@ export default function LocationsPage() {
       supportedOptions: form.supportedOptions.length ? form.supportedOptions : [...defaultSupportedOptions]
     };
     await upsertLocation(payload).unwrap();
-    setForm(initialForm);
+    setForm(toLocationFormState(initialForm));
   };
 
   const startEdit = (item: LocationRecord) => {
-    setForm({
-      ...item,
-      image: item.image ?? "",
-      phone: item.phone ?? "",
-      googleMapsUrl: item.googleMapsUrl ?? "",
-      ratingText: item.ratingText ?? ""
-    });
+    setForm(toLocationFormState(item));
   };
 
   return (
@@ -154,20 +163,6 @@ export default function LocationsPage() {
               )}
             </div>
           </div>
-          <input
-            type="number"
-            min={0}
-            value={form.deliveryFee}
-            onChange={(event) => setForm((prev) => ({ ...prev, deliveryFee: Number(event.target.value) }))}
-            placeholder="Delivery fee"
-            className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-          />
-          <input
-            type="time"
-            value={form.cutoffTime}
-            onChange={(event) => setForm((prev) => ({ ...prev, cutoffTime: event.target.value }))}
-            className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-          />
           <label className="flex items-center gap-2 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-200 md:col-span-2">
             <input
               type="checkbox"
@@ -189,7 +184,7 @@ export default function LocationsPage() {
             {form.id ? (
               <button
                 type="button"
-                onClick={() => setForm(initialForm)}
+                onClick={() => setForm(toLocationFormState(initialForm))}
                 className="rounded-xl border border-zinc-600 bg-zinc-800/70 px-4 py-2.5 text-sm text-zinc-100"
               >
                 Cancel Edit
@@ -211,7 +206,7 @@ export default function LocationsPage() {
                 <th className="pb-2 pr-4 font-medium">Image</th>
                 <th className="pb-2 pr-4 font-medium">Type</th>
                 <th className="pb-2 pr-4 font-medium">Address</th>
-                <th className="pb-2 pr-4 font-medium">Config</th>
+                <th className="pb-2 pr-4 font-medium">Rating</th>
                 <th className="pb-2 font-medium">Actions</th>
               </tr>
             </thead>
@@ -240,8 +235,7 @@ export default function LocationsPage() {
                     ) : null}
                   </td>
                   <td className="py-3.5 pr-4 text-zinc-300">
-                    fee: ${item.deliveryFee.toFixed(2)} | cutoff: {item.cutoffTime}
-                    {item.ratingText ? <p className="text-xs text-zinc-400">{item.ratingText}</p> : null}
+                    {item.ratingText ? <p className="text-xs text-zinc-400">{item.ratingText}</p> : <span className="text-zinc-500">No rating text</span>}
                   </td>
                   <td className="py-3.5">
                     <div className="flex gap-2">
