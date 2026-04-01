@@ -230,6 +230,8 @@ export default function MonthlyPlanDetailEditorPage() {
   const [assignmentForm, setAssignmentForm] = useState<AssignmentFormState>(createAssignmentForm());
   const [saveMessage, setSaveMessage] = useState("");
   const [saveErrors, setSaveErrors] = useState<string[]>([]);
+  const [pickerCategoryId, setPickerCategoryId] = useState<string | null>(null);
+  const [pickerMealId, setPickerMealId] = useState("");
 
   const { data, isLoading, isError } = useGetMonthlyPlanDetailsQuery(planId);
   const [upsertPlanDetails, { isLoading: isSaving }] = useUpsertMonthlyPlanDetailsMutation();
@@ -361,12 +363,29 @@ export default function MonthlyPlanDetailEditorPage() {
     });
   };
 
-  const addRegularFoodItem = (categoryId: string) => {
-    if (!draft) return;
+  const openMealPicker = (categoryId: string) => {
+    setPickerCategoryId(categoryId);
+    setPickerMealId("");
+  };
+
+  const confirmAddMealFromLibrary = () => {
+    if (!draft || !pickerCategoryId || !pickerMealId) return;
+    const libraryMeal = meals.find((m) => m.id === pickerMealId);
+    if (!libraryMeal) return;
+    const foodId = `food-${Date.now()}`;
     const newItem: CustomPlanFoodItem = {
-      id: `food-${Date.now()}`, planId, categoryId, name: "New Meal", imageUrl: "https://placehold.co/400x300", displayOrder: customFoodItems.length, isActive: true, sizes: [{ id: `ps-${Date.now()}`, foodItemId: `food-${Date.now()}`, label: "Regular", price: 0, calories: 300, protein: 30, carbs: 30, fat: 10, displayOrder: 0, isActive: true }]
+      id: foodId,
+      planId,
+      categoryId: pickerCategoryId,
+      name: libraryMeal.name,
+      imageUrl: libraryMeal.image || "https://placehold.co/400x300",
+      displayOrder: customFoodItems.filter((f) => f.categoryId === pickerCategoryId).length,
+      isActive: true,
+      sizes: [{ id: `ps-${Date.now()}`, foodItemId: foodId, label: "Regular", price: 0, calories: libraryMeal.calories, protein: libraryMeal.protein, carbs: libraryMeal.carbs, fat: libraryMeal.fat, displayOrder: 0, isActive: true }]
     };
     setDraft((prev) => !prev ? prev : { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { categories: prev.plan.content?.customStepTwo?.categories || [], foodItems: [...(prev.plan.content?.customStepTwo?.foodItems || []), newItem] } } } });
+    setPickerCategoryId(null);
+    setPickerMealId("");
   };
 
   const updateRegularFoodItem = (foodId: string, updates: Partial<CustomPlanFoodItem>) => {
@@ -892,7 +911,6 @@ export default function MonthlyPlanDetailEditorPage() {
             {/* Category preview pills */}
             {customCategories.length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                <span className="rounded-xl bg-zinc-900 border border-zinc-700 px-4 py-2 text-sm font-semibold text-white">Make Your Plan</span>
                 {customCategories
                   .filter((c) => c.isActive)
                   .sort((a, b) => a.displayOrder - b.displayOrder)
@@ -939,8 +957,12 @@ export default function MonthlyPlanDetailEditorPage() {
                           <div className="flex gap-2">
                             <button
                               type="button"
-                              onClick={() => addRegularFoodItem(category.id)}
-                              className="rounded-lg border border-amber-300/40 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-300/20"
+                              onClick={() => pickerCategoryId === category.id ? setPickerCategoryId(null) : openMealPicker(category.id)}
+                              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                                pickerCategoryId === category.id
+                                  ? "border-amber-300 bg-amber-300/20 text-amber-200"
+                                  : "border-amber-300/40 bg-amber-300/10 text-amber-200 hover:bg-amber-300/20"
+                              }`}
                             >
                               + Add Meal
                             </button>
@@ -955,12 +977,44 @@ export default function MonthlyPlanDetailEditorPage() {
                         </div>
 
                         {/* Meal cards grid */}
-                        <div className="p-5">
-                          {categoryItems.length === 0 ? (
+                        <div className="p-5 space-y-4">
+                          {/* Inline Meal Library picker */}
+                          {pickerCategoryId === category.id ? (
+                            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300/30 bg-amber-300/5 px-4 py-3">
+                              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-200">Pick from Meal Library</span>
+                              <select
+                                value={pickerMealId}
+                                onChange={(e) => setPickerMealId(e.target.value)}
+                                className="flex-1 min-w-[180px] rounded-lg border border-zinc-600 bg-zinc-900/80 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                              >
+                                <option value="">— Select a meal —</option>
+                                {meals.filter((m) => m.status === "active").map((m) => (
+                                  <option key={m.id} value={m.id}>{m.name} ({m.mealType})</option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={confirmAddMealFromLibrary}
+                                disabled={!pickerMealId}
+                                className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900 disabled:opacity-40"
+                              >
+                                Add
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPickerCategoryId(null)}
+                                className="text-xs text-zinc-500 hover:text-zinc-300"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : null}
+
+                          {categoryItems.length === 0 && pickerCategoryId !== category.id ? (
                             <p className="text-center text-sm text-zinc-500 py-6">
-                              No meals yet — click &ldquo;+ Add Meal&rdquo; to add one.
+                              No meals yet — click &ldquo;+ Add Meal&rdquo; to pick from the Meal Library.
                             </p>
-                          ) : (
+                          ) : categoryItems.length > 0 ? (
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                               {categoryItems.map((item) => (
                                 <div
@@ -1018,7 +1072,7 @@ export default function MonthlyPlanDetailEditorPage() {
                                 </div>
                               ))}
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     );
