@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import {
   useDeleteMonthlyLocationAdminMutation,
@@ -9,17 +9,21 @@ import {
 } from "@/redux/api/adminApi";
 import type { DeliveryOption, LocationRecord } from "@/redux/monthlyPlans/types";
 
-const options: DeliveryOption[] = ["daily-delivery", "daily-pickup", "weekly-delivery", "weekly-pickup"];
+const defaultSupportedOptions: DeliveryOption[] = ["daily-delivery", "daily-pickup", "weekly-delivery", "weekly-pickup"];
 
 const initialForm = {
   id: "",
   name: "",
   type: "both" as LocationRecord["type"],
   address: "",
+  image: "",
+  phone: "",
+  googleMapsUrl: "",
+  ratingText: "",
   isActive: true,
   deliveryFee: 0,
   cutoffTime: "10:00",
-  supportedOptions: [...options] as DeliveryOption[]
+  supportedOptions: [...defaultSupportedOptions] as DeliveryOption[]
 };
 
 export default function LocationsPage() {
@@ -31,14 +35,16 @@ export default function LocationsPage() {
 
   const locations = data?.data ?? [];
 
-  const toggleOption = (option: DeliveryOption) => {
-    setForm((prev) => {
-      const exists = prev.supportedOptions.includes(option);
-      return {
-        ...prev,
-        supportedOptions: exists ? prev.supportedOptions.filter((item) => item !== option) : [...prev.supportedOptions, option]
-      };
-    });
+  const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      setForm((prev) => ({ ...prev, image: result }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const save = async (event: FormEvent) => {
@@ -47,27 +53,33 @@ export default function LocationsPage() {
       setSubmitError("Name and address are required.");
       return;
     }
-    if (!form.supportedOptions.length) {
-      setSubmitError("Select at least one supported delivery option.");
-      return;
-    }
     setSubmitError("");
     const payload: LocationRecord = {
       id: form.id || `loc-${Date.now()}`,
       name: form.name.trim(),
       type: form.type,
       address: form.address.trim(),
+      image: form.image || undefined,
+      phone: form.phone.trim() || undefined,
+      googleMapsUrl: form.googleMapsUrl.trim() || undefined,
+      ratingText: form.ratingText.trim() || undefined,
       isActive: form.isActive,
       deliveryFee: Number(form.deliveryFee),
       cutoffTime: form.cutoffTime,
-      supportedOptions: form.supportedOptions
+      supportedOptions: form.supportedOptions.length ? form.supportedOptions : [...defaultSupportedOptions]
     };
     await upsertLocation(payload).unwrap();
     setForm(initialForm);
   };
 
   const startEdit = (item: LocationRecord) => {
-    setForm(item);
+    setForm({
+      ...item,
+      image: item.image ?? "",
+      phone: item.phone ?? "",
+      googleMapsUrl: item.googleMapsUrl ?? "",
+      ratingText: item.ratingText ?? ""
+    });
   };
 
   return (
@@ -102,6 +114,47 @@ export default function LocationsPage() {
             className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300 md:col-span-2"
           />
           <input
+            value={form.phone}
+            onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+            placeholder="Phone number"
+            className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+          />
+          <input
+            value={form.ratingText}
+            onChange={(event) => setForm((prev) => ({ ...prev, ratingText: event.target.value }))}
+            placeholder="Rating text"
+            className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+          />
+          <input
+            value={form.googleMapsUrl}
+            onChange={(event) => setForm((prev) => ({ ...prev, googleMapsUrl: event.target.value }))}
+            placeholder="Google Maps link"
+            className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300 md:col-span-2"
+          />
+          <label className="space-y-1 md:col-span-2">
+            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Location Image Upload</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-300 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-900"
+            />
+          </label>
+          <div className="md:col-span-2">
+            <div className="flex min-h-36 items-center justify-center rounded-2xl border border-dashed border-zinc-700 bg-zinc-950/35 p-3">
+              {form.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={form.image}
+                  alt={form.name || "Location preview"}
+                  className="max-h-48 rounded-xl object-cover"
+                />
+              ) : (
+                <p className="text-sm text-zinc-500">Uploaded location image preview will appear here.</p>
+              )}
+            </div>
+          </div>
+          <input
             type="number"
             min={0}
             value={form.deliveryFee}
@@ -124,23 +177,6 @@ export default function LocationsPage() {
             />
             Active location
           </label>
-          <div className="rounded-xl border border-zinc-600 bg-zinc-900/70 p-3 md:col-span-2">
-            <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Supported options</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {options.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => toggleOption(option)}
-                  className={`rounded-lg px-3 py-1.5 text-xs ${
-                    form.supportedOptions.includes(option) ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-200"
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          </div>
           {submitError ? <p className="text-sm text-rose-300 md:col-span-2">{submitError}</p> : null}
           <div className="md:col-span-2 flex gap-2">
             <button
@@ -172,6 +208,7 @@ export default function LocationsPage() {
             <thead>
               <tr>
                 <th className="pb-2 pr-4 font-medium">Name</th>
+                <th className="pb-2 pr-4 font-medium">Image</th>
                 <th className="pb-2 pr-4 font-medium">Type</th>
                 <th className="pb-2 pr-4 font-medium">Address</th>
                 <th className="pb-2 pr-4 font-medium">Config</th>
@@ -182,11 +219,29 @@ export default function LocationsPage() {
               {locations.map((item) => (
                 <tr key={item.id}>
                   <td className="py-3.5 pr-4 text-zinc-100">{item.name}</td>
+                  <td className="py-3.5 pr-4 text-zinc-300">
+                    {item.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={item.image} alt={item.name} className="h-12 w-12 rounded-lg object-cover" />
+                    ) : (
+                      <span className="text-zinc-500">No image</span>
+                    )}
+                  </td>
                   <td className="py-3.5 pr-4 text-zinc-300">{item.type}</td>
-                  <td className="py-3.5 pr-4 text-zinc-300">{item.address}</td>
+                  <td className="py-3.5 pr-4 text-zinc-300">
+                    {item.address}
+                    {item.phone ? <p className="text-xs text-zinc-400">phone: {item.phone}</p> : null}
+                    {item.googleMapsUrl ? (
+                      <p className="text-xs text-zinc-400">
+                        <a href={item.googleMapsUrl} target="_blank" rel="noreferrer" className="hover:text-white">
+                          Google Maps
+                        </a>
+                      </p>
+                    ) : null}
+                  </td>
                   <td className="py-3.5 pr-4 text-zinc-300">
                     fee: ${item.deliveryFee.toFixed(2)} | cutoff: {item.cutoffTime}
-                    <p className="text-xs text-zinc-400">{item.supportedOptions.join(", ")}</p>
+                    {item.ratingText ? <p className="text-xs text-zinc-400">{item.ratingText}</p> : null}
                   </td>
                   <td className="py-3.5">
                     <div className="flex gap-2">
@@ -211,7 +266,7 @@ export default function LocationsPage() {
               ))}
               {!locations.length ? (
                 <tr>
-                  <td className="py-3.5 text-zinc-400" colSpan={5}>
+                  <td className="py-3.5 text-zinc-400" colSpan={6}>
                     No locations found.
                   </td>
                 </tr>

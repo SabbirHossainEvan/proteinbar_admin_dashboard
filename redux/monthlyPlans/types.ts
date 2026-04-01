@@ -210,6 +210,10 @@ export interface LocationRecord {
   name: string;
   type: "pickup" | "delivery" | "both";
   address: string;
+  image?: string;
+  phone?: string;
+  googleMapsUrl?: string;
+  ratingText?: string;
   isActive: boolean;
   deliveryFee: number;
   cutoffTime: string;

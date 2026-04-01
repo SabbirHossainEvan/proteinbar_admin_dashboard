@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useMemo, useRef, useState } from "react";
 import StatusBadge from "@/components/admin/StatusBadge";
 import {
   useCreateMenuItemMutation,
@@ -17,6 +17,7 @@ type MenuItem = {
   id?: string;
   menuId: string;
   title: string;
+  image?: string;
   linkedProductSkus: string[];
   visibleDays: string[];
   timeSlots: string[];
@@ -26,11 +27,17 @@ type MenuItem = {
   status: string;
 };
 
+type ProductOption = {
+  sku: string;
+  name: string;
+};
+
 const menuMealTypes: MenuMealType[] = ["Breakfast", "Lunch", "Dinner"];
 const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const initialForm = {
   title: "",
+  image: "",
   linkedProductSkus: [] as string[],
   visibleDays: [] as string[],
   timeSlots: "",
@@ -62,11 +69,12 @@ export default function MenuPage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   const items = useMemo<MenuItem[]>(() => {
-    return (data?.data ?? []).map((item: any) => ({
+    return (data?.data ?? []).map((item: Partial<MenuItem>) => ({
       _id: item._id,
       id: item.id,
       menuId: item.menuId ?? "",
       title: item.title ?? "",
+      image: item.image ?? "",
       linkedProductSkus: Array.isArray(item.linkedProductSkus) ? item.linkedProductSkus : [],
       visibleDays: Array.isArray(item.visibleDays) ? item.visibleDays : [],
       timeSlots: Array.isArray(item.timeSlots) ? item.timeSlots : [],
@@ -77,12 +85,24 @@ export default function MenuPage() {
     }));
   }, [data]);
 
-  const products = useMemo(() => {
-    return (productsResponse?.data ?? []).map((product: any) => ({
+  const products = useMemo<ProductOption[]>(() => {
+    return (productsResponse?.data ?? []).map((product: Partial<ProductOption>) => ({
       sku: String(product.sku ?? ""),
       name: String(product.name ?? "")
     }));
   }, [productsResponse]);
+
+  const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      setForm((prev) => ({ ...prev, image: result }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const resetForm = () => {
     setForm(initialForm);
@@ -103,6 +123,7 @@ export default function MenuPage() {
     const payload = {
       menuId: currentMenuId,
       title: form.title.trim(),
+      image: form.image || undefined,
       linkedProductSkus: form.linkedProductSkus,
       visibleDays: form.visibleDays,
       timeSlots: form.timeSlots
@@ -137,6 +158,7 @@ export default function MenuPage() {
     setEditingId(id);
     setForm({
       title: item.title,
+      image: item.image ?? "",
       linkedProductSkus: item.linkedProductSkus,
       visibleDays: item.visibleDays,
       timeSlots: item.timeSlots.join(", "),
@@ -182,6 +204,31 @@ export default function MenuPage() {
             required
             className="md:col-span-2 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
           />
+
+          <label className="space-y-1 md:col-span-2">
+            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Menu Image Upload</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-300 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-900"
+            />
+          </label>
+
+          <div className="md:col-span-2">
+            <div className="flex min-h-36 items-center justify-center rounded-2xl border border-dashed border-zinc-700 bg-zinc-950/35 p-3">
+              {form.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={form.image}
+                  alt={form.title || "Menu preview"}
+                  className="max-h-48 rounded-xl object-cover"
+                />
+              ) : (
+                <p className="text-sm text-zinc-500">Uploaded menu image preview will appear here.</p>
+              )}
+            </div>
+          </div>
 
           <label className="md:col-span-2 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-3 text-sm text-zinc-200">
             <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-zinc-400">Attach Product(s)</span>
@@ -296,6 +343,7 @@ export default function MenuPage() {
             <thead>
               <tr>
                 <th className="pb-2 pr-4 font-medium">Menu ID</th>
+                <th className="pb-2 pr-4 font-medium">Image</th>
                 <th className="pb-2 pr-4 font-medium">Title</th>
                 <th className="pb-2 pr-4 font-medium">Linked Products</th>
                 <th className="pb-2 pr-4 font-medium">Visibility</th>
@@ -312,6 +360,14 @@ export default function MenuPage() {
                 return (
                   <tr key={id || item.menuId}>
                     <td className="py-3.5 pr-4 text-zinc-200">{item.menuId}</td>
+                    <td className="py-3.5 pr-4 text-zinc-300">
+                      {item.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.image} alt={item.title} className="h-12 w-12 rounded-lg object-cover" />
+                      ) : (
+                        <span className="text-zinc-500">No image</span>
+                      )}
+                    </td>
                     <td className="py-3.5 pr-4 text-zinc-100">{item.title}</td>
                     <td className="py-3.5 pr-4 text-zinc-300">{item.linkedProductSkus.join(", ")}</td>
                     <td className="py-3.5 pr-4 text-zinc-300">
@@ -346,7 +402,7 @@ export default function MenuPage() {
               })}
               {!isLoading && items.length === 0 ? (
                 <tr>
-                  <td className="py-3.5 text-zinc-400" colSpan={9}>No menu items found.</td>
+                  <td className="py-3.5 text-zinc-400" colSpan={10}>No menu items found.</td>
                 </tr>
               ) : null}
             </tbody>

@@ -13,7 +13,6 @@ const pageTitleMap: Record<string, string> = {
   "/admin/monthly-plans": "Monthly Plans",
   "/admin/meal-library": "Meal Library",
   "/admin/subscriptions": "Subscriptions",
-  "/admin/settings/monthly-plan": "Monthly Plan Settings",
   "/admin/orders-of-day": "Orders of the Day",
   "/admin/printing": "Printing",
   "/admin/notifications": "Notifications",

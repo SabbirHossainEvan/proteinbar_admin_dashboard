@@ -47,8 +47,7 @@ export default function DashboardPage() {
           { href: "/admin/subscriptions", title: "Subscriptions", text: "Track progress, pause/resume, and inspect selected flow params." },
           { href: "/admin/orders", title: "Orders", text: "Manage monthly orders by delivery mode, status, and payment state." },
           { href: "/admin/meal-library", title: "Meal Library", text: "Configure assignable breakfast/lunch/dinner/snack meal catalog." },
-          { href: "/admin/locations", title: "Locations", text: "Configure pickup and delivery locations per delivery option." },
-          { href: "/admin/settings/monthly-plan", title: "Monthly Settings", text: "Control global pricing and front-office visibility rules." }
+          { href: "/admin/locations", title: "Locations", text: "Configure pickup and delivery locations per delivery option." }
         ].map((card) => (
           <Link key={card.href} href={card.href} className="admin-panel rounded-2xl p-5 transition hover:border-amber-300/45">
             <h3 className="text-lg font-semibold text-white">{card.title}</h3>

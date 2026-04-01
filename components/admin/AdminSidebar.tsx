@@ -16,7 +16,6 @@ const navItems = [
   { href: "/admin/orders-of-day", label: "Orders of the Day" },
   { href: "/admin/printing", label: "Printing" },
   { href: "/admin/locations", label: "Locations" },
-  { href: "/admin/settings/monthly-plan", label: "Monthly Settings" },
   { href: "/admin/notifications", label: "Notifications" },
   { href: "/admin/profile", label: "Profile" },
 ];
