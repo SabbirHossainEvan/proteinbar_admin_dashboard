@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import {
   useDeleteMealLibraryAdminMutation,
@@ -18,7 +18,8 @@ const initialForm = {
   carbs: 0,
   fat: 0,
   tags: "",
-  status: "active" as "active" | "inactive"
+  status: "active" as "active" | "inactive",
+  image: ""
 };
 
 export default function MealLibraryPage() {
@@ -30,6 +31,18 @@ export default function MealLibraryPage() {
 
   const meals = data?.data ?? [];
   const activeCount = useMemo(() => meals.filter((meal) => meal.status === "active").length, [meals]);
+
+  const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      setForm((prev) => ({ ...prev, image: result }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -50,7 +63,8 @@ export default function MealLibraryPage() {
         .split(",")
         .map((tag) => tag.trim())
         .filter(Boolean),
-      status: form.status
+      status: form.status,
+      image: form.image || undefined
     };
     await upsertMeal(payload).unwrap();
     setForm(initialForm);
@@ -66,7 +80,8 @@ export default function MealLibraryPage() {
       carbs: meal.carbs,
       fat: meal.fat,
       tags: meal.tags.join(", "),
-      status: meal.status
+      status: meal.status,
+      image: meal.image ?? ""
     });
   };
 
@@ -84,7 +99,7 @@ export default function MealLibraryPage() {
         </p>
         <form onSubmit={save} className="mt-4 grid gap-3 md:grid-cols-3">
           <label className="space-y-1">
-            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Name (customer list-e dekhabe)</span>
+            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Name</span>
             <input
               value={form.name}
               onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
@@ -93,7 +108,7 @@ export default function MealLibraryPage() {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Type (Breakfast/Lunch/Dinner/Snack)</span>
+            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Type</span>
             <select
               value={form.mealType}
               onChange={(event) => setForm((prev) => ({ ...prev, mealType: event.target.value as MealType }))}
@@ -106,7 +121,7 @@ export default function MealLibraryPage() {
             </select>
           </label>
           <label className="space-y-1">
-            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Status (Active hole assign করা যাবে)</span>
+            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Status</span>
             <select
               value={form.status}
               onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value as "active" | "inactive" }))}
@@ -161,7 +176,7 @@ export default function MealLibraryPage() {
             />
           </label>
           <label className="space-y-1 md:col-span-2">
-            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Tags (filter/badge er jonno, comma separated)</span>
+            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Tags</span>
             <input
               value={form.tags}
               onChange={(event) => setForm((prev) => ({ ...prev, tags: event.target.value }))}
@@ -169,6 +184,29 @@ export default function MealLibraryPage() {
               className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
             />
           </label>
+          <label className="space-y-1">
+            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Image Upload</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-300 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-900"
+            />
+          </label>
+          <div className="md:col-span-3">
+            <div className="flex min-h-32 items-center justify-center rounded-2xl border border-dashed border-zinc-700 bg-zinc-950/35 p-3">
+              {form.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={form.image}
+                  alt={form.name || "Meal preview"}
+                  className="max-h-48 rounded-xl object-cover"
+                />
+              ) : (
+                <p className="text-sm text-zinc-500">Uploaded image preview will appear here.</p>
+              )}
+            </div>
+          </div>
           {error ? <p className="text-sm text-rose-300 md:col-span-3">{error}</p> : null}
           <div className="md:col-span-3 flex gap-2">
             <button
@@ -200,6 +238,7 @@ export default function MealLibraryPage() {
             <thead>
               <tr>
                 <th className="pb-2 pr-4 font-medium">Meal</th>
+                <th className="pb-2 pr-4 font-medium">Image</th>
                 <th className="pb-2 pr-4 font-medium">Type</th>
                 <th className="pb-2 pr-4 font-medium">Macros</th>
                 <th className="pb-2 pr-4 font-medium">Tags</th>
@@ -211,6 +250,18 @@ export default function MealLibraryPage() {
               {meals.map((meal) => (
                 <tr key={meal.id}>
                   <td className="py-3.5 pr-4 text-zinc-100">{meal.name}</td>
+                  <td className="py-3.5 pr-4 text-zinc-300">
+                    {meal.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={meal.image}
+                        alt={meal.name}
+                        className="h-12 w-12 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <span className="text-zinc-500">No image</span>
+                    )}
+                  </td>
                   <td className="py-3.5 pr-4 text-zinc-300">{meal.mealType}</td>
                   <td className="py-3.5 pr-4 text-zinc-300">
                     kcal:{meal.calories} P:{meal.protein} C:{meal.carbs} F:{meal.fat}
@@ -240,7 +291,7 @@ export default function MealLibraryPage() {
               ))}
               {!meals.length ? (
                 <tr>
-                  <td className="py-3.5 text-zinc-400" colSpan={6}>
+                  <td className="py-3.5 text-zinc-400" colSpan={7}>
                     No meals found.
                   </td>
                 </tr>
@@ -252,3 +303,4 @@ export default function MealLibraryPage() {
     </section>
   );
 }
+
