@@ -39,6 +39,8 @@ const initialForm = {
   sizes: [createSizeDraft()]
 };
 
+const defaultFoodImage = "https://placehold.co/400x300?text=Food+Image";
+
 export default function CustomPlanFoodItemsPage() {
   const { data: plansData, isLoading: isLoadingPlans } = useGetMonthlyPlanAdminListQuery({ kind: "custom" });
   const customPlans = useMemo(() => plansData?.data ?? [], [plansData]);
@@ -108,10 +110,6 @@ export default function CustomPlanFoodItemsPage() {
       setError("Food item name is required.");
       return;
     }
-    if (!form.imageUrl.trim()) {
-      setError("Image URL is required.");
-      return;
-    }
     if (!form.sizes.length || form.sizes.some((size) => !size.label.trim())) {
       setError("At least one valid size is required.");
       return;
@@ -123,7 +121,7 @@ export default function CustomPlanFoodItemsPage() {
       planId: selectedPlanId,
       categoryId: form.categoryId,
       name: form.name.trim(),
-      imageUrl: form.imageUrl.trim(),
+      imageUrl: form.imageUrl.trim() || defaultFoodImage,
       description: form.description.trim(),
       isActive: form.isActive,
       sizes: form.sizes.map((size, index) => ({
@@ -234,10 +232,6 @@ export default function CustomPlanFoodItemsPage() {
             <label className="flex items-center gap-2 pt-6 text-sm text-zinc-200">
               <input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} />
               Active
-            </label>
-            <label className="space-y-1 md:col-span-2 xl:col-span-4">
-              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Image URL</span>
-              <input value={form.imageUrl} onChange={(event) => setForm((prev) => ({ ...prev, imageUrl: event.target.value }))} placeholder="https://..." className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
             </label>
             <label className="space-y-1 md:col-span-2 xl:col-span-4">
               <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Description</span>
