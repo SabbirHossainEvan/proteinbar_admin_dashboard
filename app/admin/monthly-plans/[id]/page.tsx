@@ -441,7 +441,7 @@ export default function MonthlyPlanDetailEditorPage() {
   const tabs: Array<{ key: TabKey; label: string }> = [
     { key: "basic", label: "Basic Info" },
     { key: "rules", label: "Rules" },
-    { key: "assignments", label: isCustomPlan ? "Meal Assignments" : "Week Assignments" },
+    { key: "assignments", label: isCustomPlan ? "Make Your Meal" : "Week Assignments" },
     ...(isCustomPlan ? [{ key: "regularMeals" as TabKey, label: "Regular Meal Categories" }] : [])
   ];
 
@@ -452,9 +452,6 @@ export default function MonthlyPlanDetailEditorPage() {
           <div className="max-w-3xl">
             <p className="text-xs uppercase tracking-[0.22em] text-amber-200/70">Plan Editor</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-4xl">{draft.plan.title}</h2>
-            <p className="mt-3 text-sm leading-6 text-zinc-300">
-              Manage the data used by `/{draft.plan.planKind}/{draft.plan.id}/set-plan`, `/select-meals`, and `/checkout`.
-            </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
