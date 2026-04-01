@@ -7,9 +7,9 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import { useGetMonthlyPlanDetailsQuery, useUpsertMonthlyPlanDetailsMutation } from "@/redux/api/adminApi";
-import type { MealType, MonthlyPlanDetails, WeekAssignment } from "@/redux/monthlyPlans/types";
+import type { CustomPlanCategory, CustomPlanFoodItem, MealType, MonthlyPlanDetails, WeekAssignment } from "@/redux/monthlyPlans/types";
 
-type TabKey = "basic" | "rules" | "assignments";
+type TabKey = "basic" | "rules" | "assignments" | "regularMeals";
 
 type AssignmentFormState = {
   id: string;
@@ -339,6 +339,50 @@ export default function MonthlyPlanDetailEditorPage() {
     setSaveErrors([]);
   };
 
+  const addRegularMealCategory = () => {
+    if (!draft) return;
+    const newCategory: CustomPlanCategory = {
+      id: `cat-${Date.now()}`, planId, name: "New Category", slug: `cat-${Date.now()}`, displayOrder: customCategories.length, selectionMode: "single", isActive: true, isRequired: false, minSelect: 1, maxSelect: 1
+    };
+    setDraft((prev) => !prev ? prev : { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { categories: [...(prev.plan.content?.customStepTwo?.categories || []), newCategory], foodItems: prev.plan.content?.customStepTwo?.foodItems || [] } } } });
+  };
+  
+  const updateRegularMealCategory = (categoryId: string, name: string) => {
+    setDraft((prev) => {
+      if (!prev || !prev.plan.content?.customStepTwo) return prev;
+      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { ...prev.plan.content.customStepTwo, categories: prev.plan.content.customStepTwo.categories.map(c => c.id === categoryId ? { ...c, name } : c) } } } };
+    });
+  };
+
+  const removeRegularMealCategory = (categoryId: string) => {
+    setDraft((prev) => {
+      if (!prev || !prev.plan.content?.customStepTwo) return prev;
+      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { categories: prev.plan.content.customStepTwo.categories.filter(c => c.id !== categoryId), foodItems: prev.plan.content.customStepTwo.foodItems.filter(f => f.categoryId !== categoryId) } } } };
+    });
+  };
+
+  const addRegularFoodItem = (categoryId: string) => {
+    if (!draft) return;
+    const newItem: CustomPlanFoodItem = {
+      id: `food-${Date.now()}`, planId, categoryId, name: "New Meal", imageUrl: "https://placehold.co/400x300", displayOrder: customFoodItems.length, isActive: true, sizes: [{ id: `ps-${Date.now()}`, foodItemId: `food-${Date.now()}`, label: "Regular", price: 0, calories: 300, protein: 30, carbs: 30, fat: 10, displayOrder: 0, isActive: true }]
+    };
+    setDraft((prev) => !prev ? prev : { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { categories: prev.plan.content?.customStepTwo?.categories || [], foodItems: [...(prev.plan.content?.customStepTwo?.foodItems || []), newItem] } } } });
+  };
+
+  const updateRegularFoodItem = (foodId: string, updates: Partial<CustomPlanFoodItem>) => {
+    setDraft((prev) => {
+      if (!prev || !prev.plan.content?.customStepTwo) return prev;
+      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { ...prev.plan.content.customStepTwo, foodItems: prev.plan.content.customStepTwo.foodItems.map(f => f.id === foodId ? { ...f, ...updates } : f) } } } };
+    });
+  };
+
+  const removeRegularFoodItem = (foodId: string) => {
+    setDraft((prev) => {
+      if (!prev || !prev.plan.content?.customStepTwo) return prev;
+      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { ...prev.plan.content.customStepTwo, foodItems: prev.plan.content.customStepTwo.foodItems.filter(f => f.id !== foodId) } } } };
+    });
+  };
+
   const saveAll = async () => {
     if (!draft) return;
     const payload = normalizeDetails(draft);
@@ -378,7 +422,8 @@ export default function MonthlyPlanDetailEditorPage() {
   const tabs: Array<{ key: TabKey; label: string }> = [
     { key: "basic", label: "Basic Info" },
     { key: "rules", label: "Rules" },
-    { key: "assignments", label: isCustomPlan ? "Meal Assignments" : "Week Assignments" }
+    { key: "assignments", label: isCustomPlan ? "Meal Assignments" : "Week Assignments" },
+    ...(isCustomPlan ? [{ key: "regularMeals" as TabKey, label: "Regular Meal Categories" }] : [])
   ];
 
   return (
@@ -822,6 +867,164 @@ export default function MonthlyPlanDetailEditorPage() {
                 )}
               </>
             )}
+          </div>
+        ) : null}
+
+        {activeTab === "regularMeals" && isCustomPlan ? (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+              <div>
+                <p className="text-lg font-semibold text-white">Regular Meal Categories</p>
+                <p className="mt-1 text-sm text-zinc-400">
+                  Manage meal categories (e.g. Lunch, Breakfast, Dinner) shown on the website. Add or remove meals inside each category.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={addRegularMealCategory}
+                className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200"
+              >
+                + Add Category
+              </button>
+            </div>
+
+            {/* Category preview pills */}
+            {customCategories.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-xl bg-zinc-900 border border-zinc-700 px-4 py-2 text-sm font-semibold text-white">Make Your Plan</span>
+                {customCategories
+                  .filter((c) => c.isActive)
+                  .sort((a, b) => a.displayOrder - b.displayOrder)
+                  .map((c) => (
+                    <span key={c.id} className="rounded-xl border border-zinc-600 bg-zinc-950/40 px-4 py-2 text-sm text-zinc-200">
+                      {c.name}
+                    </span>
+                  ))}
+              </div>
+            ) : null}
+
+            {/* Category blocks */}
+            <div className="space-y-6">
+              {customCategories.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 py-14 text-center">
+                  <p className="text-sm font-medium text-zinc-300">No categories yet</p>
+                  <p className="text-xs text-zinc-500">Click &ldquo;+ Add Category&rdquo; to create your first category like Lunch or Breakfast.</p>
+                </div>
+              ) : (
+                customCategories
+                  .sort((a, b) => a.displayOrder - b.displayOrder)
+                  .map((category) => {
+                    const categoryItems = customFoodItems
+                      .filter((item) => item.categoryId === category.id)
+                      .sort((a, b) => a.displayOrder - b.displayOrder);
+                    return (
+                      <div key={category.id} className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 overflow-hidden">
+                        {/* Category header */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-900/80 px-5 py-4">
+                          <div className="flex flex-1 items-center gap-3">
+                            <span className="rounded-full border border-zinc-600 px-2.5 py-0.5 text-[11px] uppercase tracking-[0.14em] text-zinc-400">
+                              Category
+                            </span>
+                            <input
+                              value={category.name}
+                              onChange={(e) => updateRegularMealCategory(category.id, e.target.value)}
+                              className="flex-1 max-w-xs rounded-xl border border-zinc-700 bg-zinc-950/60 px-3 py-1.5 text-sm font-semibold text-white outline-none focus:border-amber-300 transition"
+                              placeholder="e.g. LUNCH, BREAKFAST"
+                            />
+                            <span className="hidden text-xs text-zinc-500 sm:block">
+                              {categoryItems.length} meal{categoryItems.length !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => addRegularFoodItem(category.id)}
+                              className="rounded-lg border border-amber-300/40 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-300/20"
+                            >
+                              + Add Meal
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeRegularMealCategory(category.id)}
+                              className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-200 transition hover:bg-rose-500/20"
+                            >
+                              Remove Category
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Meal cards grid */}
+                        <div className="p-5">
+                          {categoryItems.length === 0 ? (
+                            <p className="text-center text-sm text-zinc-500 py-6">
+                              No meals yet — click &ldquo;+ Add Meal&rdquo; to add one.
+                            </p>
+                          ) : (
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                              {categoryItems.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="flex flex-col gap-3 rounded-2xl border border-zinc-700/70 bg-zinc-950/60 overflow-hidden"
+                                >
+                                  {/* Image preview */}
+                                  <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-800">
+                                    {item.imageUrl ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={item.imageUrl}
+                                        alt={item.name}
+                                        className="h-full w-full object-cover"
+                                        onError={(e) => { (e.target as HTMLImageElement).src = "https://placehold.co/400x300?text=No+Image"; }}
+                                      />
+                                    ) : (
+                                      <div className="flex h-full w-full items-center justify-center text-xs text-zinc-500">
+                                        No Image
+                                      </div>
+                                    )}
+                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-6">
+                                      <p className="truncate text-xs font-semibold text-white">{item.name}</p>
+                                    </div>
+                                  </div>
+
+                                  {/* Fields */}
+                                  <div className="space-y-2 px-3 pb-3">
+                                    <label className="block">
+                                      <span className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">Meal Name</span>
+                                      <input
+                                        value={item.name}
+                                        onChange={(e) => updateRegularFoodItem(item.id, { name: e.target.value })}
+                                        className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900/70 px-2.5 py-1.5 text-sm text-white outline-none focus:border-amber-300 transition"
+                                        placeholder="e.g. Grilled Chicken"
+                                      />
+                                    </label>
+                                    <label className="block">
+                                      <span className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">Image URL</span>
+                                      <input
+                                        value={item.imageUrl}
+                                        onChange={(e) => updateRegularFoodItem(item.id, { imageUrl: e.target.value })}
+                                        className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900/70 px-2.5 py-1.5 text-sm text-white outline-none focus:border-amber-300 transition"
+                                        placeholder="https://..."
+                                      />
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeRegularFoodItem(item.id)}
+                                      className="mt-1 w-full rounded-lg border border-rose-400/30 bg-rose-500/10 py-1.5 text-xs text-rose-300 transition hover:bg-rose-500/20"
+                                    >
+                                      Remove Meal
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
           </div>
         ) : null}
 
