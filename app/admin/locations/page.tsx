@@ -3,11 +3,30 @@
 import { ChangeEvent, FormEvent, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import {
-  useDeleteMonthlyLocationAdminMutation,
-  useGetMonthlyLocationsAdminQuery,
-  useUpsertMonthlyLocationAdminMutation
+  useCreateLocationMutation,
+  useDeleteLocationMutation,
+  useGetLocationsQuery,
+  useUpdateLocationMutation
 } from "@/redux/api/adminApi";
 import type { DeliveryOption, LocationRecord } from "@/redux/monthlyPlans/types";
+
+type AdminLocationApiRecord = {
+  locationId?: string;
+  id?: string;
+  name?: string;
+  type?: LocationRecord["type"];
+  address?: string;
+  pickupAddress?: string;
+  image?: string;
+  phone?: string;
+  googleMapsUrl?: string;
+  mapLink?: string;
+  ratingText?: string;
+  isActive?: boolean;
+  deliveryFee?: string | number;
+  cutoffTime?: string;
+  supportedOptions?: DeliveryOption[];
+};
 
 const defaultSupportedOptions: DeliveryOption[] = ["daily-delivery", "daily-pickup", "weekly-delivery", "weekly-pickup"];
 
@@ -42,13 +61,30 @@ const toLocationFormState = (item?: Partial<LocationRecord>) => ({
 });
 
 export default function LocationsPage() {
-  const { data, isLoading, isError } = useGetMonthlyLocationsAdminQuery();
-  const [upsertLocation, { isLoading: isSaving }] = useUpsertMonthlyLocationAdminMutation();
-  const [deleteLocation, { isLoading: isDeleting }] = useDeleteMonthlyLocationAdminMutation();
+  const { data, isLoading, isError } = useGetLocationsQuery();
+  const [createLocation, { isLoading: isCreating }] = useCreateLocationMutation();
+  const [updateLocation, { isLoading: isUpdating }] = useUpdateLocationMutation();
+  const [deleteLocation, { isLoading: isDeleting }] = useDeleteLocationMutation();
   const [form, setForm] = useState(() => toLocationFormState(initialForm));
   const [submitError, setSubmitError] = useState("");
 
-  const locations = data?.data ?? [];
+  const isSaving = isCreating || isUpdating;
+  const locations: LocationRecord[] = (data?.data ?? []).map((item: AdminLocationApiRecord) => ({
+    id: item.locationId ?? item.id ?? "",
+    name: item.name ?? "",
+    type: item.type ?? "both",
+    address: item.address ?? item.pickupAddress ?? "",
+    image: item.image ?? "",
+    phone: item.phone ?? "",
+    googleMapsUrl: item.googleMapsUrl ?? item.mapLink ?? "",
+    ratingText: item.ratingText ?? "",
+    isActive: item.isActive ?? true,
+    deliveryFee: Number.parseFloat(String(item.deliveryFee ?? "0").replace(/[^0-9.]+/g, "")) || 0,
+    cutoffTime: item.cutoffTime ?? "10:00",
+    supportedOptions: Array.isArray(item.supportedOptions) && item.supportedOptions.length
+      ? [...item.supportedOptions]
+      : [...defaultSupportedOptions]
+  }));
 
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -83,7 +119,26 @@ export default function LocationsPage() {
       cutoffTime: form.cutoffTime,
       supportedOptions: form.supportedOptions.length ? form.supportedOptions : [...defaultSupportedOptions]
     };
-    await upsertLocation(payload).unwrap();
+    const body = {
+      locationId: payload.id,
+      name: payload.name,
+      type: payload.type,
+      pickupAddress: payload.address,
+      image: payload.image || "",
+      phone: payload.phone || "",
+      mapLink: payload.googleMapsUrl || "",
+      ratingText: payload.ratingText || "",
+      isActive: payload.isActive,
+      deliveryFee: String(payload.deliveryFee),
+      cutoffTime: payload.cutoffTime,
+      supportedOptions: payload.supportedOptions
+    };
+
+    if (form.id) {
+      await updateLocation({ id: form.id, body }).unwrap();
+    } else {
+      await createLocation(body).unwrap();
+    }
     setForm(toLocationFormState(initialForm));
   };
 

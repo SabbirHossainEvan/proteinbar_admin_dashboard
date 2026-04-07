@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { monthlyPlanMockAdapter, type MonthlyPlanDetailsPayload } from "@/redux/monthlyPlans/mockAdapter";
 import type {
@@ -40,6 +41,7 @@ export const adminApi = createApi({
     "Dashboard",
     "Products",
     "MenuItems",
+    "Restaurants",
     "Locations",
     "MonthlyPlans",
     "PlanFlows",
@@ -97,6 +99,23 @@ export const adminApi = createApi({
     deleteMenuItem: builder.mutation<void, string>({
       query: (id) => ({ url: `/menu-items/${id}`, method: "DELETE" }),
       invalidatesTags: ["MenuItems", "Dashboard"]
+    }),
+
+    getRestaurants: builder.query<ApiResponse<any[]>, void>({
+      query: () => "/restaurants",
+      providesTags: ["Restaurants"]
+    }),
+    createRestaurant: builder.mutation<ApiResponse<any>, any>({
+      query: (body) => ({ url: "/restaurants", method: "POST", body }),
+      invalidatesTags: ["Restaurants", "MenuItems", "Dashboard"]
+    }),
+    updateRestaurant: builder.mutation<ApiResponse<any>, { id: string; body: any }>({
+      query: ({ id, body }) => ({ url: `/restaurants/${id}`, method: "PATCH", body }),
+      invalidatesTags: ["Restaurants", "MenuItems", "Dashboard"]
+    }),
+    deleteRestaurant: builder.mutation<void, string>({
+      query: (id) => ({ url: `/restaurants/${id}`, method: "DELETE" }),
+      invalidatesTags: ["Restaurants", "MenuItems", "Dashboard"]
     }),
 
     getLocations: builder.query<ApiResponse<any[]>, void>({
@@ -216,41 +235,39 @@ export const adminApi = createApi({
       providesTags: ["MonthlyPlanAdmin"]
     }),
     getMonthlyPlanAdminList: builder.query<ApiResponse<MonthlyPlan[]>, PlanListFilters | void>({
-      queryFn: async (filters) => {
-        const data = await monthlyPlanMockAdapter.listPlans(filters ?? {});
-        return { data: { success: true, data } };
-      },
+      query: (filters) => ({
+        url: "/admin/monthly-plan/plans",
+        params: filters ?? {}
+      }),
       providesTags: ["MonthlyPlanAdmin"]
     }),
     getMonthlyPlanDetails: builder.query<ApiResponse<MonthlyPlanDetails | null>, string>({
-      queryFn: async (id) => {
-        const data = await monthlyPlanMockAdapter.getPlanById(id);
-        return { data: { success: true, data } };
-      },
+      query: (id) => `/admin/monthly-plan/plans/${id}`,
       providesTags: (_result, _error, id) => [{ type: "MonthlyPlanDetails", id }]
     }),
     upsertMonthlyPlanDetails: builder.mutation<ApiResponse<MonthlyPlanDetailsPayload>, MonthlyPlanDetailsPayload>({
-      queryFn: async (payload) => {
-        const data = await monthlyPlanMockAdapter.upsertPlanDetails(payload);
-        return { data: { success: true, data } };
-      },
+      query: (payload) => ({
+        url: `/admin/monthly-plan/plans/${payload.plan.id}`,
+        method: "PUT",
+        body: payload
+      }),
       invalidatesTags: (_result, _error, payload) => [
         "MonthlyPlanAdmin",
         { type: "MonthlyPlanDetails", id: payload.plan.id }
       ]
     }),
     archiveMonthlyPlan: builder.mutation<ApiResponse<{ id: string; status: MonthlyPlan["status"] } | null>, string>({
-      queryFn: async (id) => {
-        const data = await monthlyPlanMockAdapter.archivePlan(id);
-        return { data: { success: true, data } };
-      },
+      query: (id) => ({
+        url: `/admin/monthly-plan/plans/${id}/archive`,
+        method: "PATCH"
+      }),
       invalidatesTags: ["MonthlyPlanAdmin"]
     }),
     deleteMonthlyPlanAdmin: builder.mutation<ApiResponse<{ id: string } | null>, string>({
-      queryFn: async (id) => {
-        const data = await monthlyPlanMockAdapter.deletePlan(id);
-        return { data: { success: true, data } };
-      },
+      query: (id) => ({
+        url: `/admin/monthly-plan/plans/${id}`,
+        method: "DELETE"
+      }),
       invalidatesTags: ["MonthlyPlanAdmin"]
     }),
     getMealLibraryAdmin: builder.query<ApiResponse<MealLibraryItem[]>, void>({
@@ -275,10 +292,10 @@ export const adminApi = createApi({
       invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin"]
     }),
     getCustomPlanCategoriesAdmin: builder.query<ApiResponse<CustomPlanCategory[]>, string>({
-      queryFn: async (planId) => {
-        const data = await monthlyPlanMockAdapter.listCustomPlanCategories(planId);
-        return { data: { success: true, data } };
-      },
+      query: (planId) => ({
+        url: "/admin/monthly-plan/custom-categories",
+        params: { planId }
+      }),
       providesTags: (_result, _error, planId) => [{ type: "CustomPlanCategoryAdmin", id: planId }]
     }),
     upsertCustomPlanCategoryAdmin: builder.mutation<ApiResponse<CustomPlanCategory>, {
@@ -294,10 +311,10 @@ export const adminApi = createApi({
       minSelect: number;
       maxSelect?: number | null;
     }>({
-      queryFn: async (payload) => {
-        const data = await monthlyPlanMockAdapter.upsertCustomPlanCategory(payload);
-        return { data: { success: true, data } };
-      },
+      query: ({ id, ...body }) =>
+        id
+          ? { url: `/admin/monthly-plan/custom-categories/${id}`, method: "PATCH", body }
+          : { url: "/admin/monthly-plan/custom-categories", method: "POST", body },
       invalidatesTags: (_result, _error, payload) => [
         "MonthlyPlanAdmin",
         { type: "MonthlyPlanDetails", id: payload.planId },
@@ -306,10 +323,10 @@ export const adminApi = createApi({
       ]
     }),
     deleteCustomPlanCategoryAdmin: builder.mutation<ApiResponse<{ id: string }>, { id: string; planId: string }>({
-      queryFn: async ({ id }) => {
-        const data = await monthlyPlanMockAdapter.deleteCustomPlanCategory(id);
-        return { data: { success: true, data } };
-      },
+      query: ({ id }) => ({
+        url: `/admin/monthly-plan/custom-categories/${id}`,
+        method: "DELETE"
+      }),
       invalidatesTags: (_result, _error, payload) => [
         "MonthlyPlanAdmin",
         { type: "MonthlyPlanDetails", id: payload.planId },
@@ -318,20 +335,24 @@ export const adminApi = createApi({
       ]
     }),
     reorderCustomPlanCategoriesAdmin: builder.mutation<ApiResponse<CustomPlanCategory[]>, { planId: string; categoryIds: string[] }>({
-      queryFn: async ({ planId, categoryIds }) => {
-        const data = await monthlyPlanMockAdapter.reorderCustomPlanCategories(planId, categoryIds);
-        return { data: { success: true, data } };
-      },
+      query: (body) => ({
+        url: "/admin/monthly-plan/custom-categories/reorder",
+        method: "POST",
+        body
+      }),
       invalidatesTags: (_result, _error, payload) => [
         { type: "MonthlyPlanDetails", id: payload.planId },
         { type: "CustomPlanCategoryAdmin", id: payload.planId }
       ]
     }),
     getCustomPlanFoodItemsAdmin: builder.query<ApiResponse<CustomPlanFoodItem[]>, CustomPlanFoodListFilters>({
-      queryFn: async ({ planId, categoryId }) => {
-        const data = await monthlyPlanMockAdapter.listCustomPlanFoodItems(planId, categoryId);
-        return { data: { success: true, data } };
-      },
+      query: ({ planId, categoryId }) => ({
+        url: "/admin/monthly-plan/custom-food-items",
+        params: {
+          planId,
+          ...(categoryId ? { categoryId } : {})
+        }
+      }),
       providesTags: (_result, _error, payload) => [{ type: "CustomPlanFoodAdmin", id: payload.planId }]
     }),
     upsertCustomPlanFoodItemAdmin: builder.mutation<ApiResponse<CustomPlanFoodItem>, {
@@ -356,10 +377,10 @@ export const adminApi = createApi({
         isActive: boolean;
       }>;
     }>({
-      queryFn: async (payload) => {
-        const data = await monthlyPlanMockAdapter.upsertCustomPlanFoodItem(payload);
-        return { data: { success: true, data } };
-      },
+      query: ({ id, ...body }) =>
+        id
+          ? { url: `/admin/monthly-plan/custom-food-items/${id}`, method: "PATCH", body }
+          : { url: "/admin/monthly-plan/custom-food-items", method: "POST", body },
       invalidatesTags: (_result, _error, payload) => [
         "MonthlyPlanAdmin",
         { type: "MonthlyPlanDetails", id: payload.planId },
@@ -367,10 +388,10 @@ export const adminApi = createApi({
       ]
     }),
     deleteCustomPlanFoodItemAdmin: builder.mutation<ApiResponse<{ id: string }>, { id: string; planId: string }>({
-      queryFn: async ({ id }) => {
-        const data = await monthlyPlanMockAdapter.deleteCustomPlanFoodItem(id);
-        return { data: { success: true, data } };
-      },
+      query: ({ id }) => ({
+        url: `/admin/monthly-plan/custom-food-items/${id}`,
+        method: "DELETE"
+      }),
       invalidatesTags: (_result, _error, payload) => [
         "MonthlyPlanAdmin",
         { type: "MonthlyPlanDetails", id: payload.planId },
@@ -378,10 +399,11 @@ export const adminApi = createApi({
       ]
     }),
     reorderCustomPlanFoodItemsAdmin: builder.mutation<ApiResponse<CustomPlanFoodItem[]>, { planId: string; categoryId: string; itemIds: string[] }>({
-      queryFn: async ({ planId, categoryId, itemIds }) => {
-        const data = await monthlyPlanMockAdapter.reorderCustomPlanFoodItems(planId, categoryId, itemIds);
-        return { data: { success: true, data } };
-      },
+      query: (body) => ({
+        url: "/admin/monthly-plan/custom-food-items/reorder",
+        method: "POST",
+        body
+      }),
       invalidatesTags: (_result, _error, payload) => [
         { type: "MonthlyPlanDetails", id: payload.planId },
         { type: "CustomPlanFoodAdmin", id: payload.planId }
@@ -463,6 +485,10 @@ export const {
   useCreateMenuItemMutation,
   useUpdateMenuItemMutation,
   useDeleteMenuItemMutation,
+  useGetRestaurantsQuery,
+  useCreateRestaurantMutation,
+  useUpdateRestaurantMutation,
+  useDeleteRestaurantMutation,
   useGetLocationsQuery,
   useCreateLocationMutation,
   useUpdateLocationMutation,

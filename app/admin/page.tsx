@@ -46,6 +46,7 @@ export default function DashboardPage() {
           { href: "/admin/monthly-plans", title: "Monthly Plans", text: "Create, edit, archive plans and jump to tabbed detail editor." },
           { href: "/admin/subscriptions", title: "Subscriptions", text: "Track progress, pause/resume, and inspect selected flow params." },
           { href: "/admin/orders", title: "Orders", text: "Manage monthly orders by delivery mode, status, and payment state." },
+          { href: "/admin/restaurants", title: "Restaurants", text: "Create restaurant branches that menu items can be assigned to." },
           { href: "/admin/meal-library", title: "Meal Library", text: "Configure assignable breakfast/lunch/dinner/snack meal catalog." },
           { href: "/admin/locations", title: "Locations", text: "Configure pickup and delivery locations per delivery option." }
         ].map((card) => (
