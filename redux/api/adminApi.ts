@@ -242,34 +242,32 @@ export const adminApi = createApi({
       providesTags: ["MonthlyPlanAdmin"]
     }),
     getMonthlyPlanDetails: builder.query<ApiResponse<MonthlyPlanDetails | null>, string>({
-      queryFn: async (id) => {
-        const data = await monthlyPlanMockAdapter.getPlanById(id);
-        return { data: { success: true, data } };
-      },
+      query: (id) => `/admin/monthly-plan/plans/${id}`,
       providesTags: (_result, _error, id) => [{ type: "MonthlyPlanDetails", id }]
     }),
     upsertMonthlyPlanDetails: builder.mutation<ApiResponse<MonthlyPlanDetailsPayload>, MonthlyPlanDetailsPayload>({
-      queryFn: async (payload) => {
-        const data = await monthlyPlanMockAdapter.upsertPlanDetails(payload);
-        return { data: { success: true, data } };
-      },
+      query: (payload) => ({
+        url: `/admin/monthly-plan/plans/${payload.plan.id}`,
+        method: "PUT",
+        body: payload
+      }),
       invalidatesTags: (_result, _error, payload) => [
         "MonthlyPlanAdmin",
         { type: "MonthlyPlanDetails", id: payload.plan.id }
       ]
     }),
     archiveMonthlyPlan: builder.mutation<ApiResponse<{ id: string; status: MonthlyPlan["status"] } | null>, string>({
-      queryFn: async (id) => {
-        const data = await monthlyPlanMockAdapter.archivePlan(id);
-        return { data: { success: true, data } };
-      },
+      query: (id) => ({
+        url: `/admin/monthly-plan/plans/${id}/archive`,
+        method: "PATCH"
+      }),
       invalidatesTags: ["MonthlyPlanAdmin"]
     }),
     deleteMonthlyPlanAdmin: builder.mutation<ApiResponse<{ id: string } | null>, string>({
-      queryFn: async (id) => {
-        const data = await monthlyPlanMockAdapter.deletePlan(id);
-        return { data: { success: true, data } };
-      },
+      query: (id) => ({
+        url: `/admin/monthly-plan/plans/${id}`,
+        method: "DELETE"
+      }),
       invalidatesTags: ["MonthlyPlanAdmin"]
     }),
     getMealLibraryAdmin: builder.query<ApiResponse<MealLibraryItem[]>, void>({

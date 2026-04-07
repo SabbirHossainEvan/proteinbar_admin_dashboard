@@ -6,7 +6,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
-import { useGetMonthlyPlanDetailsQuery, useUpsertMonthlyPlanDetailsMutation } from "@/redux/api/adminApi";
+import {
+  useGetMealLibraryAdminQuery,
+  useGetMonthlyPlanDetailsQuery,
+  useUpsertMonthlyPlanDetailsMutation,
+} from "@/redux/api/adminApi";
 import type { CustomPlanCategory, CustomPlanFoodItem, MealType, MonthlyPlanDetails, WeekAssignment } from "@/redux/monthlyPlans/types";
 
 type TabKey = "basic" | "rules" | "assignments" | "regularMeals";
@@ -28,61 +32,6 @@ const createAssignmentForm = (): AssignmentFormState => ({
   mealName: "",
   mealType: "Lunch",
   badges: ""
-});
-
-const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
-  ...details,
-  plan: {
-    ...details.plan,
-    content: {
-      heroTitle: details.plan.content?.heroTitle ?? "",
-      heroSubtitle: details.plan.content?.heroSubtitle ?? "",
-      selectMealsText: details.plan.content?.selectMealsText ?? "",
-      checkoutText: details.plan.content?.checkoutText ?? "",
-      ...((details.plan.planKind === "custom" || details.plan.content?.customStepTwo)
-        ? {
-            customStepTwo: {
-              categories: (details.plan.content?.customStepTwo?.categories ?? []).map((category) => ({ ...category })),
-              foodItems: (details.plan.content?.customStepTwo?.foodItems ?? []).map((item) => ({
-                ...item,
-                sizes: item.sizes.map((size) => ({ ...size }))
-              }))
-            }
-          }
-        : {})
-    },
-    weekAssignmentIds: [...(details.plan.weekAssignmentIds ?? [])]
-  },
-  rules: {
-    ...details.rules,
-    allowedMealsPerDay: [...details.rules.allowedMealsPerDay],
-    allowedDays: [...details.rules.allowedDays],
-    allowedSnacks: [...details.rules.allowedSnacks],
-    planTypeOptions: [...details.rules.planTypeOptions],
-    deliveryDaysRule: {
-      ...details.rules.deliveryDaysRule,
-      allowedWeekDays: [...details.rules.deliveryDaysRule.allowedWeekDays]
-    },
-    defaults: {
-      ...details.rules.defaults,
-      deliveryDays: [...details.rules.defaults.deliveryDays]
-    },
-    deliveryOptionConfigs: details.rules.deliveryOptionConfigs.map((config) => ({ ...config }))
-  },
-  pricing: {
-    ...details.pricing,
-    basePriceFormula: { ...details.pricing.basePriceFormula },
-    giftCodeRule: { ...details.pricing.giftCodeRule }
-  },
-  weekAssignments: details.weekAssignments.map((week) => ({
-    ...week,
-    mealsByDate: Object.fromEntries(
-      Object.entries(week.mealsByDate)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([dateIso, meals]) => [dateIso, meals.map((meal) => ({ ...meal, badges: [...meal.badges] }))])
-    )
-  })),
-  mealLibrary: (details.mealLibrary ?? []).map((meal) => ({ ...meal, tags: [...meal.tags] }))
 });
 
 const parseNumberList = (value: string, minValue = 0) =>
@@ -145,7 +94,71 @@ const createWeekDraft = (planId: string, nextWeekIndex: number, previousWeek?: W
   });
 };
 
-const validateDetails = (details: MonthlyPlanDetails) => {
+const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
+  ...details,
+  plan: {
+    ...details.plan,
+    content: {
+      heroTitle: details.plan.content?.heroTitle ?? "",
+      heroSubtitle: details.plan.content?.heroSubtitle ?? "",
+      selectMealsText: details.plan.content?.selectMealsText ?? "",
+      checkoutText: details.plan.content?.checkoutText ?? "",
+      ...((details.plan.planKind === "custom" || details.plan.content?.customStepTwo)
+        ? {
+            customStepTwo: {
+              categories: (details.plan.content?.customStepTwo?.categories ?? []).map((category) => ({ ...category })),
+              foodItems: (details.plan.content?.customStepTwo?.foodItems ?? []).map((item) => ({
+                ...item,
+                sizes: item.sizes.map((size) => ({ ...size }))
+              }))
+            }
+          }
+        : {})
+    },
+    weekAssignmentIds: [...(details.plan.weekAssignmentIds ?? [])]
+  },
+  rules: {
+    ...details.rules,
+    allowedMealsPerDay: [...details.rules.allowedMealsPerDay],
+    allowedDays: [...details.rules.allowedDays],
+    allowedSnacks: [...details.rules.allowedSnacks],
+    planTypeOptions: [...details.rules.planTypeOptions],
+    deliveryDaysRule: {
+      ...details.rules.deliveryDaysRule,
+      allowedWeekDays: [...details.rules.deliveryDaysRule.allowedWeekDays]
+    },
+    defaults: {
+      ...details.rules.defaults,
+      deliveryDays: [...details.rules.defaults.deliveryDays]
+    },
+    deliveryOptionConfigs: details.rules.deliveryOptionConfigs.map((config) => ({ ...config }))
+  },
+  pricing: {
+    ...details.pricing,
+    basePriceFormula: { ...details.pricing.basePriceFormula },
+    giftCodeRule: { ...details.pricing.giftCodeRule }
+  },
+  weekAssignments: details.weekAssignments.map((week) => {
+    const nextWeek = syncWeekDates({
+      ...week,
+      mealsByDate: Object.fromEntries(
+        Object.entries(week.mealsByDate)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([dateIso, meals]) => [dateIso, meals.map((meal) => ({ ...meal, badges: [...meal.badges] }))])
+      )
+    });
+
+    return {
+      ...nextWeek,
+      mealsByDate: Object.fromEntries(
+        Object.entries(nextWeek.mealsByDate).sort(([a], [b]) => a.localeCompare(b))
+      )
+    };
+  }),
+  mealLibrary: (details.mealLibrary ?? []).map((meal) => ({ ...meal, tags: [...meal.tags] }))
+});
+
+const validateDetails = (details: MonthlyPlanDetails, availableMeals: MonthlyPlanDetails["mealLibrary"] = []) => {
   const errors: string[] = [];
   const deliveryOptionIdsSeen = new Set<string>();
 
@@ -182,7 +195,7 @@ const validateDetails = (details: MonthlyPlanDetails) => {
     deliveryOptionIdsSeen.add(config.option);
   });
 
-  (details.mealLibrary ?? []).forEach((meal) => {
+  availableMeals.forEach((meal) => {
     if (!meal.name.trim()) errors.push(`Meal ${meal.id || "(new)"} requires a name.`);
     if ([meal.calories, meal.protein, meal.carbs, meal.fat].some((value) => value < 0)) errors.push(`Meal ${meal.name || meal.id} cannot contain negative macros.`);
   });
@@ -192,7 +205,7 @@ const validateDetails = (details: MonthlyPlanDetails) => {
     Object.entries(week.mealsByDate).forEach(([dateIso, meals]) => {
       if (dateIso < week.startDate || dateIso > week.endDate) errors.push(`Week ${week.weekIndex} contains date ${dateIso} outside its range.`);
       meals.forEach((meal) => {
-        if (!(details.mealLibrary ?? []).some((libraryMeal) => libraryMeal.id === meal.mealId)) {
+        if (!availableMeals.some((libraryMeal) => libraryMeal.id === meal.mealId)) {
           errors.push(`Assigned meal ${meal.mealName} references a missing meal library item.`);
         }
       });
@@ -234,6 +247,7 @@ export default function MonthlyPlanDetailEditorPage() {
   const [pickerMealId, setPickerMealId] = useState("");
 
   const { data, isLoading, isError } = useGetMonthlyPlanDetailsQuery(planId);
+  const { data: mealLibraryData, isLoading: isLoadingMealLibrary } = useGetMealLibraryAdminQuery();
   const [upsertPlanDetails, { isLoading: isSaving }] = useUpsertMonthlyPlanDetailsMutation();
 
   useEffect(() => {
@@ -259,7 +273,7 @@ export default function MonthlyPlanDetailEditorPage() {
     }
   }, [selectedDate, selectedWeekDates]);
 
-  const meals = useMemo(() => draft?.mealLibrary ?? [], [draft?.mealLibrary]);
+  const meals = useMemo(() => mealLibraryData?.data ?? draft?.mealLibrary ?? [], [draft?.mealLibrary, mealLibraryData]);
   const selectedMealsOnDate = selectedWeek && selectedDate ? selectedWeek.mealsByDate[selectedDate] ?? [] : [];
   const isCustomPlan = draft?.plan.planKind === "custom";
   const customCategories = useMemo(() => draft?.plan.content?.customStepTwo?.categories ?? [], [draft?.plan.content?.customStepTwo?.categories]);
@@ -405,7 +419,7 @@ export default function MonthlyPlanDetailEditorPage() {
   const saveAll = async () => {
     if (!draft) return;
     const payload = normalizeDetails(draft);
-    const errors = validateDetails(payload);
+    const errors = validateDetails(payload, meals);
     if (errors.length) {
       setSaveErrors(errors);
       setSaveMessage("");
@@ -434,7 +448,7 @@ export default function MonthlyPlanDetailEditorPage() {
     reader.readAsDataURL(file);
   };
 
-  if (isLoading) return <LoadingState label="Loading monthly plan details..." />;
+  if (isLoading || isLoadingMealLibrary) return <LoadingState label="Loading monthly plan details..." />;
   if (isError || !data?.data) return <ErrorState label="Failed to load monthly plan detail." />;
   if (!draft) return <LoadingState label="Preparing editor..." />;
 
@@ -780,6 +794,18 @@ export default function MonthlyPlanDetailEditorPage() {
                         </button>
                       ) : null}
                     </div>
+
+                    <label className="block space-y-1">
+                      <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Assignment Date Picker</span>
+                      <input
+                        type="date"
+                        min={selectedWeek.startDate}
+                        max={selectedWeek.endDate}
+                        value={selectedDate}
+                        onChange={(event) => setSelectedDate(event.target.value)}
+                        className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                      />
+                    </label>
 
                     <div className="flex flex-wrap gap-2">
                       {selectedWeekDates.map((dateIso) => (
