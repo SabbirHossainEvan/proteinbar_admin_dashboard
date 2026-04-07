@@ -7,6 +7,7 @@ import {
   useDeleteMenuItemMutation,
   useGetMenuItemsQuery,
   useGetProductsQuery,
+  useGetRestaurantsQuery,
   useUpdateMenuItemMutation
 } from "@/redux/api/adminApi";
 
@@ -18,6 +19,8 @@ type MenuItem = {
   menuId: string;
   title: string;
   image?: string;
+  restaurantIds: string[];
+  restaurants: string[];
   linkedProductSkus: string[];
   visibleDays: string[];
   timeSlots: string[];
@@ -32,12 +35,20 @@ type ProductOption = {
   name: string;
 };
 
+type RestaurantOption = {
+  restaurantId: string;
+  name: string;
+  address: string;
+  status: string;
+};
+
 const menuMealTypes: MenuMealType[] = ["Breakfast", "Lunch", "Dinner"];
 const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const initialForm = {
   title: "",
   image: "",
+  restaurantIds: [] as string[],
   linkedProductSkus: [] as string[],
   visibleDays: [] as string[],
   timeSlots: "",
@@ -58,6 +69,7 @@ function getMenuItemId(item: MenuItem) {
 export default function MenuPage() {
   const { data, isLoading, isError } = useGetMenuItemsQuery();
   const { data: productsResponse } = useGetProductsQuery();
+  const { data: restaurantsResponse } = useGetRestaurantsQuery();
   const [createMenuItem, { isLoading: isCreating }] = useCreateMenuItemMutation();
   const [updateMenuItem, { isLoading: isUpdating }] = useUpdateMenuItemMutation();
   const [deleteMenuItem, { isLoading: isDeleting }] = useDeleteMenuItemMutation();
@@ -75,6 +87,8 @@ export default function MenuPage() {
       menuId: item.menuId ?? "",
       title: item.title ?? "",
       image: item.image ?? "",
+      restaurantIds: Array.isArray(item.restaurantIds) ? item.restaurantIds : [],
+      restaurants: Array.isArray(item.restaurants) ? item.restaurants : [],
       linkedProductSkus: Array.isArray(item.linkedProductSkus) ? item.linkedProductSkus : [],
       visibleDays: Array.isArray(item.visibleDays) ? item.visibleDays : [],
       timeSlots: Array.isArray(item.timeSlots) ? item.timeSlots : [],
@@ -84,6 +98,15 @@ export default function MenuPage() {
       status: item.status ?? "Visible"
     }));
   }, [data]);
+
+  const restaurants = useMemo<RestaurantOption[]>(() => {
+    return (restaurantsResponse?.data ?? []).map((restaurant: Partial<RestaurantOption>) => ({
+      restaurantId: String(restaurant.restaurantId ?? ""),
+      name: String(restaurant.name ?? ""),
+      address: String(restaurant.address ?? ""),
+      status: String(restaurant.status ?? "Active")
+    }));
+  }, [restaurantsResponse]);
 
   const products = useMemo<ProductOption[]>(() => {
     return (productsResponse?.data ?? []).map((product: Partial<ProductOption>) => ({
@@ -115,6 +138,10 @@ export default function MenuPage() {
     setSubmitError("");
 
     if (!form.title.trim() || !form.linkedProductSkus.length) return;
+    if (!form.restaurantIds.length) {
+      setSubmitError("Select at least one restaurant for this menu item.");
+      return;
+    }
 
     const currentMenuId = editingId
       ? items.find((item) => getMenuItemId(item) === editingId)?.menuId ?? `MENU-${Date.now()}`
@@ -124,6 +151,7 @@ export default function MenuPage() {
       menuId: currentMenuId,
       title: form.title.trim(),
       image: form.image || undefined,
+      restaurantIds: form.restaurantIds,
       linkedProductSkus: form.linkedProductSkus,
       visibleDays: form.visibleDays,
       timeSlots: form.timeSlots
@@ -159,6 +187,7 @@ export default function MenuPage() {
     setForm({
       title: item.title,
       image: item.image ?? "",
+      restaurantIds: item.restaurantIds,
       linkedProductSkus: item.linkedProductSkus,
       visibleDays: item.visibleDays,
       timeSlots: item.timeSlots.join(", "),
@@ -229,6 +258,36 @@ export default function MenuPage() {
               )}
             </div>
           </div>
+
+          <label className="md:col-span-2 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-3 text-sm text-zinc-200">
+            <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-zinc-400">Assign Restaurant(s)</span>
+            {restaurants.length ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {restaurants.map((restaurant) => (
+                  <label key={restaurant.restaurantId} className="flex items-start gap-2 text-zinc-200">
+                    <input
+                      type="checkbox"
+                      checked={form.restaurantIds.includes(restaurant.restaurantId)}
+                      onChange={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          restaurantIds: toggleString(prev.restaurantIds, restaurant.restaurantId)
+                        }))
+                      }
+                    />
+                    <span>
+                      {restaurant.name}
+                      <span className="block text-xs text-zinc-400">
+                        {restaurant.address || restaurant.restaurantId}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-400">No restaurants found. Add a restaurant first from the Restaurants section.</p>
+            )}
+          </label>
 
           <label className="md:col-span-2 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-3 text-sm text-zinc-200">
             <span className="mb-2 block text-xs uppercase tracking-[0.12em] text-zinc-400">Attach Product(s)</span>
@@ -318,7 +377,7 @@ export default function MenuPage() {
 
           {submitError ? <p className="text-sm text-rose-300 md:col-span-2">{submitError}</p> : null}
           <div className="md:col-span-2 flex items-center gap-3">
-            <button type="submit" disabled={isCreating || isUpdating} className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200 disabled:opacity-60">
+            <button type="submit" disabled={isCreating || isUpdating || !restaurants.length} className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200 disabled:opacity-60">
               {editingId ? "Update Menu Item" : "Add Menu Item"}
             </button>
             {editingId ? (
@@ -330,6 +389,7 @@ export default function MenuPage() {
                 Cancel Edit
               </button>
             ) : null}
+            {!restaurants.length ? <p className="text-sm text-zinc-400">Create at least one restaurant before adding a menu item.</p> : null}
           </div>
         </form>
       </section>
@@ -345,6 +405,7 @@ export default function MenuPage() {
                 <th className="pb-2 pr-4 font-medium">Menu ID</th>
                 <th className="pb-2 pr-4 font-medium">Image</th>
                 <th className="pb-2 pr-4 font-medium">Title</th>
+                <th className="pb-2 pr-4 font-medium">Restaurants</th>
                 <th className="pb-2 pr-4 font-medium">Linked Products</th>
                 <th className="pb-2 pr-4 font-medium">Visibility</th>
                 <th className="pb-2 pr-4 font-medium">Meal Types</th>
@@ -369,6 +430,7 @@ export default function MenuPage() {
                       )}
                     </td>
                     <td className="py-3.5 pr-4 text-zinc-100">{item.title}</td>
+                    <td className="py-3.5 pr-4 text-zinc-300">{item.restaurants.join(", ") || "All restaurants"}</td>
                     <td className="py-3.5 pr-4 text-zinc-300">{item.linkedProductSkus.join(", ")}</td>
                     <td className="py-3.5 pr-4 text-zinc-300">
                       {item.visibleDays.join(", ")}
@@ -402,7 +464,7 @@ export default function MenuPage() {
               })}
               {!isLoading && items.length === 0 ? (
                 <tr>
-                  <td className="py-3.5 text-zinc-400" colSpan={10}>No menu items found.</td>
+                  <td className="py-3.5 text-zinc-400" colSpan={11}>No menu items found.</td>
                 </tr>
               ) : null}
             </tbody>

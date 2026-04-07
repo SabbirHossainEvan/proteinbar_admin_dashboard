@@ -40,6 +40,7 @@ export const adminApi = createApi({
     "Dashboard",
     "Products",
     "MenuItems",
+    "Restaurants",
     "Locations",
     "MonthlyPlans",
     "PlanFlows",
@@ -97,6 +98,23 @@ export const adminApi = createApi({
     deleteMenuItem: builder.mutation<void, string>({
       query: (id) => ({ url: `/menu-items/${id}`, method: "DELETE" }),
       invalidatesTags: ["MenuItems", "Dashboard"]
+    }),
+
+    getRestaurants: builder.query<ApiResponse<any[]>, void>({
+      query: () => "/restaurants",
+      providesTags: ["Restaurants"]
+    }),
+    createRestaurant: builder.mutation<ApiResponse<any>, any>({
+      query: (body) => ({ url: "/restaurants", method: "POST", body }),
+      invalidatesTags: ["Restaurants", "MenuItems", "Dashboard"]
+    }),
+    updateRestaurant: builder.mutation<ApiResponse<any>, { id: string; body: any }>({
+      query: ({ id, body }) => ({ url: `/restaurants/${id}`, method: "PATCH", body }),
+      invalidatesTags: ["Restaurants", "MenuItems", "Dashboard"]
+    }),
+    deleteRestaurant: builder.mutation<void, string>({
+      query: (id) => ({ url: `/restaurants/${id}`, method: "DELETE" }),
+      invalidatesTags: ["Restaurants", "MenuItems", "Dashboard"]
     }),
 
     getLocations: builder.query<ApiResponse<any[]>, void>({
@@ -463,6 +481,10 @@ export const {
   useCreateMenuItemMutation,
   useUpdateMenuItemMutation,
   useDeleteMenuItemMutation,
+  useGetRestaurantsQuery,
+  useCreateRestaurantMutation,
+  useUpdateRestaurantMutation,
+  useDeleteRestaurantMutation,
   useGetLocationsQuery,
   useCreateLocationMutation,
   useUpdateLocationMutation,
