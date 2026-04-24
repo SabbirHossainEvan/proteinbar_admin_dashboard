@@ -29,26 +29,26 @@ export default function AdminTopbar() {
   const showBackButton = pathname !== "/admin";
 
   return (
-    <header className="admin-panel relative z-40 mb-6 flex items-center justify-between overflow-visible rounded-2xl px-4 py-3.5 md:px-5">
-      <div className="flex items-center gap-3">
+    <header className="admin-panel sticky top-1 z-40 mb-6 flex items-center justify-between gap-4 overflow-visible rounded-2xl px-4 py-3.5 md:top-2 md:px-5">
+      <div className="flex min-w-0 items-center gap-4">
         {showBackButton ? (
           <button
             type="button"
             onClick={() => router.back()}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 text-sm font-medium text-zinc-100 transition hover:border-zinc-500 hover:text-white"
+            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 text-sm font-medium text-zinc-100 transition hover:border-zinc-500 hover:text-white"
           >
             <span aria-hidden="true">{"<-"}</span>
             <span className="hidden sm:inline">Back</span>
           </button>
         ) : null}
-        <div>
+        <div className="min-w-0">
           <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Admin Panel</p>
-          <h2 className="text-lg font-semibold text-white">{title}</h2>
-          <p className="text-xs text-zinc-500">User-friendly controls for content, operations, and admin settings.</p>
+          <h2 className="truncate text-lg font-semibold leading-tight text-white">{title}</h2>
+          <p className="truncate text-xs text-zinc-500">User-friendly controls for content, operations, and admin settings.</p>
         </div>
       </div>
 
-      <div className="relative z-50 flex items-center gap-2">
+      <div className="relative z-50 flex shrink-0 items-center gap-2 self-start sm:self-center">
         <Link
           href="/admin/notifications"
           aria-label="Notifications"
