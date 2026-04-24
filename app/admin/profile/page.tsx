@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useGetDashboardQuery } from "@/redux/api/adminApi";
 
 type AuthUser = {
@@ -9,26 +9,36 @@ type AuthUser = {
   role?: string;
 };
 
+type DashboardLatestOrder = {
+  id?: string;
+  customer?: string;
+  date?: string;
+};
+
+type DashboardResponse = {
+  data?: {
+    latestOrders?: DashboardLatestOrder[];
+  };
+};
+
 export default function ProfilePage() {
   const { data } = useGetDashboardQuery();
-  const [user, setUser] = useState<AuthUser>({});
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  const user = useMemo<AuthUser>(() => {
+    if (typeof window === "undefined") return {};
 
     try {
       const raw = window.sessionStorage.getItem("proteinbar_admin_auth");
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      setUser(parsed?.user ?? {});
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as { user?: AuthUser };
+      return parsed.user ?? {};
     } catch {
-      setUser({});
+      return {};
     }
   }, []);
 
   const recentActivity = useMemo(() => {
-    const latestOrders = data?.data?.latestOrders ?? [];
-    return latestOrders.map((order: any) => ({
+    const latestOrders = ((data as DashboardResponse | undefined)?.data?.latestOrders ?? []);
+    return latestOrders.map((order) => ({
       id: order.id,
       action: "Reviewed recent order",
       target: `${order.id} (${order.customer})`,
@@ -85,13 +95,13 @@ export default function ProfilePage() {
           <p className="mt-2 text-sm text-zinc-300">Shortcuts for common admin tasks.</p>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <Link href="/admin/menu" className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-4 py-2.5 text-sm text-zinc-100 hover:border-zinc-500">
-              Manage Menu
+              Restaurants Menus
             </Link>
             <Link href="/admin/orders" className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-4 py-2.5 text-sm text-zinc-100 hover:border-zinc-500">
               Review Orders
             </Link>
             <Link href="/admin/customers" className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-4 py-2.5 text-sm text-zinc-100 hover:border-zinc-500">
-              Manage Locations
+              Open Clients
             </Link>
             <Link href="/admin/sign-out" className="rounded-xl border border-rose-400/40 bg-rose-400/10 px-4 py-2.5 text-sm text-rose-100 hover:bg-rose-400/20">
               Sign Out
@@ -112,7 +122,7 @@ export default function ProfilePage() {
               </tr>
             </thead>
             <tbody>
-              {recentActivity.map((activity: any) => (
+              {recentActivity.map((activity) => (
                 <tr key={activity.id}>
                   <td className="py-3.5 pr-4 text-zinc-100">{activity.action}</td>
                   <td className="py-3.5 pr-4 text-zinc-300">{activity.target}</td>

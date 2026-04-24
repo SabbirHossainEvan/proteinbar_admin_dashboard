@@ -1,24 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-
-const pageTitleMap: Record<string, string> = {
-  "/admin": "Dashboard",
-  "/admin/menu": "Menu",
-  "/admin/restaurants": "Restaurants",
-  "/admin/products": "Products",
-  "/admin/orders": "Orders",
-  "/admin/customers": "Locations",
-  "/admin/locations": "Locations",
-  "/admin/monthly-plans": "Monthly Plans",
-  "/admin/meal-library": "Meal Library",
-  "/admin/subscriptions": "Subscriptions",
-  "/admin/orders-of-day": "Orders of the Day",
-  "/admin/printing": "Printing",
-  "/admin/notifications": "Notifications",
-  "/admin/profile": "Profile",
-};
+import { usePathname, useRouter } from "next/navigation";
+import { adminPageTitleMap } from "@/data/admin/navigation";
 
 function BellIcon() {
   return (
@@ -40,13 +24,28 @@ function ProfileIcon() {
 
 export default function AdminTopbar() {
   const pathname = usePathname();
-  const title = pathname.startsWith("/admin/monthly-plans/") ? "Monthly Plan Details" : pageTitleMap[pathname] ?? "Admin";
+  const router = useRouter();
+  const title = pathname.startsWith("/admin/monthly-plans/") ? "Meal Plan Details" : adminPageTitleMap[pathname] ?? "Admin";
+  const showBackButton = pathname !== "/admin";
 
   return (
     <header className="admin-panel relative z-40 mb-6 flex items-center justify-between overflow-visible rounded-2xl px-4 py-3.5 md:px-5">
-      <div>
-        <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Admin Panel</p>
-        <h2 className="mt-1 text-lg font-semibold text-white">{title}</h2>
+      <div className="flex items-center gap-3">
+        {showBackButton ? (
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 text-sm font-medium text-zinc-100 transition hover:border-zinc-500 hover:text-white"
+          >
+            <span aria-hidden="true">{"<-"}</span>
+            <span className="hidden sm:inline">Back</span>
+          </button>
+        ) : null}
+        <div>
+          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Admin Panel</p>
+          <h2 className="text-lg font-semibold text-white">{title}</h2>
+          <p className="text-xs text-zinc-500">User-friendly controls for content, operations, and admin settings.</p>
+        </div>
       </div>
 
       <div className="relative z-50 flex items-center gap-2">

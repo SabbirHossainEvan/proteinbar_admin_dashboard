@@ -1,5 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { backofficeMockAdapter } from "@/redux/backoffice/mockAdapter";
+import type {
+  AdminRoleRecord,
+  WebsiteMenuCategoryRecord,
+  WebsitePageRecord,
+  WebsiteSettingsRecord
+} from "@/redux/backoffice/types";
 import { monthlyPlanMockAdapter, type MonthlyPlanDetailsPayload } from "@/redux/monthlyPlans/mockAdapter";
 import type {
   CustomPlanCategory,
@@ -59,7 +66,11 @@ export const adminApi = createApi({
     "LocationAdmin",
     "MonthlySubscriptionAdmin",
     "MonthlyOrderAdmin",
-    "MonthlySettingsAdmin"
+    "MonthlySettingsAdmin",
+    "WebsitePagesAdmin",
+    "WebsiteMenuCategoriesAdmin",
+    "WebsiteSettingsAdmin",
+    "AdminRoles"
   ],
   endpoints: (builder) => ({
     getDashboard: builder.query<ApiResponse<any>, void>({
@@ -471,6 +482,93 @@ export const adminApi = createApi({
         return { data: { success: true, data } };
       },
       invalidatesTags: ["MonthlySettingsAdmin"]
+    }),
+    getWebsitePagesAdmin: builder.query<ApiResponse<WebsitePageRecord[]>, void>({
+      queryFn: async () => {
+        const data = await backofficeMockAdapter.listWebsitePages();
+        return { data: { success: true, data } };
+      },
+      providesTags: ["WebsitePagesAdmin"]
+    }),
+    getWebsitePageAdmin: builder.query<ApiResponse<WebsitePageRecord | null>, string>({
+      queryFn: async (slug) => {
+        const data = await backofficeMockAdapter.getWebsitePageBySlug(slug);
+        return { data: { success: true, data } };
+      },
+      providesTags: (_result, _error, slug) => [{ type: "WebsitePagesAdmin", id: slug }]
+    }),
+    upsertWebsitePageAdmin: builder.mutation<ApiResponse<WebsitePageRecord>, WebsitePageRecord>({
+      queryFn: async (payload) => {
+        const data = await backofficeMockAdapter.upsertWebsitePage(payload);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: (_result, _error, payload) => [
+        "WebsitePagesAdmin",
+        { type: "WebsitePagesAdmin", id: payload.slug }
+      ]
+    }),
+    deleteWebsitePageAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
+      queryFn: async (id) => {
+        const data = await backofficeMockAdapter.deleteWebsitePage(id);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["WebsitePagesAdmin"]
+    }),
+    getWebsiteMenuCategoriesAdmin: builder.query<ApiResponse<WebsiteMenuCategoryRecord[]>, void>({
+      queryFn: async () => {
+        const data = await backofficeMockAdapter.listWebsiteMenuCategories();
+        return { data: { success: true, data } };
+      },
+      providesTags: ["WebsiteMenuCategoriesAdmin"]
+    }),
+    upsertWebsiteMenuCategoryAdmin: builder.mutation<ApiResponse<WebsiteMenuCategoryRecord>, WebsiteMenuCategoryRecord>({
+      queryFn: async (payload) => {
+        const data = await backofficeMockAdapter.upsertWebsiteMenuCategory(payload);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["WebsiteMenuCategoriesAdmin"]
+    }),
+    deleteWebsiteMenuCategoryAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
+      queryFn: async (id) => {
+        const data = await backofficeMockAdapter.deleteWebsiteMenuCategory(id);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["WebsiteMenuCategoriesAdmin"]
+    }),
+    getWebsiteSettingsAdmin: builder.query<ApiResponse<WebsiteSettingsRecord>, void>({
+      queryFn: async () => {
+        const data = await backofficeMockAdapter.getWebsiteSettings();
+        return { data: { success: true, data } };
+      },
+      providesTags: ["WebsiteSettingsAdmin"]
+    }),
+    updateWebsiteSettingsAdmin: builder.mutation<ApiResponse<WebsiteSettingsRecord>, Partial<WebsiteSettingsRecord>>({
+      queryFn: async (payload) => {
+        const data = await backofficeMockAdapter.updateWebsiteSettings(payload);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["WebsiteSettingsAdmin"]
+    }),
+    getAdminRoles: builder.query<ApiResponse<AdminRoleRecord[]>, void>({
+      queryFn: async () => {
+        const data = await backofficeMockAdapter.listAdminRoles();
+        return { data: { success: true, data } };
+      },
+      providesTags: ["AdminRoles"]
+    }),
+    upsertAdminRole: builder.mutation<ApiResponse<AdminRoleRecord>, AdminRoleRecord>({
+      queryFn: async (payload) => {
+        const data = await backofficeMockAdapter.upsertAdminRole(payload);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["AdminRoles"]
+    }),
+    deleteAdminRole: builder.mutation<ApiResponse<{ id: string }>, string>({
+      queryFn: async (id) => {
+        const data = await backofficeMockAdapter.deleteAdminRole(id);
+        return { data: { success: true, data } };
+      },
+      invalidatesTags: ["AdminRoles"]
     })
   })
 });
@@ -541,6 +639,18 @@ export const {
   useUpsertMonthlyLocationAdminMutation,
   useDeleteMonthlyLocationAdminMutation,
   useGetMonthlyPlanSettingsQuery,
-  useUpdateMonthlyPlanSettingsMutation
+  useUpdateMonthlyPlanSettingsMutation,
+  useGetWebsitePagesAdminQuery,
+  useGetWebsitePageAdminQuery,
+  useUpsertWebsitePageAdminMutation,
+  useDeleteWebsitePageAdminMutation,
+  useGetWebsiteMenuCategoriesAdminQuery,
+  useUpsertWebsiteMenuCategoryAdminMutation,
+  useDeleteWebsiteMenuCategoryAdminMutation,
+  useGetWebsiteSettingsAdminQuery,
+  useUpdateWebsiteSettingsAdminMutation,
+  useGetAdminRolesQuery,
+  useUpsertAdminRoleMutation,
+  useDeleteAdminRoleMutation
 } = adminApi;
 

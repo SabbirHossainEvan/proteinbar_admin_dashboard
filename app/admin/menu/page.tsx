@@ -218,6 +218,9 @@ export default function MenuPage() {
         <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Catalog Management</p>
         <h2 className="mt-1 text-3xl font-semibold text-white">Add Menu Item (Display Level)</h2>
         <p className="mt-2 text-sm text-zinc-300">Curated client-facing menu card with visibility rules and product grouping.</p>
+        <p className="mt-2 max-w-3xl text-xs text-zinc-500">
+          Plan compatibility is treated as an optional advanced filter only. If you leave it blank, the menu item can appear for all relevant plans.
+        </p>
       </div>
 
       <section ref={formSectionRef} className="admin-panel rounded-2xl p-5">
@@ -351,13 +354,16 @@ export default function MenuPage() {
             placeholder="Visible time slots (comma separated)"
             className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
           />
-          <input
-            type="text"
-            value={form.planCompatibility}
-            onChange={(event) => setForm((prev) => ({ ...prev, planCompatibility: event.target.value }))}
-            placeholder="Plan compatibility (comma separated)"
-            className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
-          />
+          <label className="space-y-1">
+            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Plan Compatibility</span>
+            <input
+              type="text"
+              value={form.planCompatibility}
+              onChange={(event) => setForm((prev) => ({ ...prev, planCompatibility: event.target.value }))}
+              placeholder="Optional advanced filter, comma separated"
+              className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
+            />
+          </label>
           <input
             type="number"
             min={1}

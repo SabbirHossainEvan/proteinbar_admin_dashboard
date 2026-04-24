@@ -10,9 +10,8 @@ export default function OrdersPage() {
   const { data, isLoading, isError } = useGetMonthlyOrdersAdminQuery();
   const [updateOrder, { isLoading: isUpdating }] = useUpdateMonthlyOrderAdminMutation();
 
-  const orders = data?.data ?? [];
-
   const filtered = useMemo(() => {
+    const orders = data?.data ?? [];
     const needle = filters.search.trim().toLowerCase();
     return orders.filter((item) => {
       const bySearch =
@@ -23,7 +22,7 @@ export default function OrdersPage() {
       const byOption = filters.deliveryOption === "all" || item.deliveryOption === filters.deliveryOption;
       return bySearch && byKind && byStatus && byOption;
     });
-  }, [filters, orders]);
+  }, [data, filters]);
 
   const setStatus = async (id: string, status: OrderRecord["status"]) => {
     await updateOrder({ id, patch: { status } }).unwrap();

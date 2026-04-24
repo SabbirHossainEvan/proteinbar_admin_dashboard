@@ -11,18 +11,29 @@ export default function SubscriptionsPage() {
   const [search, setSearch] = useState("");
   const { data, isLoading, isError } = useGetMonthlySubscriptionsAdminQuery();
   const [updateSubscription, { isLoading: isUpdating }] = useUpdateMonthlySubscriptionAdminMutation();
-  const subscriptions = data?.data ?? [];
-
   const filtered = useMemo(() => {
+    const subscriptions = data?.data ?? [];
     const needle = search.trim().toLowerCase();
     if (!needle) return subscriptions;
     return subscriptions.filter((item) =>
       `${item.subscriptionId} ${item.customerName} ${item.planTitle}`.toLowerCase().includes(needle)
     );
-  }, [search, subscriptions]);
+  }, [data, search]);
 
-  const toggleStatus = async (id: string, status: "active" | "paused") => {
+  const toggleStatus = async (id: string, status: "active" | "paused" | "cancelled") => {
     await updateSubscription({ id, patch: { status } }).unwrap();
+  };
+
+  const getRemaining = (endDate: string) => {
+    const end = new Date(`${endDate}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffMs = end.getTime() - today.getTime();
+    const remainingDays = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    return {
+      remainingDays,
+      remainingWeeks: Math.ceil(remainingDays / 7)
+    };
   };
 
   return (
@@ -56,6 +67,7 @@ export default function SubscriptionsPage() {
                 <th className="pb-2 pr-4 font-medium">Flow</th>
                 <th className="pb-2 pr-4 font-medium">Selection Params</th>
                 <th className="pb-2 pr-4 font-medium">Progress</th>
+                <th className="pb-2 pr-4 font-medium">Remaining</th>
                 <th className="pb-2 pr-4 font-medium">Status</th>
                 <th className="pb-2 font-medium">Actions</th>
               </tr>
@@ -82,16 +94,39 @@ export default function SubscriptionsPage() {
                     <p className="text-xs text-zinc-400">days {item.progressDays}</p>
                     <p className="text-xs text-zinc-400">remaining meals {item.remainingMeals}</p>
                   </td>
+                  <td className="py-3.5 pr-4 text-zinc-300">
+                    {(() => {
+                      const remaining = getRemaining(item.endDate);
+                      return (
+                        <>
+                          {remaining.remainingDays} days
+                          <p className="text-xs text-zinc-400">{remaining.remainingWeeks} weeks remaining</p>
+                          <p className="text-xs text-zinc-400">
+                            {item.startDate} → {item.endDate}
+                          </p>
+                        </>
+                      );
+                    })()}
+                  </td>
                   <td className="py-3.5 pr-4 text-zinc-200">{item.status}</td>
                   <td className="py-3.5">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
+                        title={item.status === "cancelled" ? "Cancelled subscriptions cannot be resumed from this shortcut." : undefined}
                         onClick={() => void toggleStatus(item.id, item.status === "paused" ? "active" : "paused")}
-                        disabled={isUpdating}
+                        disabled={isUpdating || item.status === "cancelled"}
                         className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900 disabled:opacity-60"
                       >
                         {item.status === "paused" ? "Resume" : "Pause"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void toggleStatus(item.id, "cancelled")}
+                        disabled={isUpdating || item.status === "cancelled"}
+                        className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100 disabled:opacity-60"
+                      >
+                        Cancel
                       </button>
                     </div>
                   </td>
@@ -99,7 +134,7 @@ export default function SubscriptionsPage() {
               ))}
               {!filtered.length ? (
                 <tr>
-                  <td className="py-3.5 text-zinc-400" colSpan={8}>
+                  <td className="py-3.5 text-zinc-400" colSpan={9}>
                     No subscriptions found.
                   </td>
                 </tr>

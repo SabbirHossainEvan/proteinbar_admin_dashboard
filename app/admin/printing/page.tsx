@@ -11,6 +11,8 @@ type PrintableOrder = {
   bestBefore: string;
 };
 
+type PrintableOrderApiItem = Partial<PrintableOrder>;
+
 function printLabelDocument(items: PrintableOrder[]) {
   const printWindow = window.open("", "_blank", "width=860,height=760");
   if (!printWindow) return;
@@ -55,7 +57,7 @@ function printLabelDocument(items: PrintableOrder[]) {
 
 export default function PrintingPage() {
   const { data, isLoading, isError } = useGetPrintableOrdersQuery();
-  const printableOrders: PrintableOrder[] = (data?.data ?? []).map((item: any) => ({
+  const printableOrders: PrintableOrder[] = (data?.data ?? []).map((item: PrintableOrderApiItem) => ({
     orderId: item.orderId ?? "",
     client: item.client ?? "",
     date: item.date ?? "",
