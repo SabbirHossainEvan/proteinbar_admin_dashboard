@@ -13,14 +13,14 @@ export default function DashboardPage() {
   return (
     <section className="space-y-7">
       <div>
-        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Monthly Plans</p>
+        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Meal Plans</p>
         <h2 className="mt-1 text-3xl font-semibold text-white">Admin Control Center</h2>
         <p className="mt-2 text-sm text-zinc-300">
-          Live summary for custom and pre-made monthly plan operations.
+          Live summary for meal plans, subscriptions, website content, and day-to-day operations.
         </p>
       </div>
 
-      {isError ? <ErrorState label="Failed to load monthly plan overview." /> : null}
+      {isError ? <ErrorState label="Failed to load meal plan overview." /> : null}
       {isLoading ? <LoadingState label="Loading dashboard summary..." /> : null}
 
       {!isLoading && overview ? (
@@ -43,12 +43,11 @@ export default function DashboardPage() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {[
-          { href: "/admin/monthly-plans", title: "Monthly Plans", text: "Create, edit, archive plans and jump to tabbed detail editor." },
-          { href: "/admin/subscriptions", title: "Subscriptions", text: "Track progress, pause/resume, and inspect selected flow params." },
-          { href: "/admin/orders", title: "Orders", text: "Manage monthly orders by delivery mode, status, and payment state." },
-          { href: "/admin/restaurants", title: "Restaurants", text: "Create restaurant branches that menu items can be assigned to." },
-          { href: "/admin/meal-library", title: "Meal Library", text: "Configure assignable breakfast/lunch/dinner/snack meal catalog." },
-          { href: "/admin/locations", title: "Locations", text: "Configure pickup and delivery locations per delivery option." }
+          { href: "/admin/monthly-plans", title: "Meal Plans", text: "Create, edit, archive plans and jump to the detailed meal-plan editor." },
+          { href: "/admin/subscriptions", title: "Subscriptions", text: "Track progress, remaining days, and pause, resume, or cancel client subscriptions." },
+          { href: "/admin/orders", title: "Orders", text: "Manage meal prep orders by delivery mode, status, and payment state." },
+          { href: "/admin/menu", title: "Restaurants Menus", text: "Control client-facing menu cards, availability windows, and branch assignments." },
+          { href: "/admin/website-pages", title: "Website Pages", text: "Edit homepage, about, contact, restaurants, legal pages, and top-navigation visibility." }
         ].map((card) => (
           <Link key={card.href} href={card.href} className="admin-panel rounded-2xl p-5 transition hover:border-amber-300/45">
             <h3 className="text-lg font-semibold text-white">{card.title}</h3>
@@ -58,7 +57,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="admin-panel rounded-2xl p-4 md:p-5">
-        <h3 className="text-lg font-semibold text-white">Recent Monthly Orders</h3>
+        <h3 className="text-lg font-semibold text-white">Recent Meal Plan Orders</h3>
         {isOrdersError ? <p className="mt-3 text-sm text-rose-300">Failed to load order feed.</p> : null}
         <div className="mt-4 overflow-x-auto">
           <table className="admin-table min-w-full text-left text-sm">

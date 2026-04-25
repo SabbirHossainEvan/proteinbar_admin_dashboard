@@ -20,6 +20,8 @@ type RestaurantItem = {
   status: string;
 };
 
+type RestaurantApiItem = Partial<RestaurantItem>;
+
 const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const initialForm = {
@@ -51,7 +53,7 @@ export default function RestaurantsPage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   const restaurants = useMemo<RestaurantItem[]>(() => {
-    return (data?.data ?? []).map((restaurant: any) => ({
+    return (data?.data ?? []).map((restaurant: RestaurantApiItem) => ({
       _id: restaurant._id,
       id: restaurant.id,
       restaurantId: restaurant.restaurantId ?? "",

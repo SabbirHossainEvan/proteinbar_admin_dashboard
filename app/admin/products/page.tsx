@@ -29,6 +29,8 @@ type ProductItem = {
   imageUrl?: string;
 };
 
+type ProductApiItem = Partial<ProductItem>;
+
 const availabilityOptions: ProductAvailability[] = ["Active", "Inactive"];
 const fallbackCategories = ["Breakfast", "Lunch", "Dinner", "Snack", "Add-on", "Ingredient"];
 
@@ -55,7 +57,7 @@ export default function ProductsPage() {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   const items = useMemo<ProductItem[]>(() => {
-    return (data?.data ?? []).map((item: any) => ({
+    return (data?.data ?? []).map((item: ProductApiItem) => ({
       _id: item._id,
       id: item.id,
       sku: item.sku ?? "",

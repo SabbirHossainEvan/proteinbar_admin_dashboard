@@ -12,6 +12,15 @@ type TodaysOrder = {
   meals: number;
 };
 
+type OrdersOfDayApiItem = {
+  orderId?: string;
+  client?: string;
+  orderType?: string;
+  schedule?: string;
+  location?: string;
+  items?: Array<{ qty?: number | string }>;
+};
+
 function openPrintDocument(title: string, body: string) {
   const printWindow = window.open("", "_blank", "width=980,height=760");
   if (!printWindow) return;
@@ -42,13 +51,15 @@ export default function OrdersOfDayPage() {
   const { data, isLoading, isError } = useGetOrdersOfDayQuery();
 
   const todaysOrders = useMemo<TodaysOrder[]>(() => {
-    return (data?.data ?? []).map((order: any) => ({
+    return (data?.data ?? []).map((order: OrdersOfDayApiItem) => ({
       id: order.orderId ?? "",
       client: order.client ?? "",
       mode: order.orderType ?? "Delivery",
       slot: order.schedule ?? "-",
       location: order.location ?? "-",
-      meals: Array.isArray(order.items) ? order.items.reduce((acc: number, item: any) => acc + Number(item.qty ?? 0), 0) : 0
+      meals: Array.isArray(order.items)
+        ? order.items.reduce((acc, item) => acc + Number(item.qty ?? 0), 0)
+        : 0
     }));
   }, [data]);
 

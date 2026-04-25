@@ -3,6 +3,7 @@ export type PlanStatus = "draft" | "active" | "inactive" | "archived";
 export type MealType = "Breakfast" | "Lunch" | "Dinner" | "Snack";
 export type DeliveryOption = "daily-delivery" | "daily-pickup" | "weekly-delivery" | "weekly-pickup";
 export type SelectionMode = "single" | "multi";
+export type PlanFrequency = "daily" | "weekly" | "monthly";
 
 export interface DeliveryOptionConfig {
   option: DeliveryOption;
@@ -92,6 +93,7 @@ export interface MonthlyPlan {
   badge?: string;
   status: PlanStatus;
   planKind: PlanKind;
+  frequency: PlanFrequency;
   createdAt: string;
   updatedAt: string;
   ruleConfigId: string;

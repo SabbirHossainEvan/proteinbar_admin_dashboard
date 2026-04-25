@@ -13,6 +13,8 @@ type NotificationItem = {
   status: string;
 };
 
+type NotificationApiItem = Partial<NotificationItem>;
+
 function getNotificationDocId(item: NotificationItem) {
   return String(item.id ?? item._id ?? "");
 }
@@ -42,7 +44,7 @@ export default function NotificationsPage() {
   const [deleteNotification, { isLoading: isDeleting }] = useDeleteNotificationMutation();
   const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
 
-  const notifications: NotificationItem[] = (data?.data ?? []).map((item: any) => ({
+  const notifications: NotificationItem[] = (data?.data ?? []).map((item: NotificationApiItem) => ({
     _id: item._id,
     id: item.id,
     notificationId: item.notificationId ?? "",

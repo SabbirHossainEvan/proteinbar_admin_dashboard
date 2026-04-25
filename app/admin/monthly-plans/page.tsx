@@ -8,11 +8,11 @@ import {
   useGetMonthlyPlanAdminListQuery,
   useUpsertMonthlyPlanDetailsMutation
 } from "@/redux/api/adminApi";
-import type { MonthlyPlan, PlanKind } from "@/redux/monthlyPlans/types";
+import type { MonthlyPlan, PlanFrequency, PlanKind } from "@/redux/monthlyPlans/types";
 
 const defaultImage = "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=1200";
 
-const createNewPlanDraft = (kind: PlanKind) => {
+const createNewPlanDraft = (kind: PlanKind, frequency: PlanFrequency) => {
   const id = `plan-${Date.now()}`;
   const ruleId = `rule-${id}`;
   const pricingId = `pricing-${id}`;
@@ -27,6 +27,7 @@ const createNewPlanDraft = (kind: PlanKind) => {
       badge: kind === "custom" ? "Custom" : "Pre-made",
       status: "draft" as const,
       planKind: kind,
+      frequency,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ruleConfigId: ruleId,
@@ -102,6 +103,7 @@ export default function MonthlyPlansPage() {
     search: ""
   });
   const [quickCreateKind, setQuickCreateKind] = useState<PlanKind>("custom");
+  const [quickCreateFrequency, setQuickCreateFrequency] = useState<PlanFrequency>("monthly");
   const [createError, setCreateError] = useState("");
 
   const { data, isLoading, isError } = useGetMonthlyPlanAdminListQuery(filters);
@@ -132,7 +134,7 @@ export default function MonthlyPlansPage() {
       return;
     }
     try {
-      await upsertPlanDetails(createNewPlanDraft(selectedQuickCreateKind)).unwrap();
+      await upsertPlanDetails(createNewPlanDraft(selectedQuickCreateKind, quickCreateFrequency)).unwrap();
     } catch {
       setCreateError("Failed to create plan draft.");
     }
@@ -150,9 +152,9 @@ export default function MonthlyPlansPage() {
   return (
     <section className="space-y-7">
       <div>
-        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Monthly Plan Catalog</p>
-        <h2 className="mt-1 text-3xl font-semibold text-white">Monthly Plans</h2>
-        <p className="mt-2 text-sm text-zinc-300">List, filter, create draft, edit plan details, and delete plans.</p>
+        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Meal Plan Catalog</p>
+        <h2 className="mt-1 text-3xl font-semibold text-white">Meal Plans</h2>
+        <p className="mt-2 text-sm text-zinc-300">List, filter, create meal-plan drafts, edit details, and manage custom or pre-made setups.</p>
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -221,6 +223,18 @@ export default function MonthlyPlansPage() {
               <option value="normal">Pre-made</option>
             </select>
           </label>
+          <label className="space-y-1">
+            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Frequency</span>
+            <select
+              value={quickCreateFrequency}
+              onChange={(event) => setQuickCreateFrequency(event.target.value as PlanFrequency)}
+              className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </label>
           <button
             type="submit"
             disabled={isCreating || (selectedQuickCreateKind === "custom" && hasCustomPlan)}
@@ -243,6 +257,7 @@ export default function MonthlyPlansPage() {
               <h3 className="mt-1 text-xl font-semibold text-white">{plan.title}</h3>
               <p className="mt-2 text-sm text-zinc-300">{plan.description}</p>
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+                <span className="rounded-full border border-zinc-600 px-2 py-1 text-zinc-200">frequency: {plan.frequency}</span>
                 <span className="rounded-full border border-zinc-600 px-2 py-1 text-zinc-200">status: {plan.status}</span>
                 <span className="rounded-full border border-zinc-600 px-2 py-1 text-zinc-200">slug: {plan.slug}</span>
                 {plan.badge ? <span className="rounded-full bg-amber-300 px-2 py-1 font-semibold text-zinc-900">{plan.badge}</span> : null}

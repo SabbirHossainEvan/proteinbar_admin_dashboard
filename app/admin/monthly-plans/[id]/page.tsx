@@ -24,7 +24,16 @@ type AssignmentFormState = {
 };
 
 const mealTypes: MealType[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
-const weekDayFormatter = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" });
+const weekDayOptions = [
+  { value: 0, label: "Sunday" },
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" }
+] as const;
+const longWeekDayFormatter = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" });
 
 const createAssignmentForm = (): AssignmentFormState => ({
   id: "",
@@ -59,10 +68,16 @@ const startOfWeekSunday = (isoDate: string) => {
   return addDays(isoDate, -date.getUTCDay());
 };
 
-const formatDatePillLabel = (isoDate: string) => {
+const formatWeekDayLabel = (isoDate: string) => {
   const [year, month, day] = isoDate.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
-  return `${weekDayFormatter.format(date)} ${isoDate}`;
+  return longWeekDayFormatter.format(date);
+};
+
+const getWeekDayIndex = (isoDate: string) => {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCDay();
 };
 
 const buildDatesInRange = (startDate: string, endDate: string) => {
@@ -81,6 +96,18 @@ const syncWeekDates = (week: WeekAssignment): WeekAssignment => ({
   mealsByDate: Object.fromEntries(buildDatesInRange(week.startDate, week.endDate).map((dateIso) => [dateIso, week.mealsByDate[dateIso] ?? []]))
 });
 
+const setWeekStartDay = (week: WeekAssignment, targetWeekDay: number): WeekAssignment => {
+  const currentWeekDay = getWeekDayIndex(week.startDate);
+  const offset = targetWeekDay - currentWeekDay;
+  const nextStartDate = addDays(week.startDate, offset);
+
+  return syncWeekDates({
+    ...week,
+    startDate: nextStartDate,
+    endDate: addDays(nextStartDate, 6)
+  });
+};
+
 const createWeekDraft = (planId: string, nextWeekIndex: number, previousWeek?: WeekAssignment): WeekAssignment => {
   const startDate = previousWeek ? addDays(previousWeek.endDate, 1) : startOfWeekSunday(new Date().toLocaleDateString("en-CA"));
   const endDate = addDays(startDate, 6);
@@ -98,6 +125,7 @@ const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
   ...details,
   plan: {
     ...details.plan,
+    frequency: details.plan.frequency ?? "monthly",
     content: {
       heroTitle: details.plan.content?.heroTitle ?? "",
       heroSubtitle: details.plan.content?.heroSubtitle ?? "",
@@ -418,7 +446,16 @@ export default function MonthlyPlanDetailEditorPage() {
 
   const saveAll = async () => {
     if (!draft) return;
-    const payload = normalizeDetails(draft);
+    const payload = normalizeDetails({
+      ...draft,
+      rules:
+        draft.plan.planKind === "normal"
+          ? {
+              ...draft.rules,
+              allowedMealsPerDay: [draft.rules.defaults.meals]
+            }
+          : draft.rules
+    });
     const errors = validateDetails(payload, meals);
     if (errors.length) {
       setSaveErrors(errors);
@@ -429,9 +466,9 @@ export default function MonthlyPlanDetailEditorPage() {
       const response = await upsertPlanDetails(payload).unwrap();
       setDraft(normalizeDetails(response.data));
       setSaveErrors([]);
-      setSaveMessage("Monthly plan saved.");
+      setSaveMessage("Meal plan saved.");
     } catch (error) {
-      setSaveErrors([error instanceof Error ? error.message : "Failed to save monthly plan."]);
+      setSaveErrors([error instanceof Error ? error.message : "Failed to save meal plan."]);
       setSaveMessage("");
     }
   };
@@ -448,14 +485,14 @@ export default function MonthlyPlanDetailEditorPage() {
     reader.readAsDataURL(file);
   };
 
-  if (isLoading || isLoadingMealLibrary) return <LoadingState label="Loading monthly plan details..." />;
-  if (isError || !data?.data) return <ErrorState label="Failed to load monthly plan detail." />;
+  if (isLoading || isLoadingMealLibrary) return <LoadingState label="Loading meal plan details..." />;
+  if (isError || !data?.data) return <ErrorState label="Failed to load meal plan detail." />;
   if (!draft) return <LoadingState label="Preparing editor..." />;
 
   const tabs: Array<{ key: TabKey; label: string }> = [
     { key: "basic", label: "Basic Info" },
     { key: "rules", label: "Rules" },
-    { key: "assignments", label: isCustomPlan ? "Make Your Meal" : "Week Assignments" },
+    { key: "assignments", label: isCustomPlan ? "Make Your Meal" : "Meal Assignments" },
     ...(isCustomPlan ? [{ key: "regularMeals" as TabKey, label: "Regular Meal Categories" }] : [])
   ];
 
@@ -507,7 +544,7 @@ export default function MonthlyPlanDetailEditorPage() {
           <div className="space-y-6">
             <div className="border-b border-zinc-800 pb-4">
               <p className="text-lg font-semibold text-white">Basic Info</p>
-              <p className="mt-1 text-sm text-zinc-400">Update the plan identity, visibility, and cover image used across the monthly plan flow.</p>
+              <p className="mt-1 text-sm text-zinc-400">Update the plan identity, frequency, visibility, and cover image used across the meal-plan flow.</p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -559,6 +596,18 @@ export default function MonthlyPlanDetailEditorPage() {
                 <option value="normal">normal</option>
               </select>
             </label>
+            <label className="space-y-1.5">
+              <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Frequency</span>
+              <select
+                value={draft.plan.frequency}
+                onChange={(event) => setPlanField("frequency", event.target.value as MonthlyPlanDetails["plan"]["frequency"])}
+                className="w-full rounded-2xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none transition focus:border-amber-300 focus:bg-zinc-900"
+              >
+                <option value="daily">daily</option>
+                <option value="weekly">weekly</option>
+                <option value="monthly">monthly</option>
+              </select>
+            </label>
             <div className="space-y-1.5">
               <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Plan Image Upload</span>
               <label className="group flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-[24px] border border-dashed border-zinc-600 bg-[linear-gradient(180deg,rgba(24,24,27,0.88),rgba(15,15,17,0.92))] px-5 py-6 text-center transition hover:border-amber-300 hover:bg-zinc-900/90">
@@ -597,9 +646,9 @@ export default function MonthlyPlanDetailEditorPage() {
         {activeTab === "rules" ? (
           <div className="space-y-4">
             <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-              <p className="text-sm font-semibold text-white">Website Set-plan Dropdown Options</p>
+              <p className="text-sm font-semibold text-white">Website Meal-plan Rules</p>
               <p className="mt-1 text-xs text-zinc-400">
-                These values control the `Number Of Meals *` and `{draft.plan.planKind === "custom" ? "Number Of Weeks *" : "Number Of Days *"}` dropdown options shown on the public website.
+                These values control the public plan builder. Pre-made plans keep a fixed meal count; custom plans can expose multiple meal-count options.
               </p>
             </div>
 
@@ -609,9 +658,13 @@ export default function MonthlyPlanDetailEditorPage() {
                 <input
                   value={draft.rules.allowedMealsPerDay.join(",")}
                   onChange={(event) => setRulesField("allowedMealsPerDay", parseNumberList(event.target.value, 1))}
-                  placeholder="1,2,3"
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                  placeholder={draft.plan.planKind === "normal" ? String(draft.rules.defaults.meals) : "1,2,3"}
+                  disabled={draft.plan.planKind === "normal"}
+                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
                 />
+                {draft.plan.planKind === "normal" ? (
+                  <p className="text-xs text-zinc-500">Pre-made plans use a fixed meal count. Change the default meals value only if the fixed plan changes.</p>
+                ) : null}
                 <div className="flex flex-wrap gap-2 pt-1">
                   {draft.rules.allowedMealsPerDay.map((value) => (
                     <span key={`meals-${value}`} className="rounded-full border border-zinc-600 px-2 py-1 text-xs text-zinc-200">
@@ -622,7 +675,11 @@ export default function MonthlyPlanDetailEditorPage() {
               </label>
               <label className="space-y-1">
                 <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
-                  {draft.plan.planKind === "custom" ? "Number Of Weeks Dropdown" : "Number Of Days Dropdown"}
+                  {draft.plan.frequency === "monthly"
+                    ? "Monthly Length Options"
+                    : draft.plan.frequency === "weekly"
+                      ? "Weekly Length Options"
+                      : "Daily Length Options"}
                 </span>
                 <input
                   value={draft.rules.allowedDays.join(",")}
@@ -775,18 +832,28 @@ export default function MonthlyPlanDetailEditorPage() {
                         <input type="number" min={1} value={selectedWeek.weekIndex} onChange={(event) => updateWeek(selectedWeek.id, (week) => ({ ...week, weekIndex: Number(event.target.value) || week.weekIndex }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
                       </label>
                       <label className="space-y-1">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Start Date</span>
-                        <input type="date" value={selectedWeek.startDate} onChange={(event) => updateWeek(selectedWeek.id, (week) => syncWeekDates({ ...week, startDate: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Start Day</span>
+                        <select
+                          value={getWeekDayIndex(selectedWeek.startDate)}
+                          onChange={(event) => updateWeek(selectedWeek.id, (week) => setWeekStartDay(week, Number(event.target.value)))}
+                          className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                        >
+                          {weekDayOptions.map((day) => (
+                            <option key={day.value} value={day.value}>
+                              {day.label}
+                            </option>
+                          ))}
+                        </select>
                       </label>
                       <label className="space-y-1">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">End Date</span>
-                        <input type="date" value={selectedWeek.endDate} onChange={(event) => updateWeek(selectedWeek.id, (week) => syncWeekDates({ ...week, endDate: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">End Day</span>
+                        <input value={formatWeekDayLabel(selectedWeek.endDate)} readOnly className="w-full rounded-xl border border-zinc-600 bg-zinc-900/50 px-3 py-2 text-sm text-zinc-100 outline-none" />
                       </label>
                     </div>
 
                     <div className="flex gap-2">
                       <button type="button" onClick={() => updateWeek(selectedWeek.id, (week) => syncWeekDates(week))} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100">
-                        Sync Dates To Range
+                        Sync Days To Range
                       </button>
                       {draft.weekAssignments.length > 1 ? (
                         <button type="button" onClick={() => removeWeek(selectedWeek.id)} className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
@@ -795,22 +862,15 @@ export default function MonthlyPlanDetailEditorPage() {
                       ) : null}
                     </div>
 
-                    <label className="block space-y-1">
-                      <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Assignment Date Picker</span>
-                      <input
-                        type="date"
-                        min={selectedWeek.startDate}
-                        max={selectedWeek.endDate}
-                        value={selectedDate}
-                        onChange={(event) => setSelectedDate(event.target.value)}
-                        className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                      />
-                    </label>
+                    <div className="rounded-xl border border-zinc-700/70 bg-zinc-900/40 p-3">
+                      <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Assignment Day Picker</p>
+                      <p className="mt-1 text-sm text-zinc-300">Choose a weekday below instead of using raw calendar dates.</p>
+                    </div>
 
                     <div className="flex flex-wrap gap-2">
                       {selectedWeekDates.map((dateIso) => (
                         <button key={dateIso} type="button" onClick={() => setSelectedDate(dateIso)} className={`rounded-xl px-3 py-1.5 text-xs ${selectedDate === dateIso ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"}`}>
-                          {formatDatePillLabel(dateIso)}
+                          {formatWeekDayLabel(dateIso)}
                         </button>
                       ))}
                     </div>
@@ -905,7 +965,7 @@ export default function MonthlyPlanDetailEditorPage() {
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm text-zinc-400">No week assignments available.</p>
+                  <p className="text-sm text-zinc-400">No meal assignments available.</p>
                 )}
               </>
             )}
@@ -1117,14 +1177,14 @@ export default function MonthlyPlanDetailEditorPage() {
       {saveMessage ? <p className="text-sm text-emerald-300">{saveMessage}</p> : null}
 
       <div className="sticky bottom-4 z-10 flex items-center gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/75 px-4 py-3 backdrop-blur">
-        <p className="hidden text-sm text-zinc-400 md:block">Save changes after updating the monthly plan configuration.</p>
+        <p className="hidden text-sm text-zinc-400 md:block">Save changes after updating the meal plan configuration.</p>
         <button
           type="button"
           onClick={() => void saveAll()}
           disabled={isSaving}
           className="rounded-xl bg-amber-300 px-5 py-2.5 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200 disabled:opacity-60"
         >
-          {isSaving ? "Saving..." : "Save Monthly Plan"}
+          {isSaving ? "Saving..." : "Save Meal Plan"}
         </button>
       </div>
     </section>

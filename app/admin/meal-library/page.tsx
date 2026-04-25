@@ -29,7 +29,7 @@ export default function MealLibraryPage() {
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState("");
 
-  const meals = data?.data ?? [];
+  const meals = useMemo(() => data?.data ?? [], [data]);
   const activeCount = useMemo(() => meals.filter((meal) => meal.status === "active").length, [meals]);
 
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {

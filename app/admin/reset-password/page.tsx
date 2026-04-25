@@ -1,30 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useResetPasswordMutation } from "@/redux/api/adminApi";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [email] = useState(() => {
+    if (typeof window === "undefined") return "";
+
+    const queryEmail = new URLSearchParams(window.location.search).get("email");
+    if (queryEmail) return queryEmail;
+
+    return window.sessionStorage.getItem("proteinbar_admin_reset_email") ?? "";
+  });
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [resetPassword, { isLoading }] = useResetPasswordMutation();
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const queryEmail = new URLSearchParams(window.location.search).get("email");
-    if (queryEmail) {
-      setEmail(queryEmail);
-      return;
-    }
-
-    const stored = window.sessionStorage.getItem("proteinbar_admin_reset_email") ?? "";
-    setEmail(stored);
-  }, []);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -1,29 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useVerifyCodeMutation } from "@/redux/api/adminApi";
 
 export default function OtpVerificationPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [email] = useState(() => {
+    if (typeof window === "undefined") return "";
+
+    const queryEmail = new URLSearchParams(window.location.search).get("email");
+    if (queryEmail) return queryEmail;
+
+    return window.sessionStorage.getItem("proteinbar_admin_reset_email") ?? "";
+  });
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [verifyCode, { isLoading }] = useVerifyCodeMutation();
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const queryEmail = new URLSearchParams(window.location.search).get("email");
-    if (queryEmail) {
-      setEmail(queryEmail);
-      return;
-    }
-
-    const stored = window.sessionStorage.getItem("proteinbar_admin_reset_email") ?? "";
-    setEmail(stored);
-  }, []);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
