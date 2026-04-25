@@ -10,15 +10,77 @@ import {
 type ClientRecord = {
   id: string;
   fullName: string;
+  firstName: string;
+  lastName: string;
   phone: string;
   email: string;
+  state: string;
+  area: string;
+  address: string;
+  preferredDeliveryOption: string;
+  selectedPlan: string;
+  meals: number;
+  days: number;
+  snacks: number;
+  startDate: string;
   status: "Active" | "Paused" | "Lead";
 };
 
 const clientRecords: ClientRecord[] = [
-  { id: "client-sara", fullName: "Sara Benali", phone: "+212600100200", email: "sara@example.com", status: "Active" },
-  { id: "client-yassine", fullName: "Yassine Hadi", phone: "+212600100201", email: "yassine@example.com", status: "Paused" },
-  { id: "client-nora", fullName: "Nora Ilyas", phone: "+212600100202", email: "nora@example.com", status: "Active" }
+  {
+    id: "client-sara",
+    fullName: "Sara Benali",
+    firstName: "Sara",
+    lastName: "Benali",
+    phone: "+212600100200",
+    email: "sara@example.com",
+    state: "Casablanca",
+    area: "CFC",
+    address: "Apartment 12B, Street 8, CFC, Casablanca",
+    preferredDeliveryOption: "daily-delivery",
+    selectedPlan: "Weight loss for woman",
+    meals: 2,
+    days: 4,
+    snacks: 0,
+    startDate: "2026-04-23",
+    status: "Active"
+  },
+  {
+    id: "client-yassine",
+    fullName: "Yassine Hadi",
+    firstName: "Yassine",
+    lastName: "Hadi",
+    phone: "+212600100201",
+    email: "yassine@example.com",
+    state: "Casablanca",
+    area: "Bourgogne",
+    address: "Bourgogne Branch, Rue Taha Hussein, Casablanca",
+    preferredDeliveryOption: "weekly-pickup",
+    selectedPlan: "Lean muscle preset",
+    meals: 2,
+    days: 6,
+    snacks: 1,
+    startDate: "2026-04-21",
+    status: "Paused"
+  },
+  {
+    id: "client-nora",
+    fullName: "Nora Ilyas",
+    firstName: "Nora",
+    lastName: "Ilyas",
+    phone: "+212600100202",
+    email: "nora@example.com",
+    state: "Casablanca",
+    area: "Maarif",
+    address: "Building 4, Maarif Zone A, Casablanca",
+    preferredDeliveryOption: "daily-delivery",
+    selectedPlan: "Weight loss for woman",
+    meals: 3,
+    days: 5,
+    snacks: 0,
+    startDate: "2026-04-18",
+    status: "Active"
+  }
 ];
 
 function EyeIcon() {
@@ -159,8 +221,66 @@ export default function ClientsPage() {
           </div>
 
           <div className="mt-4 rounded-2xl border border-zinc-700/70 bg-zinc-900/45 p-4">
-            <p className="text-sm text-zinc-200">Phone: {selectedClient.phone}</p>
-            <p className="mt-1 text-sm text-zinc-400">Email: {selectedClient.email}</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">First Name</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.firstName}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Last Name</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.lastName}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Phone Number</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.phone}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Email</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.email}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">State</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.state}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Area</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.area}</p>
+              </div>
+              <div className="md:col-span-2">
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Address</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.address}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/45 p-4">
+            <p className="text-sm font-semibold text-white">Checkout Snapshot</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Selected Plan</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.selectedPlan}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Delivery Option</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.preferredDeliveryOption}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Meals</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.meals}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Days</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.days}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Snacks</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.snacks}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Start Date</p>
+                <p className="mt-1 text-sm text-zinc-200">{selectedClient.startDate}</p>
+              </div>
+            </div>
           </div>
 
           <div className="mt-5 space-y-4">
