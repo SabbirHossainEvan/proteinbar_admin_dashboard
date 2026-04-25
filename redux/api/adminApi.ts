@@ -484,34 +484,29 @@ export const adminApi = createApi({
       invalidatesTags: ["MonthlySettingsAdmin"]
     }),
     getWebsitePagesAdmin: builder.query<ApiResponse<WebsitePageRecord[]>, void>({
-      queryFn: async () => {
-        const data = await backofficeMockAdapter.listWebsitePages();
-        return { data: { success: true, data } };
-      },
+      query: () => "/website-pages",
       providesTags: ["WebsitePagesAdmin"]
     }),
     getWebsitePageAdmin: builder.query<ApiResponse<WebsitePageRecord | null>, string>({
-      queryFn: async (slug) => {
-        const data = await backofficeMockAdapter.getWebsitePageBySlug(slug);
-        return { data: { success: true, data } };
-      },
+      query: (slug) => `/website-pages/${slug}`,
       providesTags: (_result, _error, slug) => [{ type: "WebsitePagesAdmin", id: slug }]
     }),
     upsertWebsitePageAdmin: builder.mutation<ApiResponse<WebsitePageRecord>, WebsitePageRecord>({
-      queryFn: async (payload) => {
-        const data = await backofficeMockAdapter.upsertWebsitePage(payload);
-        return { data: { success: true, data } };
-      },
+      query: (payload) => ({
+        url: "/website-pages/upsert",
+        method: "POST",
+        body: payload
+      }),
       invalidatesTags: (_result, _error, payload) => [
         "WebsitePagesAdmin",
         { type: "WebsitePagesAdmin", id: payload.slug }
       ]
     }),
     deleteWebsitePageAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
-      queryFn: async (id) => {
-        const data = await backofficeMockAdapter.deleteWebsitePage(id);
-        return { data: { success: true, data } };
-      },
+      query: (id) => ({
+        url: `/website-pages/${id}`,
+        method: "DELETE"
+      }),
       invalidatesTags: ["WebsitePagesAdmin"]
     }),
     getWebsiteMenuCategoriesAdmin: builder.query<ApiResponse<WebsiteMenuCategoryRecord[]>, void>({

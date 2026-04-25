@@ -53,6 +53,48 @@ const duplicateSection = (section: WebsitePageSection, sortOrder: number): Websi
 });
 
 const locationsSectionKey = "dynamic-locations-list";
+const locationsDeliverySectionKey = "delivery-overview";
+
+const defaultLocationsDeliverySection = (): WebsitePageSection => ({
+  id: `section-${Date.now()}-delivery-overview`,
+  sectionKey: locationsDeliverySectionKey,
+  sectionType: "stats",
+  isVisible: true,
+  sortOrder: 0,
+  heading: "2 Locations & Delivery All Over Casablanca",
+  body:
+    "Besides Our 2 Locations, We Focus Bringing Healthy, Delicious Meals Right To Your Doorstep, Wherever You Are In Casablanca.",
+  eyebrow: "",
+  image: "/healthy/image-7.png",
+  buttonLabel: "",
+  buttonLink: "",
+  items: [
+    {
+      id: `item-${Date.now()}-delivery-stat-1`,
+      title: "Staff Members",
+      subtitle: "+",
+      body: "users",
+      value: "14",
+      image: ""
+    },
+    {
+      id: `item-${Date.now()}-delivery-stat-2`,
+      title: "Opens everyday",
+      subtitle: "/7",
+      body: "calendar",
+      value: "7",
+      image: ""
+    },
+    {
+      id: `item-${Date.now()}-delivery-stat-3`,
+      title: "Positive Reviews",
+      subtitle: "+",
+      body: "thumbs-up",
+      value: "411",
+      image: ""
+    }
+  ]
+});
 
 const toLocationRepeaterItem = (location: LocationRecord): WebsiteRepeaterItem => ({
   id: `location-item-${location.id}`,
@@ -102,6 +144,14 @@ const ensureLocationsSection = (sections: WebsitePageSection[], locations: Locat
   ]);
 };
 
+const ensureLocationsPageSections = (sections: WebsitePageSection[], locations: LocationRecord[]) => {
+  const withDeliverySection = sections.some((section) => section.sectionKey === locationsDeliverySectionKey)
+    ? sections
+    : normalizeSortOrders([defaultLocationsDeliverySection(), ...sections]);
+
+  return ensureLocationsSection(withDeliverySection, locations);
+};
+
 export default function WebsitePageEditor({ page }: { page: WebsitePageRecord }) {
   const [draft, setDraft] = useState<WebsitePageRecord>(page);
   const [saveMessage, setSaveMessage] = useState("");
@@ -113,8 +163,12 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
     [locationsData]
   );
   const draftWithSyncedLocations = useMemo(
-    () => (page.slug === "locations" ? { ...draft, sections: ensureLocationsSection(draft.sections, syncedLocations) } : draft),
+    () => (page.slug === "locations" ? { ...draft, sections: ensureLocationsPageSections(draft.sections, syncedLocations) } : draft),
     [draft, page.slug, syncedLocations]
+  );
+  const locationsDeliverySection = useMemo(
+    () => draftWithSyncedLocations.sections.find((section) => section.sectionKey === locationsDeliverySectionKey),
+    [draftWithSyncedLocations.sections]
   );
 
   const visibleSectionCount = useMemo(
@@ -369,6 +423,189 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
               heading="Location Management"
               description="Manage every location entity for the public locations page directly from here."
             />
+          ) : null}
+
+          {page.slug === "locations" && locationsDeliverySection ? (
+            <section className="admin-panel rounded-2xl p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Delivery Overview Content</h3>
+                  <p className="mt-1 text-sm text-zinc-300">
+                    Manage the content for the customer locations page section below the hero.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <label className="flex items-start gap-3 rounded-xl border border-zinc-700/70 bg-zinc-900/55 px-4 py-3 lg:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={locationsDeliverySection.isVisible}
+                    onChange={(event) =>
+                      setSections(
+                        draftWithSyncedLocations.sections.map((section) =>
+                          section.sectionKey === locationsDeliverySectionKey
+                            ? { ...section, isVisible: event.target.checked }
+                            : section
+                        )
+                      )
+                    }
+                    className="mt-1 h-4 w-4 accent-amber-300"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-zinc-100">Show this section on the customer page</span>
+                    <span className="block text-xs text-zinc-400">Hide or show the delivery overview block instantly.</span>
+                  </span>
+                </label>
+
+                <label className="space-y-1 lg:col-span-2">
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Section Heading</span>
+                  <input
+                    value={locationsDeliverySection.heading}
+                    onChange={(event) =>
+                      setSections(
+                        draftWithSyncedLocations.sections.map((section) =>
+                          section.sectionKey === locationsDeliverySectionKey
+                            ? { ...section, heading: event.target.value }
+                            : section
+                        )
+                      )
+                    }
+                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                  />
+                </label>
+
+                <label className="space-y-1 lg:col-span-2">
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Section Body</span>
+                  <textarea
+                    value={locationsDeliverySection.body}
+                    onChange={(event) =>
+                      setSections(
+                        draftWithSyncedLocations.sections.map((section) =>
+                          section.sectionKey === locationsDeliverySectionKey
+                            ? { ...section, body: event.target.value }
+                            : section
+                        )
+                      )
+                    }
+                    rows={4}
+                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Section Image URL</span>
+                  <input
+                    value={locationsDeliverySection.image ?? ""}
+                    onChange={(event) =>
+                      setSections(
+                        draftWithSyncedLocations.sections.map((section) =>
+                          section.sectionKey === locationsDeliverySectionKey
+                            ? { ...section, image: event.target.value }
+                            : section
+                        )
+                      )
+                    }
+                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Upload Section Image</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) =>
+                      readImage(
+                        event,
+                        (result) =>
+                          setSections(
+                            draftWithSyncedLocations.sections.map((section) =>
+                              section.sectionKey === locationsDeliverySectionKey
+                                ? { ...section, image: result }
+                                : section
+                            )
+                          )
+                      )
+                    }
+                    className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-300 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-900"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                {locationsDeliverySection.items.slice(0, 3).map((item, index) => (
+                  <article key={item.id} className="rounded-2xl border border-zinc-700/70 bg-zinc-900/45 p-4">
+                    <p className="text-sm font-semibold text-white">Stat {index + 1}</p>
+                    <div className="mt-4 space-y-3">
+                      <label className="space-y-1">
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Label</span>
+                        <input
+                          value={item.title}
+                          onChange={(event) =>
+                            setSections(
+                              draftWithSyncedLocations.sections.map((section) =>
+                                section.sectionKey === locationsDeliverySectionKey
+                                  ? {
+                                      ...section,
+                                      items: section.items.map((currentItem, itemIndex) =>
+                                        itemIndex === index ? { ...currentItem, title: event.target.value } : currentItem
+                                      )
+                                    }
+                                  : section
+                              )
+                            )
+                          }
+                          className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Value</span>
+                        <input
+                          value={item.value ?? ""}
+                          onChange={(event) =>
+                            setSections(
+                              draftWithSyncedLocations.sections.map((section) =>
+                                section.sectionKey === locationsDeliverySectionKey
+                                  ? {
+                                      ...section,
+                                      items: section.items.map((currentItem, itemIndex) =>
+                                        itemIndex === index ? { ...currentItem, value: event.target.value } : currentItem
+                                      )
+                                    }
+                                  : section
+                              )
+                            )
+                          }
+                          className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Suffix</span>
+                        <input
+                          value={item.subtitle ?? ""}
+                          onChange={(event) =>
+                            setSections(
+                              draftWithSyncedLocations.sections.map((section) =>
+                                section.sectionKey === locationsDeliverySectionKey
+                                  ? {
+                                      ...section,
+                                      items: section.items.map((currentItem, itemIndex) =>
+                                        itemIndex === index ? { ...currentItem, subtitle: event.target.value } : currentItem
+                                      )
+                                    }
+                                  : section
+                              )
+                            )
+                          }
+                          className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                        />
+                      </label>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
           ) : null}
 
           {draft.kind === "legal" ? (
