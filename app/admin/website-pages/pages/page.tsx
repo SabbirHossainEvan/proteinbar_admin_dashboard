@@ -23,18 +23,32 @@ const createDraftPage = (kind: WebsitePageRecord["kind"]) => {
     kind,
     status: "draft" as const,
     showInTopNav: false,
+    heroEyebrow: "New page",
     heroTitle: title,
+    heroSubtitle: "Add a supporting subtitle for the hero area.",
     heroBody: "Add hero copy for this page.",
     heroImage: "",
+    heroPrimaryCtaLabel: "Primary CTA",
+    heroPrimaryCtaLink: "",
+    heroSecondaryCtaLabel: "Secondary CTA",
+    heroSecondaryCtaLink: "",
     seoTitle: title,
     seoDescription: "SEO description",
     updatedAt: new Date().toISOString(),
     sections: [
       {
         id: `section-${stamp}`,
+        sectionKey: "section-heading",
+        sectionType: "richText",
+        isVisible: true,
+        sortOrder: 0,
         heading: "Section Heading",
         body: "Replace this placeholder with real content.",
-        image: ""
+        eyebrow: "",
+        image: "",
+        buttonLabel: "",
+        buttonLink: "",
+        items: []
       }
     ]
   };

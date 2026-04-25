@@ -50,9 +50,10 @@ export const adminNavSections: AdminNavSection[] = [
     items: [
       { href: "/admin/website-pages", label: "Pages Overview", description: "Manage public content and navigation surfaces." },
       { href: "/admin/website-pages/pages", label: "Pages", description: "Create, edit, publish, and archive website pages." },
-      { href: "/admin/website-pages/menu-categories", label: "Menu Categories", description: "Control category visibility in the website nav." },
       { href: "/admin/website-pages/home", label: "Home", description: "Homepage text, imagery, and section content." },
-      { href: "/admin/website-pages/restaurants", label: "Restaurants", description: "Public restaurant listing page content." },
+      { href: "/admin/website-pages/menu", label: "Menu", description: "Hero, helper copy, and CTA content around the live menu." },
+      { href: "/admin/website-pages/locations", label: "Locations", description: "Hero and supporting content for public location pages." },
+      { href: "/admin/website-pages/meal-prep", label: "Meal Prep", description: "Page-level content for the meal-prep and plan builder flow." },
       { href: "/admin/website-pages/about-us", label: "About Us", description: "Brand story and trust-building content." },
       { href: "/admin/website-pages/contact", label: "Contact", description: "Support details, CTA blocks, and contact copy." }
     ]

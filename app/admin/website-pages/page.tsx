@@ -3,22 +3,19 @@
 import Link from "next/link";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import {
-  useGetWebsiteMenuCategoriesAdminQuery,
   useGetWebsitePagesAdminQuery,
   useGetWebsiteSettingsAdminQuery
 } from "@/redux/api/adminApi";
 
 export default function WebsitePagesOverviewPage() {
   const { data: pagesData, isLoading: isLoadingPages, isError: isPagesError } = useGetWebsitePagesAdminQuery();
-  const { data: categoriesData, isLoading: isLoadingCategories } = useGetWebsiteMenuCategoriesAdminQuery();
   const { data: settingsData, isLoading: isLoadingSettings } = useGetWebsiteSettingsAdminQuery();
 
   const pages = pagesData?.data ?? [];
-  const categories = categoriesData?.data ?? [];
   const settings = settingsData?.data;
 
-  const isLoading = isLoadingPages || isLoadingCategories || isLoadingSettings;
-  const visibleTopNavCount = pages.filter((page) => page.showInTopNav).length + categories.filter((category) => category.showInTopNav).length;
+  const isLoading = isLoadingPages || isLoadingSettings;
+  const visibleTopNavCount = pages.filter((page) => page.showInTopNav).length;
 
   return (
     <section className="space-y-7">
@@ -26,7 +23,7 @@ export default function WebsitePagesOverviewPage() {
         <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Website Pages</p>
         <h2 className="mt-1 text-3xl font-semibold text-white">Content Control Center</h2>
         <p className="mt-2 max-w-3xl text-sm text-zinc-300">
-          Edit homepage, restaurants, about, contact, legal pages, and top-navigation visibility from one place.
+          Edit homepage, menu, locations, meal prep, global navigation, legal pages, and top-navigation visibility from one place.
         </p>
       </div>
 
@@ -61,9 +58,10 @@ export default function WebsitePagesOverviewPage() {
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {[
                   { href: "/admin/website-pages/pages", title: "Pages", text: "Create custom pages, legal pages, and manage publish state." },
-                  { href: "/admin/website-pages/menu-categories", title: "Menu Categories", text: "Show or hide any category tab from the website navigation." },
                   { href: "/admin/website-pages/home", title: "Home", text: "Edit homepage text, hero image, and supporting content blocks." },
-                  { href: "/admin/website-pages/restaurants", title: "Restaurants", text: "Control public restaurant-page copy and section content." },
+                  { href: "/admin/website-pages/menu", title: "Menu", text: "Manage hero, helper copy, and CTA content around live menu data." },
+                  { href: "/admin/website-pages/locations", title: "Locations", text: "Control locations-page hero and notes while location entities stay dynamic." },
+                  { href: "/admin/website-pages/meal-prep", title: "Meal Prep", text: "Manage hero, FAQ, and conversion copy around the plan builder." },
                   { href: "/admin/website-pages/about-us", title: "About Us", text: "Update brand story, proof points, and trust-building content." },
                   { href: "/admin/website-pages/contact", title: "Contact", text: "Manage contact copy, CTA language, and support blocks." }
                 ].map((card) => (
@@ -82,7 +80,7 @@ export default function WebsitePagesOverviewPage() {
             <section className="admin-panel rounded-2xl p-5">
               <h3 className="text-lg font-semibold text-white">Live Snapshot</h3>
               <div className="mt-4 space-y-3">
-                {pages
+                {[...pages]
                   .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
                   .slice(0, 5)
                   .map((page) => (

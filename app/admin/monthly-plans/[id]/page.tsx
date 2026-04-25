@@ -465,7 +465,7 @@ export default function MonthlyPlanDetailEditorPage() {
   const tabs: Array<{ key: TabKey; label: string }> = [
     { key: "basic", label: "Basic Info" },
     { key: "rules", label: "Rules" },
-    { key: "assignments", label: isCustomPlan ? "Make Your Meal" : "Week Assignments" },
+    { key: "assignments", label: isCustomPlan ? "Make Your Meal" : "Meal Assignments" },
     ...(isCustomPlan ? [{ key: "regularMeals" as TabKey, label: "Regular Meal Categories" }] : [])
   ];
 
@@ -928,7 +928,7 @@ export default function MonthlyPlanDetailEditorPage() {
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm text-zinc-400">No week assignments available.</p>
+                  <p className="text-sm text-zinc-400">No meal assignments available.</p>
                 )}
               </>
             )}
