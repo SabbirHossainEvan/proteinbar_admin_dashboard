@@ -40,7 +40,7 @@ export const adminNavSections: AdminNavSection[] = [
       { href: "/admin/orders", label: "Orders", description: "Daily and subscription order management." },
       { href: "/admin/subscriptions", label: "Subscriptions", description: "Track remaining time and pause, resume, or cancel plans." },
       { href: "/admin/orders-day-printing", label: "Orders of the Day & Printing", description: "Kitchen sheets, labels, and dispatch printing." },
-      { href: "/admin/locations", label: "Locations", description: "Pickup points and delivery areas." },
+      { href: "/admin/locations", label: "Pickup & Delivery Areas", description: "Add and manage which areas support pickup, delivery, or both." },
       { href: "/admin/promo-codes", label: "Promo Codes", description: "Offers, expiry, and eligibility." },
       { href: "/admin/customers", label: "Clients", description: "Database of all past clients." }
     ]
