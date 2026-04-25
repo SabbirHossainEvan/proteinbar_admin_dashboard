@@ -24,6 +24,15 @@ type AssignmentFormState = {
 };
 
 const mealTypes: MealType[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
+const weekDayOptions = [
+  { value: 0, label: "Sunday" },
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" }
+] as const;
 const longWeekDayFormatter = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" });
 
 const createAssignmentForm = (): AssignmentFormState => ({
@@ -62,7 +71,13 @@ const startOfWeekSunday = (isoDate: string) => {
 const formatWeekDayLabel = (isoDate: string) => {
   const [year, month, day] = isoDate.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
-  return `${longWeekDayFormatter.format(date)} (${isoDate})`;
+  return longWeekDayFormatter.format(date);
+};
+
+const getWeekDayIndex = (isoDate: string) => {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCDay();
 };
 
 const buildDatesInRange = (startDate: string, endDate: string) => {
@@ -80,6 +95,18 @@ const syncWeekDates = (week: WeekAssignment): WeekAssignment => ({
   ...week,
   mealsByDate: Object.fromEntries(buildDatesInRange(week.startDate, week.endDate).map((dateIso) => [dateIso, week.mealsByDate[dateIso] ?? []]))
 });
+
+const setWeekStartDay = (week: WeekAssignment, targetWeekDay: number): WeekAssignment => {
+  const currentWeekDay = getWeekDayIndex(week.startDate);
+  const offset = targetWeekDay - currentWeekDay;
+  const nextStartDate = addDays(week.startDate, offset);
+
+  return syncWeekDates({
+    ...week,
+    startDate: nextStartDate,
+    endDate: addDays(nextStartDate, 6)
+  });
+};
 
 const createWeekDraft = (planId: string, nextWeekIndex: number, previousWeek?: WeekAssignment): WeekAssignment => {
   const startDate = previousWeek ? addDays(previousWeek.endDate, 1) : startOfWeekSunday(new Date().toLocaleDateString("en-CA"));
@@ -805,18 +832,28 @@ export default function MonthlyPlanDetailEditorPage() {
                         <input type="number" min={1} value={selectedWeek.weekIndex} onChange={(event) => updateWeek(selectedWeek.id, (week) => ({ ...week, weekIndex: Number(event.target.value) || week.weekIndex }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
                       </label>
                       <label className="space-y-1">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Start Date</span>
-                        <input type="date" value={selectedWeek.startDate} onChange={(event) => updateWeek(selectedWeek.id, (week) => syncWeekDates({ ...week, startDate: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Start Day</span>
+                        <select
+                          value={getWeekDayIndex(selectedWeek.startDate)}
+                          onChange={(event) => updateWeek(selectedWeek.id, (week) => setWeekStartDay(week, Number(event.target.value)))}
+                          className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                        >
+                          {weekDayOptions.map((day) => (
+                            <option key={day.value} value={day.value}>
+                              {day.label}
+                            </option>
+                          ))}
+                        </select>
                       </label>
                       <label className="space-y-1">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">End Date</span>
-                        <input type="date" value={selectedWeek.endDate} onChange={(event) => updateWeek(selectedWeek.id, (week) => syncWeekDates({ ...week, endDate: event.target.value }))} className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300" />
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">End Day</span>
+                        <input value={formatWeekDayLabel(selectedWeek.endDate)} readOnly className="w-full rounded-xl border border-zinc-600 bg-zinc-900/50 px-3 py-2 text-sm text-zinc-100 outline-none" />
                       </label>
                     </div>
 
                     <div className="flex gap-2">
                       <button type="button" onClick={() => updateWeek(selectedWeek.id, (week) => syncWeekDates(week))} className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100">
-                        Sync Dates To Range
+                        Sync Days To Range
                       </button>
                       {draft.weekAssignments.length > 1 ? (
                         <button type="button" onClick={() => removeWeek(selectedWeek.id)} className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
@@ -827,7 +864,7 @@ export default function MonthlyPlanDetailEditorPage() {
 
                     <div className="rounded-xl border border-zinc-700/70 bg-zinc-900/40 p-3">
                       <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">Assignment Day Picker</p>
-                      <p className="mt-1 text-sm text-zinc-300">Choose a weekday below instead of using a raw date picker.</p>
+                      <p className="mt-1 text-sm text-zinc-300">Choose a weekday below instead of using raw calendar dates.</p>
                     </div>
 
                     <div className="flex flex-wrap gap-2">

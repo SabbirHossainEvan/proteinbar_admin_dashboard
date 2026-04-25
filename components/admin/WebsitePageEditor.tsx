@@ -2,13 +2,17 @@
 
 import { ChangeEvent, useMemo, useState } from "react";
 import { ErrorState } from "@/components/admin/StateBlocks";
+import LocationsManager, { normalizeAdminLocation } from "@/components/admin/LocationsManager";
 import {
+  useGetLocationsQuery,
   useUpsertWebsitePageAdminMutation
 } from "@/redux/api/adminApi";
 import type {
   WebsitePageRecord,
-  WebsitePageSection
+  WebsitePageSection,
+  WebsiteRepeaterItem
 } from "@/redux/backoffice/types";
+import type { LocationRecord } from "@/redux/monthlyPlans/types";
 
 const createSection = (sortOrder: number): WebsitePageSection => ({
   id: `section-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -48,20 +52,79 @@ const duplicateSection = (section: WebsitePageSection, sortOrder: number): Websi
   }))
 });
 
+const locationsSectionKey = "dynamic-locations-list";
+
+const toLocationRepeaterItem = (location: LocationRecord): WebsiteRepeaterItem => ({
+  id: `location-item-${location.id}`,
+  title: location.name,
+  subtitle: `${location.type} ${location.isActive ? "| active" : "| inactive"}`,
+  body: location.address,
+  label: location.googleMapsUrl ? "Open map" : undefined,
+  link: location.googleMapsUrl,
+  value: location.ratingText || (location.phone ? `Phone: ${location.phone}` : ""),
+  image: location.image
+});
+
+const ensureLocationsSection = (sections: WebsitePageSection[], locations: LocationRecord[]) => {
+  const syncedItems = locations.map(toLocationRepeaterItem);
+  const existingSection = sections.find((section) => section.sectionKey === locationsSectionKey);
+
+  if (existingSection) {
+    return sections.map((section) =>
+      section.sectionKey === locationsSectionKey
+        ? {
+            ...section,
+            sectionType: "dynamicEmbed",
+            heading: section.heading || "Location Directory",
+            body: section.body || "This section is synced automatically from the Locations admin screen.",
+            items: syncedItems
+          }
+        : section
+    );
+  }
+
+  return normalizeSortOrders([
+    ...sections,
+    {
+      id: `section-${Date.now()}-locations`,
+      sectionKey: locationsSectionKey,
+      sectionType: "dynamicEmbed",
+      isVisible: true,
+      sortOrder: sections.length,
+      heading: "Location Directory",
+      body: "This section is synced automatically from the Locations admin screen.",
+      eyebrow: "Synced data",
+      image: "",
+      buttonLabel: "",
+      buttonLink: "",
+      items: syncedItems
+    }
+  ]);
+};
+
 export default function WebsitePageEditor({ page }: { page: WebsitePageRecord }) {
   const [draft, setDraft] = useState<WebsitePageRecord>(page);
   const [saveMessage, setSaveMessage] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
   const [savePage, { isLoading: isSaving }] = useUpsertWebsitePageAdminMutation();
+  const { data: locationsData } = useGetLocationsQuery(undefined, { skip: page.slug !== "locations" });
+  const syncedLocations = useMemo(
+    () => ((locationsData?.data ?? []) as Parameters<typeof normalizeAdminLocation>[0][]).map(normalizeAdminLocation),
+    [locationsData]
+  );
+  const draftWithSyncedLocations = useMemo(
+    () => (page.slug === "locations" ? { ...draft, sections: ensureLocationsSection(draft.sections, syncedLocations) } : draft),
+    [draft, page.slug, syncedLocations]
+  );
 
   const visibleSectionCount = useMemo(
-    () => draft.sections.filter((section) => section.isVisible).length,
-    [draft.sections]
+    () => draftWithSyncedLocations.sections.filter((section) => section.isVisible).length,
+    [draftWithSyncedLocations.sections]
   );
 
   const repeaterItemCount = useMemo(
-    () => draft.sections.reduce((count, section) => count + section.items.length, 0),
-    [draft.sections]
+    () => draftWithSyncedLocations.sections.reduce((count, section) => count + section.items.length, 0),
+    [draftWithSyncedLocations.sections]
   );
 
   const updateDraft = (patch: Partial<WebsitePageRecord>) => {
@@ -122,7 +185,7 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
     if (!draft.seoTitle.trim()) nextErrors.push("SEO title is required.");
     if (!draft.seoDescription.trim()) nextErrors.push("SEO description is required.");
 
-    draft.sections.forEach((section, index) => {
+    draftWithSyncedLocations.sections.forEach((section, index) => {
       if (!section.sectionKey.trim()) nextErrors.push(`Section ${index + 1} needs a section key.`);
       if (!section.heading.trim() && !section.body.trim() && !section.items.length) {
         nextErrors.push(`Section ${index + 1} needs content or repeater items.`);
@@ -142,8 +205,8 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
 
     try {
       const response = await savePage({
-        ...draft,
-        sections: normalizeSortOrders(draft.sections)
+        ...draftWithSyncedLocations,
+        sections: normalizeSortOrders(draftWithSyncedLocations.sections)
       }).unwrap();
       setDraft(response.data);
       setErrors([]);
@@ -187,7 +250,7 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
           </div>
 
           <div className="mt-4 space-y-3">
-            {draft.sections.map((section, index) => {
+            {draftWithSyncedLocations.sections.map((section, index) => {
               return (
                 <div
                   key={section.id}
@@ -210,6 +273,7 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                     <button
                       type="button"
                       onClick={() => onMoveSection(section.id, -1)}
+                      disabled={section.sectionKey === locationsSectionKey}
                       className="rounded-lg border border-zinc-600 px-2.5 py-1 text-xs text-zinc-200"
                     >
                       Up
@@ -217,24 +281,29 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                     <button
                       type="button"
                       onClick={() => onMoveSection(section.id, 1)}
+                      disabled={section.sectionKey === locationsSectionKey}
                       className="rounded-lg border border-zinc-600 px-2.5 py-1 text-xs text-zinc-200"
                     >
                       Down
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => onDuplicateSection(section.id)}
-                      className="rounded-lg border border-zinc-600 px-2.5 py-1 text-xs text-zinc-200"
-                    >
-                      Duplicate
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onRemoveSection(section.id)}
-                      className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-2.5 py-1 text-xs text-rose-100"
-                    >
-                      Remove
-                    </button>
+                    {section.sectionKey !== locationsSectionKey ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onDuplicateSection(section.id)}
+                          className="rounded-lg border border-zinc-600 px-2.5 py-1 text-xs text-zinc-200"
+                        >
+                          Duplicate
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onRemoveSection(section.id)}
+                          className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-2.5 py-1 text-xs text-rose-100"
+                        >
+                          Remove
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               );
@@ -294,6 +363,14 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
             </div>
           </section>
 
+          {page.slug === "locations" ? (
+            <LocationsManager
+              compactHeader
+              heading="Location Management"
+              description="Manage every location entity for the public locations page directly from here."
+            />
+          ) : null}
+
           {draft.kind === "legal" ? (
             <section className="admin-panel rounded-2xl p-5">
               <div className="flex items-center justify-between gap-3">
@@ -313,7 +390,7 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
               </div>
 
               <div className="mt-4 space-y-4">
-                {draft.sections.map((section, index) => (
+                {draftWithSyncedLocations.sections.map((section, index) => (
                   <article key={section.id} className="rounded-2xl border border-zinc-700/70 bg-zinc-900/45 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm font-semibold text-white">
@@ -323,6 +400,7 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                         <button
                           type="button"
                           onClick={() => onMoveSection(section.id, -1)}
+                          disabled={section.sectionKey === locationsSectionKey}
                           className="rounded-lg border border-zinc-600 px-2.5 py-1 text-xs text-zinc-200"
                         >
                           Up
@@ -330,24 +408,29 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                         <button
                           type="button"
                           onClick={() => onMoveSection(section.id, 1)}
+                          disabled={section.sectionKey === locationsSectionKey}
                           className="rounded-lg border border-zinc-600 px-2.5 py-1 text-xs text-zinc-200"
                         >
                           Down
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => onDuplicateSection(section.id)}
-                          className="rounded-lg border border-zinc-600 px-2.5 py-1 text-xs text-zinc-200"
-                        >
-                          Duplicate
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onRemoveSection(section.id)}
-                          className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-2.5 py-1 text-xs text-rose-100"
-                        >
-                          Remove
-                        </button>
+                        {section.sectionKey !== locationsSectionKey ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => onDuplicateSection(section.id)}
+                              className="rounded-lg border border-zinc-600 px-2.5 py-1 text-xs text-zinc-200"
+                            >
+                              Duplicate
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onRemoveSection(section.id)}
+                              className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-2.5 py-1 text-xs text-rose-100"
+                            >
+                              Remove
+                            </button>
+                          </>
+                        ) : null}
                       </div>
                     </div>
 
@@ -365,6 +448,7 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                               )
                             )
                           }
+                          disabled={section.sectionKey === locationsSectionKey}
                           className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                         />
                       </label>
@@ -382,6 +466,7 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                               )
                             )
                           }
+                          disabled={section.sectionKey === locationsSectionKey}
                           rows={5}
                           className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                         />
@@ -390,7 +475,7 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                   </article>
                 ))}
 
-                {!draft.sections.length ? (
+                {!draftWithSyncedLocations.sections.length ? (
                   <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 p-5 text-sm text-zinc-400">
                     No legal clauses yet. Add the first clause from here.
                   </div>
@@ -571,7 +656,7 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
               </div>
 
               <div className="mt-5 space-y-3">
-                {draft.sections
+                {draftWithSyncedLocations.sections
                   .filter((section) => section.isVisible)
                   .slice(0, 3)
                   .map((section) => (
