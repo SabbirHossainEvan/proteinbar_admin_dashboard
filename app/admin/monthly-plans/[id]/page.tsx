@@ -189,6 +189,8 @@ const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
 const validateDetails = (details: MonthlyPlanDetails, availableMeals: MonthlyPlanDetails["mealLibrary"] = []) => {
   const errors: string[] = [];
   const deliveryOptionIdsSeen = new Set<string>();
+  const normalizeMealValue = (value: string) =>
+    value.trim().toLowerCase().replace(/\s+/g, " ");
 
   if (!details.plan.title.trim()) errors.push("Title is required.");
   if (!details.plan.slug.trim()) errors.push("Slug is required.");
@@ -256,6 +258,17 @@ const validateDetails = (details: MonthlyPlanDetails, availableMeals: MonthlyPla
     if (!categoryIds.has(item.categoryId)) errors.push(`Food item ${item.name} references a missing category.`);
     if (!item.imageUrl.trim()) errors.push(`Food item ${item.name} requires an image URL.`);
     if (!item.sizes.length) errors.push(`Food item ${item.name} requires at least one size.`);
+  });
+
+  const assignedMealKeys = new Set<string>();
+  details.plan.content?.regularStepTwo?.foodItems.forEach((item) => {
+    const mealKey = item.sourceMealId?.trim() || normalizeMealValue(item.name);
+    const categoryMealKey = `${item.categoryId}::${mealKey}`;
+    if (assignedMealKeys.has(categoryMealKey)) {
+      errors.push(`Category contains duplicate assigned meal: ${item.name}.`);
+      return;
+    }
+    assignedMealKeys.add(categoryMealKey);
   });
 
   return [...new Set(errors)];
@@ -414,6 +427,20 @@ export default function MonthlyPlanDetailEditorPage() {
     if (!draft || !pickerCategoryId || !pickerMealId) return;
     const libraryMeal = meals.find((m) => m.id === pickerMealId);
     if (!libraryMeal) return;
+    const alreadyAssigned = customFoodItems.some(
+      (item) =>
+        item.categoryId === pickerCategoryId &&
+        (item.sourceMealId === libraryMeal.id ||
+          item.name.trim().toLowerCase() ===
+            libraryMeal.name.trim().toLowerCase()),
+    );
+    if (alreadyAssigned) {
+      setSaveErrors([
+        `Meal "${libraryMeal.name}" is already assigned to this category.`,
+      ]);
+      setSaveMessage("");
+      return;
+    }
     const foodId = `food-${Date.now()}`;
     const newItem: CustomPlanFoodItem = {
       id: foodId,
@@ -427,15 +454,9 @@ export default function MonthlyPlanDetailEditorPage() {
       sizes: [{ id: `ps-${Date.now()}`, foodItemId: foodId, label: "Regular", price: 0, calories: libraryMeal.calories, protein: libraryMeal.protein, carbs: libraryMeal.carbs, fat: libraryMeal.fat, displayOrder: 0, isActive: true }]
     };
     setDraft((prev) => !prev ? prev : { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, regularStepTwo: { categories: prev.plan.content?.regularStepTwo?.categories || [], foodItems: [...(prev.plan.content?.regularStepTwo?.foodItems || []), newItem] } } } });
+    setSaveErrors([]);
     setPickerCategoryId(null);
     setPickerMealId("");
-  };
-
-  const updateRegularFoodItem = (foodId: string, updates: Partial<CustomPlanFoodItem>) => {
-    setDraft((prev) => {
-      if (!prev || !prev.plan.content?.regularStepTwo) return prev;
-      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, regularStepTwo: { ...prev.plan.content.regularStepTwo, foodItems: prev.plan.content.regularStepTwo.foodItems.map(f => f.id === foodId ? { ...f, ...updates } : f) } } } };
-    });
   };
 
   const removeRegularFoodItem = (foodId: string) => {
@@ -1020,6 +1041,17 @@ export default function MonthlyPlanDetailEditorPage() {
                     const categoryItems = customFoodItems
                       .filter((item) => item.categoryId === category.id)
                       .sort((a, b) => a.displayOrder - b.displayOrder);
+                    const availableCategoryMeals = meals
+                      .filter((meal) => meal.status === "active")
+                      .filter(
+                        (meal) =>
+                          !categoryItems.some(
+                            (item) =>
+                              item.sourceMealId === meal.id ||
+                              item.name.trim().toLowerCase() ===
+                                meal.name.trim().toLowerCase(),
+                          ),
+                      );
                     return (
                       <div key={category.id} className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 overflow-hidden">
                         {/* Category header */}
@@ -1072,14 +1104,14 @@ export default function MonthlyPlanDetailEditorPage() {
                                 className="flex-1 min-w-[180px] rounded-lg border border-zinc-600 bg-zinc-900/80 px-3 py-1.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                               >
                                 <option value="">— Select a meal —</option>
-                                {meals.filter((m) => m.status === "active").map((m) => (
+                                {availableCategoryMeals.map((m) => (
                                   <option key={m.id} value={m.id}>{m.name} ({m.mealType})</option>
                                 ))}
                               </select>
                               <button
                                 type="button"
                                 onClick={confirmAddMealFromLibrary}
-                                disabled={!pickerMealId}
+                                disabled={!pickerMealId || availableCategoryMeals.length === 0}
                                 className="rounded-lg bg-amber-300 px-3 py-1.5 text-xs font-semibold text-zinc-900 disabled:opacity-40"
                               >
                                 Add
@@ -1091,6 +1123,11 @@ export default function MonthlyPlanDetailEditorPage() {
                               >
                                 Cancel
                               </button>
+                              {availableCategoryMeals.length === 0 ? (
+                                <span className="text-xs text-zinc-500">
+                                  All active meals are already assigned.
+                                </span>
+                              ) : null}
                             </div>
                           ) : null}
 
@@ -1127,24 +1164,14 @@ export default function MonthlyPlanDetailEditorPage() {
 
                                   {/* Fields */}
                                   <div className="space-y-2 px-3 pb-3">
-                                    <label className="block">
+                                    <div className="rounded-lg border border-zinc-700 bg-zinc-900/40 px-3 py-2">
                                       <span className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">Meal Name</span>
-                                      <input
-                                        value={item.name}
-                                        onChange={(e) => updateRegularFoodItem(item.id, { name: e.target.value })}
-                                        className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900/70 px-2.5 py-1.5 text-sm text-white outline-none focus:border-amber-300 transition"
-                                        placeholder="e.g. Grilled Chicken"
-                                      />
-                                    </label>
-                                    <label className="block">
-                                      <span className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">Image URL</span>
-                                      <input
-                                        value={item.imageUrl}
-                                        onChange={(e) => updateRegularFoodItem(item.id, { imageUrl: e.target.value })}
-                                        className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900/70 px-2.5 py-1.5 text-sm text-white outline-none focus:border-amber-300 transition"
-                                        placeholder="https://..."
-                                      />
-                                    </label>
+                                      <p className="mt-1 text-sm font-medium text-white">{item.name}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-zinc-700 bg-zinc-900/40 px-3 py-2">
+                                      <span className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">Image Source</span>
+                                      <p className="mt-1 truncate text-xs text-zinc-300">{item.imageUrl || "No image"}</p>
+                                    </div>
                                     <button
                                       type="button"
                                       onClick={() => removeRegularFoodItem(item.id)}

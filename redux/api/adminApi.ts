@@ -100,8 +100,17 @@ const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknow
   locationName: String(item.locationName ?? ""),
   items: Array.isArray(item.items)
     ? item.items.map((line) => ({
-        mealId: String((line as Record<string, unknown>).mealId ?? ""),
-        mealName: String((line as Record<string, unknown>).mealName ?? ""),
+        instanceId: String((line as Record<string, unknown>).instanceId ?? ""),
+        mealId: String((line as Record<string, unknown>).id ?? ""),
+        mealName: String((line as Record<string, unknown>).title ?? ""),
+        date: String((line as Record<string, unknown>).date ?? ""),
+        extrasSummary: String((line as Record<string, unknown>).extrasSummary ?? ""),
+        calories: Number((line as Record<string, unknown>).calories ?? 0),
+        protein: Number((line as Record<string, unknown>).protein ?? 0),
+        carb: Number((line as Record<string, unknown>).carb ?? 0),
+        fat: Number((line as Record<string, unknown>).fat ?? 0),
+        basePrice: Number((line as Record<string, unknown>).basePrice ?? 0),
+        totalPrice: Number((line as Record<string, unknown>).totalPrice ?? 0),
         qty: Number((line as Record<string, unknown>).qty ?? 0),
         mealType: (((line as Record<string, unknown>).mealType ?? "Lunch") as OrderRecord["items"][number]["mealType"])
       }))

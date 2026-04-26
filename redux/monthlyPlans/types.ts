@@ -200,6 +200,10 @@ export interface OrderRecord {
   orderId: string;
   subscriptionId: string;
   customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerEmirate?: string;
+  customerArea?: string;
   planId: string;
   planTitle: string;
   planKind: PlanKind;
@@ -208,9 +212,44 @@ export interface OrderRecord {
   amount: number;
   orderDate: string;
   deliveryOption: DeliveryOption;
+  deliveryAddress?: string;
   locationId: string;
   locationName: string;
-  items: Array<{ mealId: string; mealName: string; qty: number; mealType: MealType }>;
+  selections?: {
+    meals: number;
+    days: number;
+    weeks: number;
+    snacks: number;
+    startDate: string;
+    deliveryDays: string;
+    planType?: string;
+  };
+  items: Array<{
+    mealId: string;
+    mealName: string;
+    qty: number;
+    mealType: MealType;
+    instanceId?: string;
+    date?: string;
+    extrasSummary?: string;
+    calories?: number;
+    protein?: number;
+    carb?: number;
+    fat?: number;
+    basePrice?: number;
+    totalPrice?: number;
+  }>;
+  totals?: {
+    subtotal: number;
+    giftDiscount: number;
+    vat: number;
+    safetyBag: number;
+    grandTotal: number;
+  };
+  promoCode?: {
+    code: string;
+    discountAmount: number;
+  };
 }
 
 export interface LocationRecord {
