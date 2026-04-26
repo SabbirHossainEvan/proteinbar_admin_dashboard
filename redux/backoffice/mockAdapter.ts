@@ -292,7 +292,7 @@ const pages: Record<string, WebsitePageRecord> = {
   }),
   terms: createPage({
     id: "terms",
-    slug: "terms",
+    slug: "terms-and-conditions",
     title: "Terms & Conditions",
     navLabel: "Terms",
     summary: "Legal terms for website use, ordering, delivery, and subscriptions.",
@@ -319,7 +319,7 @@ const pages: Record<string, WebsitePageRecord> = {
   }),
   privacy: createPage({
     id: "privacy",
-    slug: "privacy",
+    slug: "privacy-policy",
     title: "Privacy Policy",
     navLabel: "Privacy",
     summary: "Privacy disclosures for customer accounts, contact data, and order history.",

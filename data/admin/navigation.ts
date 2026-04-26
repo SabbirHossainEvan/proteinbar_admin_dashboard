@@ -59,6 +59,13 @@ export const adminNavSections: AdminNavSection[] = [
     ]
   },
   {
+    title: "Legal Pages",
+    items: [
+      { href: "/admin/legal/terms-and-conditions", label: "Terms & Conditions", description: "Manage the customer-facing terms and conditions page." },
+      { href: "/admin/legal/privacy-policy", label: "Privacy Policy", description: "Manage the customer-facing privacy policy page." }
+    ]
+  },
+  {
     title: "Settings",
     items: [
       { href: "/admin/profile", label: "Profile", description: "Your admin account settings." },
