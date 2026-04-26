@@ -223,13 +223,24 @@ export default function OrdersPage() {
                 <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Order Details</p>
                 <h3 className="mt-1 text-xl font-semibold text-white">{selectedOrder.orderId}</h3>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedOrder(null)}
-                className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 transition hover:border-zinc-500"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  selectedOrder.status === "completed" ? "bg-emerald-500/20 text-emerald-300" :
+                  selectedOrder.status === "confirmed" ? "bg-blue-500/20 text-blue-300" :
+                  selectedOrder.status === "preparing" ? "bg-purple-500/20 text-purple-300" :
+                  selectedOrder.status === "out-for-delivery" ? "bg-orange-500/20 text-orange-300" :
+                  "bg-amber-500/20 text-amber-300"
+                }`}>
+                  {selectedOrder.status}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrder(null)}
+                  className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 transition hover:border-zinc-500"
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
             <div className="space-y-5 px-5 py-5">
@@ -241,8 +252,14 @@ export default function OrdersPage() {
                   <p>Phone: {selectedOrder.customerPhone || "N/A"}</p>
                   <p>Emirate: {selectedOrder.customerEmirate || "N/A"}</p>
                   <p>Area: {selectedOrder.customerArea || "N/A"}</p>
-                  <p>Subscription: {selectedOrder.subscriptionId || "N/A"}</p>
-                  <p>Date: {selectedOrder.orderDate}</p>
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Subscription</p>
+                <p className="mt-2 text-sm font-mono text-amber-200">{selectedOrder.subscriptionId || "N/A"}</p>
+                <div className="mt-2 text-sm text-zinc-300">
+                  <p>Order Date: {selectedOrder.orderDate || "N/A"}</p>
                 </div>
               </section>
 
@@ -251,7 +268,9 @@ export default function OrdersPage() {
                 <p className="mt-2 text-lg font-semibold text-white">{selectedOrder.planTitle}</p>
                 <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
                   <p>Plan ID: {selectedOrder.planId || "N/A"}</p>
-                  <p>Kind: {selectedOrder.planKind}</p>
+                  <p>Kind: <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+                    selectedOrder.planKind === "custom" ? "bg-violet-500/20 text-violet-300" : "bg-sky-500/20 text-sky-300"
+                  }`}>{selectedOrder.planKind}</span></p>
                 </div>
                 {selectedOrder.selections && (
                   <div className="mt-4 border-t border-zinc-800 pt-4">
@@ -263,6 +282,9 @@ export default function OrdersPage() {
                       <div className="flex justify-between"><span className="text-zinc-500">Weeks:</span> <span className="font-medium text-white">{selectedOrder.selections.weeks}</span></div>
                       <div className="flex justify-between col-span-2"><span className="text-zinc-500">Delivery Days:</span> <span className="font-medium text-amber-200">{selectedOrder.selections.deliveryDays}</span></div>
                       <div className="flex justify-between col-span-2"><span className="text-zinc-500">Start Date:</span> <span className="font-medium text-amber-200">{selectedOrder.selections.startDate}</span></div>
+                      {selectedOrder.selections.planType && (
+                        <div className="flex justify-between col-span-2"><span className="text-zinc-500">Plan Type:</span> <span className="font-medium text-amber-200">{selectedOrder.selections.planType}</span></div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -271,31 +293,45 @@ export default function OrdersPage() {
               <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
                 <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Delivery</p>
                 <div className="mt-3 grid gap-2 text-sm text-zinc-300">
-                  <p>Option: {selectedOrder.deliveryOption}</p>
+                  <p>Option: <span className="font-medium text-white">{selectedOrder.deliveryOption}</span></p>
                   <p>Address: {selectedOrder.deliveryAddress || "N/A"}</p>
-                  <p>Location: {selectedOrder.locationName || "N/A"}</p>
-                  <p>Location ID: {selectedOrder.locationId || "N/A"}</p>
+                  {selectedOrder.locationName && (
+                    <p>Pickup Location: <span className="font-medium text-white">{selectedOrder.locationName}</span></p>
+                  )}
+                  {selectedOrder.locationId && (
+                    <p>Location ID: <span className="text-zinc-400">{selectedOrder.locationId}</span></p>
+                  )}
                 </div>
               </section>
 
               <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Payment</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Payment &amp; Totals</p>
                 <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
-                  <p>Status: {selectedOrder.paymentStatus}</p>
-                  <p>Order Status: {selectedOrder.status}</p>
+                  <p>Payment: <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+                    selectedOrder.paymentStatus === "paid" ? "bg-emerald-500/20 text-emerald-300" :
+                    selectedOrder.paymentStatus === "cod" ? "bg-amber-500/20 text-amber-300" :
+                    "bg-red-500/20 text-red-300"
+                  }`}>{selectedOrder.paymentStatus}</span></p>
+                  <p>Status: <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+                    selectedOrder.status === "completed" ? "bg-emerald-500/20 text-emerald-300" :
+                    selectedOrder.status === "confirmed" ? "bg-blue-500/20 text-blue-300" :
+                    selectedOrder.status === "preparing" ? "bg-purple-500/20 text-purple-300" :
+                    selectedOrder.status === "out-for-delivery" ? "bg-orange-500/20 text-orange-300" :
+                    "bg-amber-500/20 text-amber-300"
+                  }`}>{selectedOrder.status}</span></p>
                 </div>
                 {selectedOrder.totals ? (
                   <div className="mt-3 border-t border-zinc-800 pt-3 text-sm text-zinc-300">
                     <div className="flex justify-between py-1"><span className="text-zinc-500">Subtotal:</span> <span>${selectedOrder.totals.subtotal.toFixed(2)}</span></div>
                     {selectedOrder.totals.giftDiscount > 0 && (
-                      <div className="flex justify-between py-1"><span className="text-zinc-500">Gift Discount:</span> <span className="text-amber-400">-${selectedOrder.totals.giftDiscount.toFixed(2)}</span></div>
+                      <div className="flex justify-between py-1"><span className="text-zinc-500">Gift Discount:</span> <span className="text-emerald-400">-${selectedOrder.totals.giftDiscount.toFixed(2)}</span></div>
                     )}
                     {selectedOrder.promoCode?.code && (
-                      <div className="flex justify-between py-1"><span className="text-zinc-500">Promo ({selectedOrder.promoCode.code}):</span> <span className="text-amber-400">-${selectedOrder.promoCode.discountAmount.toFixed(2)}</span></div>
+                      <div className="flex justify-between py-1"><span className="text-zinc-500">Promo ({selectedOrder.promoCode.code}):</span> <span className="text-emerald-400">-${selectedOrder.promoCode.discountAmount.toFixed(2)}</span></div>
                     )}
                     <div className="flex justify-between py-1"><span className="text-zinc-500">VAT:</span> <span>${selectedOrder.totals.vat.toFixed(2)}</span></div>
                     <div className="flex justify-between py-1"><span className="text-zinc-500">Safety Bag:</span> <span>${selectedOrder.totals.safetyBag.toFixed(2)}</span></div>
-                    <div className="flex justify-between py-1 font-semibold text-white"><span className="text-zinc-400">Grand Total:</span> <span>${selectedOrder.totals.grandTotal.toFixed(2)}</span></div>
+                    <div className="flex justify-between border-t border-zinc-800 py-2 mt-1 font-semibold text-white"><span className="text-zinc-400">Grand Total:</span> <span className="text-lg">${selectedOrder.totals.grandTotal.toFixed(2)}</span></div>
                   </div>
                 ) : (
                   <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
@@ -304,38 +340,48 @@ export default function OrdersPage() {
                 )}
               </section>
 
-               <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-                 <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Items</p>
-                 <div className="mt-3 space-y-3">
-                   {selectedOrder.items.length ? (
-                     selectedOrder.items.map((line, index) => (
-                       <div key={`${line.mealId}-${index}`} className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3">
-                         <p className="text-sm font-semibold text-white">{line.mealName}</p>
-                         {line.extrasSummary && (
-                           <p className="mt-1 text-xs text-zinc-400">{line.extrasSummary}</p>
-                         )}
-                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-400">
-                           <span>Date: {line.date || "N/A"}</span>
-                           <span>Meal ID: {line.mealId || "N/A"}</span>
-                           <span>Type: {line.mealType}</span>
-                         </div>
-                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-400">
-                           <span>Calories: {line.calories || 0}</span>
-                           <span>Protein: {line.protein || 0}g</span>
-                           <span>Carbs: {line.carb || 0}g</span>
-                           <span>Fat: {line.fat || 0}g</span>
-                         </div>
-                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-400">
-                           <span>Base Price: ${line.basePrice || 0}</span>
-                           <span>Total Price: ${line.totalPrice || 0}</span>
-                         </div>
-                       </div>
-                     ))
-                   ) : (
-                     <p className="text-sm text-zinc-500">No item details available for this order.</p>
-                   )}
-                 </div>
-               </section>
+              <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Selected Meals</p>
+                  <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">{selectedOrder.items.length} item{selectedOrder.items.length !== 1 ? "s" : ""}</span>
+                </div>
+                <div className="mt-3 space-y-3">
+                  {selectedOrder.items.length ? (
+                    selectedOrder.items.map((line, index) => (
+                      <div key={`${line.mealId}-${index}`} className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3">
+                        <div className="flex items-start justify-between">
+                          <p className="text-sm font-semibold text-white">{line.mealName}</p>
+                          {(line.totalPrice ?? 0) > 0 && (
+                            <span className="text-sm font-semibold text-amber-200">${line.totalPrice}</span>
+                          )}
+                        </div>
+                        {line.extrasSummary && (
+                          <p className="mt-1 text-xs text-amber-400/80">{line.extrasSummary}</p>
+                        )}
+                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-400">
+                          <span>Date: {line.date || "N/A"}</span>
+                          {line.instanceId && <span>Instance: {line.instanceId}</span>}
+                          <span>Meal ID: {line.mealId || "N/A"}</span>
+                          <span>Type: {line.mealType}</span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-300">{line.calories || 0} cal</span>
+                          <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-300">P: {line.protein || 0}g</span>
+                          <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-300">C: {line.carb || 0}g</span>
+                          <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-300">F: {line.fat || 0}g</span>
+                        </div>
+                        {(line.basePrice ?? 0) > 0 && line.basePrice !== line.totalPrice && (
+                          <div className="mt-2 text-xs text-zinc-500">
+                            Base Price: ${line.basePrice} → Total: ${line.totalPrice}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-zinc-500">No item details available for this order.</p>
+                  )}
+                </div>
+              </section>
             </div>
           </aside>
         </div>
