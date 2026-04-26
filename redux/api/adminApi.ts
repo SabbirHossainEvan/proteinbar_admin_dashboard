@@ -42,6 +42,72 @@ type CustomPlanFoodListFilters = {
   categoryId?: string;
 };
 
+const normalizeSubscriptionRecord = (item: Partial<SubscriptionRecord> & Record<string, unknown>): SubscriptionRecord => ({
+  id: String(item.id ?? ""),
+  subscriptionId: String(item.subscriptionId ?? ""),
+  customerName: String(item.customerName ?? ""),
+  customerPhone: String(item.customerPhone ?? ""),
+  planId: String(item.planId ?? ""),
+  planTitle: String(item.planTitle ?? ""),
+  planKind: item.planKind === "custom" ? "custom" : "normal",
+  status:
+    item.status === "paused" || item.status === "cancelled" || item.status === "completed"
+      ? item.status
+      : "active",
+  startDate: String(item.startDate ?? ""),
+  endDate: String(item.endDate ?? ""),
+  currentWeek: Number(item.currentWeek ?? 0),
+  totalWeeks: Number(item.totalWeeks ?? 0),
+  progressDays: String(item.progressDays ?? "0/0"),
+  remainingMeals: Number(item.remainingMeals ?? 0),
+  selections: {
+    meals: Number((item.selections as SubscriptionRecord["selections"] | undefined)?.meals ?? 0),
+    days: Number((item.selections as SubscriptionRecord["selections"] | undefined)?.days ?? 0),
+    snacks: Number((item.selections as SubscriptionRecord["selections"] | undefined)?.snacks ?? 0),
+    startDate: String((item.selections as SubscriptionRecord["selections"] | undefined)?.startDate ?? ""),
+    deliveryDays: Array.isArray((item.selections as SubscriptionRecord["selections"] | undefined)?.deliveryDays)
+      ? (((item.selections as SubscriptionRecord["selections"] | undefined)?.deliveryDays ?? []) as Array<number | string>)
+          .map((value) => (typeof value === "number" ? value : Number(value)))
+          .filter((value) => Number.isFinite(value))
+      : [],
+    planType: (item.selections as SubscriptionRecord["selections"] | undefined)?.planType,
+    deliveryOption: (((item.selections as SubscriptionRecord["selections"] | undefined)?.deliveryOption ??
+      "daily-delivery") as SubscriptionRecord["selections"]["deliveryOption"])
+  }
+});
+
+const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknown>): OrderRecord => ({
+  id: String(item.id ?? ""),
+  orderId: String(item.orderId ?? ""),
+  subscriptionId: String(item.subscriptionId ?? ""),
+  customerName: String(item.customerName ?? ""),
+  planId: String(item.planId ?? ""),
+  planTitle: String(item.planTitle ?? ""),
+  planKind: item.planKind === "custom" ? "custom" : "normal",
+  status:
+    item.status === "confirmed" ||
+    item.status === "preparing" ||
+    item.status === "out-for-delivery" ||
+    item.status === "completed"
+      ? item.status
+      : "pending",
+  paymentStatus:
+    item.paymentStatus === "cod" || item.paymentStatus === "unpaid" ? item.paymentStatus : "paid",
+  amount: Number(item.amount ?? 0),
+  orderDate: String(item.orderDate ?? ""),
+  deliveryOption: ((item.deliveryOption ?? "daily-delivery") as OrderRecord["deliveryOption"]),
+  locationId: String(item.locationId ?? ""),
+  locationName: String(item.locationName ?? ""),
+  items: Array.isArray(item.items)
+    ? item.items.map((line) => ({
+        mealId: String((line as Record<string, unknown>).mealId ?? ""),
+        mealName: String((line as Record<string, unknown>).mealName ?? ""),
+        qty: Number((line as Record<string, unknown>).qty ?? 0),
+        mealType: (((line as Record<string, unknown>).mealType ?? "Lunch") as OrderRecord["items"][number]["mealType"])
+      }))
+    : []
+});
+
 export const adminApi = createApi({
   reducerPath: "adminApi",
   baseQuery: fetchBaseQuery({ baseUrl }),
@@ -258,10 +324,7 @@ export const adminApi = createApi({
     }),
 
     getMonthlyPlanOverview: builder.query<ApiResponse<MonthlyPlanOverview>, void>({
-      queryFn: async () => {
-        const data = await monthlyPlanMockAdapter.getOverview();
-        return { data: { success: true, data } };
-      },
+      query: () => "/admin/monthly-plan/overview",
       providesTags: ["MonthlyPlanAdmin"]
     }),
     getMonthlyPlanAdminList: builder.query<ApiResponse<MonthlyPlan[]>, PlanListFilters | void>({
@@ -301,24 +364,22 @@ export const adminApi = createApi({
       invalidatesTags: ["MonthlyPlanAdmin"]
     }),
     getMealLibraryAdmin: builder.query<ApiResponse<MealLibraryItem[]>, void>({
-      queryFn: async () => {
-        const data = await monthlyPlanMockAdapter.listMealLibrary();
-        return { data: { success: true, data } };
-      },
+      query: () => "/admin/monthly-plan/meals",
       providesTags: ["MealLibraryAdmin"]
     }),
     upsertMealLibraryAdmin: builder.mutation<ApiResponse<MealLibraryItem>, MealLibraryItem>({
-      queryFn: async (payload) => {
-        const data = await monthlyPlanMockAdapter.upsertMealLibraryItem(payload);
-        return { data: { success: true, data } };
-      },
+      query: (payload) => ({
+        url: `/admin/monthly-plan/meals/${payload.id}`,
+        method: "PUT",
+        body: payload
+      }),
       invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin"]
     }),
     deleteMealLibraryAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
-      queryFn: async (id) => {
-        const data = await monthlyPlanMockAdapter.deleteMealLibraryItem(id);
-        return { data: { success: true, data } };
-      },
+      query: (id) => ({
+        url: `/admin/monthly-plan/meals/${id}`,
+        method: "DELETE"
+      }),
       invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin"]
     }),
     getCustomPlanCategoriesAdmin: builder.query<ApiResponse<CustomPlanCategory[]>, string>({
@@ -440,31 +501,43 @@ export const adminApi = createApi({
       ]
     }),
     getMonthlySubscriptionsAdmin: builder.query<ApiResponse<SubscriptionRecord[]>, void>({
-      queryFn: async () => {
-        const data = await monthlyPlanMockAdapter.listSubscriptions();
-        return { data: { success: true, data } };
-      },
+      query: () => "/admin/monthly-plan/subscriptions",
+      transformResponse: (response: ApiResponse<Array<Record<string, unknown>>>) => ({
+        ...response,
+        data: (response.data ?? []).map(normalizeSubscriptionRecord)
+      }),
       providesTags: ["MonthlySubscriptionAdmin"]
     }),
     updateMonthlySubscriptionAdmin: builder.mutation<ApiResponse<SubscriptionRecord | null>, { id: string; patch: Partial<SubscriptionRecord> }>({
-      queryFn: async ({ id, patch }) => {
-        const data = await monthlyPlanMockAdapter.updateSubscription(id, patch);
-        return { data: { success: true, data } };
-      },
+      query: ({ id, patch }) => ({
+        url: `/admin/monthly-plan/subscriptions/${id}`,
+        method: "PATCH",
+        body: patch
+      }),
+      transformResponse: (response: ApiResponse<Record<string, unknown> | null>) => ({
+        ...response,
+        data: response.data ? normalizeSubscriptionRecord(response.data) : null
+      }),
       invalidatesTags: ["MonthlySubscriptionAdmin", "MonthlyPlanAdmin"]
     }),
     getMonthlyOrdersAdmin: builder.query<ApiResponse<OrderRecord[]>, void>({
-      queryFn: async () => {
-        const data = await monthlyPlanMockAdapter.listOrders();
-        return { data: { success: true, data } };
-      },
+      query: () => "/admin/monthly-plan/orders",
+      transformResponse: (response: ApiResponse<Array<Record<string, unknown>>>) => ({
+        ...response,
+        data: (response.data ?? []).map(normalizeOrderRecord)
+      }),
       providesTags: ["MonthlyOrderAdmin"]
     }),
     updateMonthlyOrderAdmin: builder.mutation<ApiResponse<OrderRecord | null>, { id: string; patch: Partial<OrderRecord> }>({
-      queryFn: async ({ id, patch }) => {
-        const data = await monthlyPlanMockAdapter.updateOrder(id, patch);
-        return { data: { success: true, data } };
-      },
+      query: ({ id, patch }) => ({
+        url: `/admin/monthly-plan/orders/${id}`,
+        method: "PATCH",
+        body: patch
+      }),
+      transformResponse: (response: ApiResponse<Record<string, unknown> | null>) => ({
+        ...response,
+        data: response.data ? normalizeOrderRecord(response.data) : null
+      }),
       invalidatesTags: ["MonthlyOrderAdmin", "MonthlyPlanAdmin"]
     }),
     getMonthlyLocationsAdmin: builder.query<ApiResponse<LocationRecord[]>, void>({
