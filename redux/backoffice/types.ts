@@ -87,6 +87,26 @@ export interface WebsiteSettingsRecord {
   rtlEnabled: boolean;
 }
 
+export interface PromoCodeRecord {
+  id: string;
+  code: string;
+  description: string;
+  discountType: "percent" | "fixed";
+  discountValue: number;
+  maxDiscount: number | null;
+  startDate: string;
+  endDate: string;
+  usageLimit: number | null;
+  usedCount: number;
+  isActive: boolean;
+  appliesToMonthlyPlans: boolean;
+  appliesToDirectOrders: boolean;
+  stackable: boolean;
+  showOnHomepage: boolean;
+  eligibilityNote: string;
+  updatedAt: string;
+}
+
 export interface AdminRoleRecord {
   id: string;
   name: string;
@@ -101,5 +121,6 @@ export interface BackofficeSnapshot {
   pages: WebsitePageRecord[];
   menuCategories: WebsiteMenuCategoryRecord[];
   settings: WebsiteSettingsRecord;
+  promoCodes?: PromoCodeRecord[];
   roles: AdminRoleRecord[];
 }

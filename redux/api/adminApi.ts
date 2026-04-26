@@ -3,6 +3,7 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { backofficeMockAdapter } from "@/redux/backoffice/mockAdapter";
 import type {
   AdminRoleRecord,
+  PromoCodeRecord,
   WebsiteMenuCategoryRecord,
   WebsitePageRecord,
   WebsiteSettingsRecord
@@ -70,7 +71,8 @@ export const adminApi = createApi({
     "WebsitePagesAdmin",
     "WebsiteMenuCategoriesAdmin",
     "WebsiteSettingsAdmin",
-    "AdminRoles"
+    "AdminRoles",
+    "PromoCodesAdmin"
   ],
   endpoints: (builder) => ({
     getDashboard: builder.query<ApiResponse<any>, void>({
@@ -214,6 +216,23 @@ export const adminApi = createApi({
     deleteNotification: builder.mutation<void, string>({
       query: (id) => ({ url: `/notifications/${id}`, method: "DELETE" }),
       invalidatesTags: ["Notifications"]
+    }),
+
+    getPromoCodesAdmin: builder.query<ApiResponse<PromoCodeRecord[]>, void>({
+      query: () => "/promo-codes",
+      providesTags: ["PromoCodesAdmin"]
+    }),
+    createPromoCodeAdmin: builder.mutation<ApiResponse<PromoCodeRecord>, Omit<PromoCodeRecord, "updatedAt">>({
+      query: (body) => ({ url: "/promo-codes", method: "POST", body }),
+      invalidatesTags: ["PromoCodesAdmin"]
+    }),
+    updatePromoCodeAdmin: builder.mutation<ApiResponse<PromoCodeRecord>, { id: string; body: Omit<PromoCodeRecord, "id" | "updatedAt"> }>({
+      query: ({ id, body }) => ({ url: `/promo-codes/${id}`, method: "PATCH", body }),
+      invalidatesTags: ["PromoCodesAdmin"]
+    }),
+    deletePromoCodeAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
+      query: (id) => ({ url: `/promo-codes/${id}`, method: "DELETE" }),
+      invalidatesTags: ["PromoCodesAdmin"]
     }),
 
     getOrdersOfDay: builder.query<ApiResponse<any[]>, void>({
@@ -602,6 +621,10 @@ export const {
   useUpdateSubscriptionMutation,
   useGetNotificationsQuery,
   useDeleteNotificationMutation,
+  useGetPromoCodesAdminQuery,
+  useCreatePromoCodeAdminMutation,
+  useUpdatePromoCodeAdminMutation,
+  useDeletePromoCodeAdminMutation,
   useGetOrdersOfDayQuery,
   useGetPrintableOrdersQuery,
   useAdminLoginMutation,
