@@ -57,6 +57,7 @@ export default function WebsitePagesOverviewPage() {
 
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {[
+                  { href: "/admin/header-navigation", title: "Header Navigation", text: "Rename or hide the main website nav items with a dedicated preview-first editor." },
                   { href: "/admin/website-pages/pages", title: "Pages", text: "Create custom pages, legal pages, and manage publish state." },
                   { href: "/admin/website-pages/home", title: "Home", text: "Edit homepage text, hero image, and supporting content blocks." },
                   { href: "/admin/website-pages/menu", title: "Menu", text: "Manage hero, helper copy, and CTA content around live menu data." },

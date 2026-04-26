@@ -49,6 +49,7 @@ export const adminNavSections: AdminNavSection[] = [
     title: "Website Pages",
     items: [
       { href: "/admin/website-pages", label: "Pages Overview", description: "Manage public content and navigation surfaces." },
+      { href: "/admin/header-navigation", label: "Header Navigation", description: "Control which top-nav items appear and what each one is called." },
       { href: "/admin/website-pages/pages", label: "Pages", description: "Create, edit, publish, and archive website pages." },
       { href: "/admin/website-pages/home", label: "Home", description: "Homepage text, imagery, and section content." },
       { href: "/admin/website-pages/menu", label: "Menu", description: "Hero, helper copy, and CTA content around the live menu." },
