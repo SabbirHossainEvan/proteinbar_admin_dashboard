@@ -78,6 +78,10 @@ export interface MonthlyPlanContent {
   heroSubtitle?: string;
   selectMealsText?: string;
   checkoutText?: string;
+  regularStepTwo?: {
+    categories: CustomPlanCategory[];
+    foodItems: CustomPlanFoodItem[];
+  };
   customStepTwo?: {
     categories: CustomPlanCategory[];
     foodItems: CustomPlanFoodItem[];

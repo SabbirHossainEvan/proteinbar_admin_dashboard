@@ -131,11 +131,11 @@ const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
       heroSubtitle: details.plan.content?.heroSubtitle ?? "",
       selectMealsText: details.plan.content?.selectMealsText ?? "",
       checkoutText: details.plan.content?.checkoutText ?? "",
-      ...((details.plan.planKind === "custom" || details.plan.content?.customStepTwo)
+      ...((details.plan.planKind === "custom" || details.plan.content?.regularStepTwo || details.plan.content?.customStepTwo)
         ? {
-            customStepTwo: {
-              categories: (details.plan.content?.customStepTwo?.categories ?? []).map((category) => ({ ...category })),
-              foodItems: (details.plan.content?.customStepTwo?.foodItems ?? []).map((item) => ({
+            regularStepTwo: {
+              categories: (details.plan.content?.regularStepTwo?.categories ?? details.plan.content?.customStepTwo?.categories ?? []).map((category) => ({ ...category })),
+              foodItems: (details.plan.content?.regularStepTwo?.foodItems ?? details.plan.content?.customStepTwo?.foodItems ?? []).map((item) => ({
                 ...item,
                 sizes: item.sizes.map((size) => ({ ...size }))
               }))
@@ -240,8 +240,8 @@ const validateDetails = (details: MonthlyPlanDetails, availableMeals: MonthlyPla
     });
   });
 
-  const categoryIds = new Set(details.plan.content?.customStepTwo?.categories.map((category) => category.id) ?? []);
-  details.plan.content?.customStepTwo?.categories.forEach((category) => {
+  const categoryIds = new Set(details.plan.content?.regularStepTwo?.categories.map((category) => category.id) ?? []);
+  details.plan.content?.regularStepTwo?.categories.forEach((category) => {
     if (!category.name.trim()) errors.push("Custom categories require a name.");
     if (category.selectionMode === "single" && category.maxSelect !== null && category.maxSelect !== 1) {
       errors.push(`Category ${category.name} must use max select 1 for single-select.`);
@@ -251,7 +251,7 @@ const validateDetails = (details: MonthlyPlanDetails, availableMeals: MonthlyPla
     }
   });
 
-  details.plan.content?.customStepTwo?.foodItems.forEach((item) => {
+  details.plan.content?.regularStepTwo?.foodItems.forEach((item) => {
     if (!item.name.trim()) errors.push("Custom food items require a name.");
     if (!categoryIds.has(item.categoryId)) errors.push(`Food item ${item.name} references a missing category.`);
     if (!item.imageUrl.trim()) errors.push(`Food item ${item.name} requires an image URL.`);
@@ -304,8 +304,8 @@ export default function MonthlyPlanDetailEditorPage() {
   const meals = useMemo(() => mealLibraryData?.data ?? draft?.mealLibrary ?? [], [draft?.mealLibrary, mealLibraryData]);
   const selectedMealsOnDate = selectedWeek && selectedDate ? selectedWeek.mealsByDate[selectedDate] ?? [] : [];
   const isCustomPlan = draft?.plan.planKind === "custom";
-  const customCategories = useMemo(() => draft?.plan.content?.customStepTwo?.categories ?? [], [draft?.plan.content?.customStepTwo?.categories]);
-  const customFoodItems = useMemo(() => draft?.plan.content?.customStepTwo?.foodItems ?? [], [draft?.plan.content?.customStepTwo?.foodItems]);
+  const customCategories = useMemo(() => draft?.plan.content?.regularStepTwo?.categories ?? [], [draft?.plan.content?.regularStepTwo?.categories]);
+  const customFoodItems = useMemo(() => draft?.plan.content?.regularStepTwo?.foodItems ?? [], [draft?.plan.content?.regularStepTwo?.foodItems]);
   const setPlanField = <K extends keyof MonthlyPlanDetails["plan"]>(field: K, value: MonthlyPlanDetails["plan"][K]) => {
     setDraft((prev) => (prev ? { ...prev, plan: { ...prev.plan, [field]: value } } : prev));
   };
@@ -388,20 +388,20 @@ export default function MonthlyPlanDetailEditorPage() {
     const newCategory: CustomPlanCategory = {
       id: `cat-${Date.now()}`, planId, name: "New Category", slug: `cat-${Date.now()}`, displayOrder: customCategories.length, selectionMode: "single", isActive: true, isRequired: false, minSelect: 1, maxSelect: 1
     };
-    setDraft((prev) => !prev ? prev : { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { categories: [...(prev.plan.content?.customStepTwo?.categories || []), newCategory], foodItems: prev.plan.content?.customStepTwo?.foodItems || [] } } } });
+    setDraft((prev) => !prev ? prev : { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, regularStepTwo: { categories: [...(prev.plan.content?.regularStepTwo?.categories || []), newCategory], foodItems: prev.plan.content?.regularStepTwo?.foodItems || [] } } } });
   };
   
   const updateRegularMealCategory = (categoryId: string, name: string) => {
     setDraft((prev) => {
-      if (!prev || !prev.plan.content?.customStepTwo) return prev;
-      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { ...prev.plan.content.customStepTwo, categories: prev.plan.content.customStepTwo.categories.map(c => c.id === categoryId ? { ...c, name } : c) } } } };
+      if (!prev || !prev.plan.content?.regularStepTwo) return prev;
+      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, regularStepTwo: { ...prev.plan.content.regularStepTwo, categories: prev.plan.content.regularStepTwo.categories.map(c => c.id === categoryId ? { ...c, name } : c) } } } };
     });
   };
 
   const removeRegularMealCategory = (categoryId: string) => {
     setDraft((prev) => {
-      if (!prev || !prev.plan.content?.customStepTwo) return prev;
-      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { categories: prev.plan.content.customStepTwo.categories.filter(c => c.id !== categoryId), foodItems: prev.plan.content.customStepTwo.foodItems.filter(f => f.categoryId !== categoryId) } } } };
+      if (!prev || !prev.plan.content?.regularStepTwo) return prev;
+      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, regularStepTwo: { categories: prev.plan.content.regularStepTwo.categories.filter(c => c.id !== categoryId), foodItems: prev.plan.content.regularStepTwo.foodItems.filter(f => f.categoryId !== categoryId) } } } };
     });
   };
 
@@ -425,22 +425,22 @@ export default function MonthlyPlanDetailEditorPage() {
       isActive: true,
       sizes: [{ id: `ps-${Date.now()}`, foodItemId: foodId, label: "Regular", price: 0, calories: libraryMeal.calories, protein: libraryMeal.protein, carbs: libraryMeal.carbs, fat: libraryMeal.fat, displayOrder: 0, isActive: true }]
     };
-    setDraft((prev) => !prev ? prev : { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { categories: prev.plan.content?.customStepTwo?.categories || [], foodItems: [...(prev.plan.content?.customStepTwo?.foodItems || []), newItem] } } } });
+    setDraft((prev) => !prev ? prev : { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, regularStepTwo: { categories: prev.plan.content?.regularStepTwo?.categories || [], foodItems: [...(prev.plan.content?.regularStepTwo?.foodItems || []), newItem] } } } });
     setPickerCategoryId(null);
     setPickerMealId("");
   };
 
   const updateRegularFoodItem = (foodId: string, updates: Partial<CustomPlanFoodItem>) => {
     setDraft((prev) => {
-      if (!prev || !prev.plan.content?.customStepTwo) return prev;
-      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { ...prev.plan.content.customStepTwo, foodItems: prev.plan.content.customStepTwo.foodItems.map(f => f.id === foodId ? { ...f, ...updates } : f) } } } };
+      if (!prev || !prev.plan.content?.regularStepTwo) return prev;
+      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, regularStepTwo: { ...prev.plan.content.regularStepTwo, foodItems: prev.plan.content.regularStepTwo.foodItems.map(f => f.id === foodId ? { ...f, ...updates } : f) } } } };
     });
   };
 
   const removeRegularFoodItem = (foodId: string) => {
     setDraft((prev) => {
-      if (!prev || !prev.plan.content?.customStepTwo) return prev;
-      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, customStepTwo: { ...prev.plan.content.customStepTwo, foodItems: prev.plan.content.customStepTwo.foodItems.filter(f => f.id !== foodId) } } } };
+      if (!prev || !prev.plan.content?.regularStepTwo) return prev;
+      return { ...prev, plan: { ...prev.plan, content: { ...prev.plan.content, regularStepTwo: { ...prev.plan.content.regularStepTwo, foodItems: prev.plan.content.regularStepTwo.foodItems.filter(f => f.id !== foodId) } } } };
     });
   };
 
