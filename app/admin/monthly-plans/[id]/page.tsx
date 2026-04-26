@@ -419,6 +419,7 @@ export default function MonthlyPlanDetailEditorPage() {
       id: foodId,
       planId,
       categoryId: pickerCategoryId,
+      sourceMealId: libraryMeal.id,
       name: libraryMeal.name,
       imageUrl: libraryMeal.image || "https://placehold.co/400x300",
       displayOrder: customFoodItems.filter((f) => f.categoryId === pickerCategoryId).length,

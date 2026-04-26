@@ -123,6 +123,7 @@ export interface MealLibraryItem {
   carbs: number;
   fat: number;
   tags: string[];
+  addOnOptions?: string[];
   status: "active" | "inactive";
   image?: string;
 }
@@ -159,6 +160,7 @@ export interface CustomPlanFoodItem {
   id: string;
   planId: string;
   categoryId: string;
+  sourceMealId?: string;
   name: string;
   imageUrl: string;
   description?: string;

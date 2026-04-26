@@ -373,14 +373,14 @@ export const adminApi = createApi({
         method: "PUT",
         body: payload
       }),
-      invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin"]
+      invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin", "MonthlyPlanDetails"]
     }),
     deleteMealLibraryAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
       query: (id) => ({
         url: `/admin/monthly-plan/meals/${id}`,
         method: "DELETE"
       }),
-      invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin"]
+      invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin", "MonthlyPlanDetails"]
     }),
     getCustomPlanCategoriesAdmin: builder.query<ApiResponse<CustomPlanCategory[]>, string>({
       query: (planId) => ({
