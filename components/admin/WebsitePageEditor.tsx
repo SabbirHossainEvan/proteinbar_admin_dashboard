@@ -2,15 +2,18 @@
 
 import { ChangeEvent, useMemo, useState } from "react";
 import { ErrorState } from "@/components/admin/StateBlocks";
-import LocationsManager, { normalizeAdminLocation } from "@/components/admin/LocationsManager";
+import LocationsManager, {
+  normalizeAdminLocation,
+} from "@/components/admin/LocationsManager";
 import {
   useGetLocationsQuery,
-  useUpsertWebsitePageAdminMutation
+  useUpsertWebsitePageAdminMutation,
 } from "@/redux/api/adminApi";
 import type {
   WebsitePageRecord,
   WebsitePageSection,
-  WebsiteRepeaterItem
+  WebsiteRepeaterItem,
+  WebsiteSectionType,
 } from "@/redux/backoffice/types";
 import type { LocationRecord } from "@/redux/monthlyPlans/types";
 
@@ -26,7 +29,7 @@ const createSection = (sortOrder: number): WebsitePageSection => ({
   image: "",
   buttonLabel: "",
   buttonLink: "",
-  items: []
+  items: [],
 });
 
 const moveItem = <T,>(items: T[], from: number, to: number) => {
@@ -37,10 +40,15 @@ const moveItem = <T,>(items: T[], from: number, to: number) => {
   return next;
 };
 
-const normalizeSortOrders = (sections: WebsitePageSection[]) =>
+const normalizeSortOrders = (
+  sections: WebsitePageSection[],
+): WebsitePageSection[] =>
   sections.map((section, index) => ({ ...section, sortOrder: index }));
 
-const duplicateSection = (section: WebsitePageSection, sortOrder: number): WebsitePageSection => ({
+const duplicateSection = (
+  section: WebsitePageSection,
+  sortOrder: number,
+): WebsitePageSection => ({
   ...section,
   id: `section-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   sectionKey: `${section.sectionKey || "section"}-${Math.random().toString(36).slice(2, 5)}`,
@@ -48,8 +56,8 @@ const duplicateSection = (section: WebsitePageSection, sortOrder: number): Websi
   sortOrder,
   items: section.items.map((item) => ({
     ...item,
-    id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-  }))
+    id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  })),
 });
 
 const locationsSectionKey = "dynamic-locations-list";
@@ -62,8 +70,7 @@ const defaultLocationsDeliverySection = (): WebsitePageSection => ({
   isVisible: true,
   sortOrder: 0,
   heading: "2 Locations & Delivery All Over Casablanca",
-  body:
-    "Besides Our 2 Locations, We Focus Bringing Healthy, Delicious Meals Right To Your Doorstep, Wherever You Are In Casablanca.",
+  body: "Besides Our 2 Locations, We Focus Bringing Healthy, Delicious Meals Right To Your Doorstep, Wherever You Are In Casablanca.",
   eyebrow: "",
   image: "/healthy/image-7.png",
   buttonLabel: "",
@@ -75,7 +82,7 @@ const defaultLocationsDeliverySection = (): WebsitePageSection => ({
       subtitle: "+",
       body: "users",
       value: "14",
-      image: ""
+      image: "",
     },
     {
       id: `item-${Date.now()}-delivery-stat-2`,
@@ -83,7 +90,7 @@ const defaultLocationsDeliverySection = (): WebsitePageSection => ({
       subtitle: "/7",
       body: "calendar",
       value: "7",
-      image: ""
+      image: "",
     },
     {
       id: `item-${Date.now()}-delivery-stat-3`,
@@ -91,37 +98,48 @@ const defaultLocationsDeliverySection = (): WebsitePageSection => ({
       subtitle: "+",
       body: "thumbs-up",
       value: "411",
-      image: ""
-    }
-  ]
+      image: "",
+    },
+  ],
 });
 
-const toLocationRepeaterItem = (location: LocationRecord): WebsiteRepeaterItem => ({
+const toLocationRepeaterItem = (
+  location: LocationRecord,
+): WebsiteRepeaterItem => ({
   id: `location-item-${location.id}`,
   title: location.name,
   subtitle: `${location.type} ${location.isActive ? "| active" : "| inactive"}`,
   body: location.address,
   label: location.googleMapsUrl ? "Open map" : undefined,
   link: location.googleMapsUrl,
-  value: location.ratingText || (location.phone ? `Phone: ${location.phone}` : ""),
-  image: location.image
+  value:
+    location.ratingText || (location.phone ? `Phone: ${location.phone}` : ""),
+  image: location.image,
 });
 
-const ensureLocationsSection = (sections: WebsitePageSection[], locations: LocationRecord[]) => {
+const ensureLocationsSection = (
+  sections: WebsitePageSection[],
+  locations: LocationRecord[],
+): WebsitePageSection[] => {
   const syncedItems = locations.map(toLocationRepeaterItem);
-  const existingSection = sections.find((section) => section.sectionKey === locationsSectionKey);
+  const existingSection = sections.find(
+    (section) => section.sectionKey === locationsSectionKey,
+  );
 
   if (existingSection) {
-    return sections.map((section) =>
-      section.sectionKey === locationsSectionKey
-        ? {
-            ...section,
-            sectionType: "dynamicEmbed",
-            heading: section.heading || "Location Directory",
-            body: section.body || "This section is synced automatically from the Locations admin screen.",
-            items: syncedItems
-          }
-        : section
+    return sections.map(
+      (section): WebsitePageSection =>
+        section.sectionKey === locationsSectionKey
+          ? {
+              ...section,
+              sectionType: "dynamicEmbed" as WebsiteSectionType,
+              heading: section.heading || "Location Directory",
+              body:
+                section.body ||
+                "This section is synced automatically from the Locations admin screen.",
+              items: syncedItems,
+            }
+          : section,
     );
   }
 
@@ -130,7 +148,7 @@ const ensureLocationsSection = (sections: WebsitePageSection[], locations: Locat
     {
       id: `section-${Date.now()}-locations`,
       sectionKey: locationsSectionKey,
-      sectionType: "dynamicEmbed",
+      sectionType: "dynamicEmbed" as WebsiteSectionType,
       isVisible: true,
       sortOrder: sections.length,
       heading: "Location Directory",
@@ -139,46 +157,81 @@ const ensureLocationsSection = (sections: WebsitePageSection[], locations: Locat
       image: "",
       buttonLabel: "",
       buttonLink: "",
-      items: syncedItems
-    }
+      items: syncedItems,
+    },
   ]);
 };
 
-const ensureLocationsPageSections = (sections: WebsitePageSection[], locations: LocationRecord[]) => {
-  const withDeliverySection = sections.some((section) => section.sectionKey === locationsDeliverySectionKey)
+const ensureLocationsPageSections = (
+  sections: WebsitePageSection[],
+  locations: LocationRecord[],
+): WebsitePageSection[] => {
+  const withDeliverySection = sections.some(
+    (section) => section.sectionKey === locationsDeliverySectionKey,
+  )
     ? sections
     : normalizeSortOrders([defaultLocationsDeliverySection(), ...sections]);
 
   return ensureLocationsSection(withDeliverySection, locations);
 };
 
-export default function WebsitePageEditor({ page }: { page: WebsitePageRecord }) {
+export default function WebsitePageEditor({
+  page,
+}: {
+  page: WebsitePageRecord;
+}) {
   const [draft, setDraft] = useState<WebsitePageRecord>(page);
   const [saveMessage, setSaveMessage] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
-  const [savePage, { isLoading: isSaving }] = useUpsertWebsitePageAdminMutation();
-  const { data: locationsData } = useGetLocationsQuery(undefined, { skip: page.slug !== "locations" });
+  const [savePage, { isLoading: isSaving }] =
+    useUpsertWebsitePageAdminMutation();
+  const { data: locationsData } = useGetLocationsQuery(undefined, {
+    skip: page.slug !== "locations",
+  });
   const syncedLocations = useMemo(
-    () => ((locationsData?.data ?? []) as Parameters<typeof normalizeAdminLocation>[0][]).map(normalizeAdminLocation),
-    [locationsData]
+    () =>
+      (
+        (locationsData?.data ?? []) as Parameters<
+          typeof normalizeAdminLocation
+        >[0][]
+      ).map(normalizeAdminLocation),
+    [locationsData],
   );
   const draftWithSyncedLocations = useMemo(
-    () => (page.slug === "locations" ? { ...draft, sections: ensureLocationsPageSections(draft.sections, syncedLocations) } : draft),
-    [draft, page.slug, syncedLocations]
+    (): WebsitePageRecord =>
+      page.slug === "locations"
+        ? {
+            ...draft,
+            sections: ensureLocationsPageSections(
+              draft.sections,
+              syncedLocations,
+            ),
+          }
+        : draft,
+    [draft, page.slug, syncedLocations],
   );
   const locationsDeliverySection = useMemo(
-    () => draftWithSyncedLocations.sections.find((section) => section.sectionKey === locationsDeliverySectionKey),
-    [draftWithSyncedLocations.sections]
+    () =>
+      draftWithSyncedLocations.sections.find(
+        (section) => section.sectionKey === locationsDeliverySectionKey,
+      ),
+    [draftWithSyncedLocations.sections],
   );
 
   const visibleSectionCount = useMemo(
-    () => draftWithSyncedLocations.sections.filter((section) => section.isVisible).length,
-    [draftWithSyncedLocations.sections]
+    () =>
+      draftWithSyncedLocations.sections.filter((section) => section.isVisible)
+        .length,
+    [draftWithSyncedLocations.sections],
   );
 
   const repeaterItemCount = useMemo(
-    () => draftWithSyncedLocations.sections.reduce((count, section) => count + section.items.length, 0),
-    [draftWithSyncedLocations.sections]
+    () =>
+      draftWithSyncedLocations.sections.reduce(
+        (count, section) => count + section.items.length,
+        0,
+      ),
+    [draftWithSyncedLocations.sections],
   );
 
   const updateDraft = (patch: Partial<WebsitePageRecord>) => {
@@ -188,7 +241,7 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
   const setSections = (nextSections: WebsitePageSection[]) => {
     setDraft((current) => ({
       ...current,
-      sections: normalizeSortOrders(nextSections)
+      sections: normalizeSortOrders(nextSections),
     }));
   };
 
@@ -205,19 +258,25 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
   };
 
   const onRemoveSection = (sectionId: string) => {
-    const nextSections = draft.sections.filter((section) => section.id !== sectionId);
+    const nextSections = draft.sections.filter(
+      (section) => section.id !== sectionId,
+    );
     setSections(nextSections);
   };
 
   const onMoveSection = (sectionId: string, direction: -1 | 1) => {
-    const currentIndex = draft.sections.findIndex((section) => section.id === sectionId);
+    const currentIndex = draft.sections.findIndex(
+      (section) => section.id === sectionId,
+    );
     if (currentIndex === -1) return;
-    setSections(moveItem(draft.sections, currentIndex, currentIndex + direction));
+    setSections(
+      moveItem(draft.sections, currentIndex, currentIndex + direction),
+    );
   };
 
   const readImage = (
     event: ChangeEvent<HTMLInputElement>,
-    onLoad: (result: string) => void
+    onLoad: (result: string) => void,
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -233,20 +292,31 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
     const nextErrors: string[] = [];
 
     if (!draft.title.trim()) nextErrors.push("Page title is required.");
-    if (!draft.navLabel.trim()) nextErrors.push("Navigation label is required.");
+    if (!draft.navLabel.trim())
+      nextErrors.push("Navigation label is required.");
     if (!draft.summary.trim()) nextErrors.push("Summary is required.");
     if (!draft.heroTitle.trim()) nextErrors.push("Hero title is required.");
     if (!draft.seoTitle.trim()) nextErrors.push("SEO title is required.");
-    if (!draft.seoDescription.trim()) nextErrors.push("SEO description is required.");
+    if (!draft.seoDescription.trim())
+      nextErrors.push("SEO description is required.");
 
     draftWithSyncedLocations.sections.forEach((section, index) => {
-      if (!section.sectionKey.trim()) nextErrors.push(`Section ${index + 1} needs a section key.`);
-      if (!section.heading.trim() && !section.body.trim() && !section.items.length) {
-        nextErrors.push(`Section ${index + 1} needs content or repeater items.`);
+      if (!section.sectionKey.trim())
+        nextErrors.push(`Section ${index + 1} needs a section key.`);
+      if (
+        !section.heading.trim() &&
+        !section.body.trim() &&
+        !section.items.length
+      ) {
+        nextErrors.push(
+          `Section ${index + 1} needs content or repeater items.`,
+        );
       }
       section.items.forEach((item, itemIndex) => {
         if (!item.title.trim() && !item.body?.trim() && !item.value?.trim()) {
-          nextErrors.push(`Section ${index + 1}, item ${itemIndex + 1} needs at least a title, value, or body.`);
+          nextErrors.push(
+            `Section ${index + 1}, item ${itemIndex + 1} needs at least a title, value, or body.`,
+          );
         }
       });
     });
@@ -260,13 +330,15 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
     try {
       const response = await savePage({
         ...draftWithSyncedLocations,
-        sections: normalizeSortOrders(draftWithSyncedLocations.sections)
+        sections: normalizeSortOrders(draftWithSyncedLocations.sections),
       }).unwrap();
       setDraft(response.data);
       setErrors([]);
       setSaveMessage("Page saved successfully.");
     } catch (error) {
-      setErrors([error instanceof Error ? error.message : "Failed to save page."]);
+      setErrors([
+        error instanceof Error ? error.message : "Failed to save page.",
+      ]);
       setSaveMessage("");
     }
   };
@@ -278,11 +350,15 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
           { label: "Page Type", value: draft.kind },
           { label: "Status", value: draft.status },
           { label: "Visible Sections", value: String(visibleSectionCount) },
-          { label: "Repeater Items", value: String(repeaterItemCount) }
+          { label: "Repeater Items", value: String(repeaterItemCount) },
         ].map((item) => (
           <article key={item.label} className="admin-panel rounded-2xl p-5">
-            <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">{item.label}</p>
-            <p className="mt-2 text-2xl font-semibold text-white">{item.value}</p>
+            <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+              {item.label}
+            </p>
+            <p className="mt-2 text-2xl font-semibold text-white">
+              {item.value}
+            </p>
           </article>
         ))}
       </section>
@@ -292,7 +368,9 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-white">Sections</h3>
-              <p className="mt-1 text-xs text-zinc-400">Select, reorder, duplicate, or hide blocks.</p>
+              <p className="mt-1 text-xs text-zinc-400">
+                Select, reorder, duplicate, or hide blocks.
+              </p>
             </div>
             <button
               type="button"
@@ -316,13 +394,17 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                     </span>
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${
-                        section.isVisible ? "bg-emerald-500/15 text-emerald-200" : "bg-zinc-800 text-zinc-400"
+                        section.isVisible
+                          ? "bg-emerald-500/15 text-emerald-200"
+                          : "bg-zinc-800 text-zinc-400"
                       }`}
                     >
                       {section.isVisible ? "Visible" : "Hidden"}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-zinc-400">{section.sectionType}</p>
+                  <p className="mt-1 text-xs text-zinc-400">
+                    {section.sectionType}
+                  </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -370,34 +452,52 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
             <h3 className="text-lg font-semibold text-white">Page Settings</h3>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Page Title</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Page Title
+                </span>
                 <input
                   value={draft.title}
-                  onChange={(event) => updateDraft({ title: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ title: event.target.value })
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Navigation Label</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Navigation Label
+                </span>
                 <input
                   value={draft.navLabel}
-                  onChange={(event) => updateDraft({ navLabel: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ navLabel: event.target.value })
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Slug</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Slug
+                </span>
                 <input
                   value={draft.slug}
-                  onChange={(event) => updateDraft({ slug: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ slug: event.target.value })
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Page Type</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Page Type
+                </span>
                 <select
                   value={draft.kind}
-                  onChange={(event) => updateDraft({ kind: event.target.value as WebsitePageRecord["kind"] })}
+                  onChange={(event) =>
+                    updateDraft({
+                      kind: event.target.value as WebsitePageRecord["kind"],
+                    })
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 >
                   <option value="system">System</option>
@@ -406,10 +506,14 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                 </select>
               </label>
               <label className="space-y-1 lg:col-span-2">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Summary</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Summary
+                </span>
                 <textarea
                   value={draft.summary}
-                  onChange={(event) => updateDraft({ summary: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ summary: event.target.value })
+                  }
                   rows={3}
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
@@ -429,9 +533,12 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
             <section className="admin-panel rounded-2xl p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-semibold text-white">Delivery Overview Content</h3>
+                  <h3 className="text-lg font-semibold text-white">
+                    Delivery Overview Content
+                  </h3>
                   <p className="mt-1 text-sm text-zinc-300">
-                    Manage the content for the customer locations page section below the hero.
+                    Manage the content for the customer locations page section
+                    below the hero.
                   </p>
                 </div>
               </div>
@@ -446,20 +553,26 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                         draftWithSyncedLocations.sections.map((section) =>
                           section.sectionKey === locationsDeliverySectionKey
                             ? { ...section, isVisible: event.target.checked }
-                            : section
-                        )
+                            : section,
+                        ),
                       )
                     }
                     className="mt-1 h-4 w-4 accent-amber-300"
                   />
                   <span>
-                    <span className="block text-sm font-medium text-zinc-100">Show this section on the customer page</span>
-                    <span className="block text-xs text-zinc-400">Hide or show the delivery overview block instantly.</span>
+                    <span className="block text-sm font-medium text-zinc-100">
+                      Show this section on the customer page
+                    </span>
+                    <span className="block text-xs text-zinc-400">
+                      Hide or show the delivery overview block instantly.
+                    </span>
                   </span>
                 </label>
 
                 <label className="space-y-1 lg:col-span-2">
-                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Section Heading</span>
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                    Section Heading
+                  </span>
                   <input
                     value={locationsDeliverySection.heading}
                     onChange={(event) =>
@@ -467,8 +580,8 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                         draftWithSyncedLocations.sections.map((section) =>
                           section.sectionKey === locationsDeliverySectionKey
                             ? { ...section, heading: event.target.value }
-                            : section
-                        )
+                            : section,
+                        ),
                       )
                     }
                     className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
@@ -476,7 +589,9 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                 </label>
 
                 <label className="space-y-1 lg:col-span-2">
-                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Section Body</span>
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                    Section Body
+                  </span>
                   <textarea
                     value={locationsDeliverySection.body}
                     onChange={(event) =>
@@ -484,8 +599,8 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                         draftWithSyncedLocations.sections.map((section) =>
                           section.sectionKey === locationsDeliverySectionKey
                             ? { ...section, body: event.target.value }
-                            : section
-                        )
+                            : section,
+                        ),
                       )
                     }
                     rows={4}
@@ -494,7 +609,9 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                 </label>
 
                 <label className="space-y-1">
-                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Section Image URL</span>
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                    Section Image URL
+                  </span>
                   <input
                     value={locationsDeliverySection.image ?? ""}
                     onChange={(event) =>
@@ -502,8 +619,8 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                         draftWithSyncedLocations.sections.map((section) =>
                           section.sectionKey === locationsDeliverySectionKey
                             ? { ...section, image: event.target.value }
-                            : section
-                        )
+                            : section,
+                        ),
                       )
                     }
                     className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
@@ -511,21 +628,21 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                 </label>
 
                 <label className="space-y-1">
-                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Upload Section Image</span>
+                  <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                    Upload Section Image
+                  </span>
                   <input
                     type="file"
                     accept="image/*"
                     onChange={(event) =>
-                      readImage(
-                        event,
-                        (result) =>
-                          setSections(
-                            draftWithSyncedLocations.sections.map((section) =>
-                              section.sectionKey === locationsDeliverySectionKey
-                                ? { ...section, image: result }
-                                : section
-                            )
-                          )
+                      readImage(event, (result) =>
+                        setSections(
+                          draftWithSyncedLocations.sections.map((section) =>
+                            section.sectionKey === locationsDeliverySectionKey
+                              ? { ...section, image: result }
+                              : section,
+                          ),
+                        ),
                       )
                     }
                     className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-300 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-900"
@@ -534,76 +651,114 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
               </div>
 
               <div className="mt-5 grid gap-4 md:grid-cols-3">
-                {locationsDeliverySection.items.slice(0, 3).map((item, index) => (
-                  <article key={item.id} className="rounded-2xl border border-zinc-700/70 bg-zinc-900/45 p-4">
-                    <p className="text-sm font-semibold text-white">Stat {index + 1}</p>
-                    <div className="mt-4 space-y-3">
-                      <label className="space-y-1">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Label</span>
-                        <input
-                          value={item.title}
-                          onChange={(event) =>
-                            setSections(
-                              draftWithSyncedLocations.sections.map((section) =>
-                                section.sectionKey === locationsDeliverySectionKey
-                                  ? {
-                                      ...section,
-                                      items: section.items.map((currentItem, itemIndex) =>
-                                        itemIndex === index ? { ...currentItem, title: event.target.value } : currentItem
-                                      )
-                                    }
-                                  : section
+                {locationsDeliverySection.items
+                  .slice(0, 3)
+                  .map((item, index) => (
+                    <article
+                      key={item.id}
+                      className="rounded-2xl border border-zinc-700/70 bg-zinc-900/45 p-4"
+                    >
+                      <p className="text-sm font-semibold text-white">
+                        Stat {index + 1}
+                      </p>
+                      <div className="mt-4 space-y-3">
+                        <label className="space-y-1">
+                          <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                            Label
+                          </span>
+                          <input
+                            value={item.title}
+                            onChange={(event) =>
+                              setSections(
+                                draftWithSyncedLocations.sections.map(
+                                  (section) =>
+                                    section.sectionKey ===
+                                    locationsDeliverySectionKey
+                                      ? {
+                                          ...section,
+                                          items: section.items.map(
+                                            (currentItem, itemIndex) =>
+                                              itemIndex === index
+                                                ? {
+                                                    ...currentItem,
+                                                    title: event.target.value,
+                                                  }
+                                                : currentItem,
+                                          ),
+                                        }
+                                      : section,
+                                ),
                               )
-                            )
-                          }
-                          className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                        />
-                      </label>
-                      <label className="space-y-1">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Value</span>
-                        <input
-                          value={item.value ?? ""}
-                          onChange={(event) =>
-                            setSections(
-                              draftWithSyncedLocations.sections.map((section) =>
-                                section.sectionKey === locationsDeliverySectionKey
-                                  ? {
-                                      ...section,
-                                      items: section.items.map((currentItem, itemIndex) =>
-                                        itemIndex === index ? { ...currentItem, value: event.target.value } : currentItem
-                                      )
-                                    }
-                                  : section
+                            }
+                            className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                          />
+                        </label>
+                        <label className="space-y-1">
+                          <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                            Value
+                          </span>
+                          <input
+                            value={item.value ?? ""}
+                            onChange={(event) =>
+                              setSections(
+                                draftWithSyncedLocations.sections.map(
+                                  (section) =>
+                                    section.sectionKey ===
+                                    locationsDeliverySectionKey
+                                      ? {
+                                          ...section,
+                                          items: section.items.map(
+                                            (currentItem, itemIndex) =>
+                                              itemIndex === index
+                                                ? {
+                                                    ...currentItem,
+                                                    value: event.target.value,
+                                                  }
+                                                : currentItem,
+                                          ),
+                                        }
+                                      : section,
+                                ),
                               )
-                            )
-                          }
-                          className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                        />
-                      </label>
-                      <label className="space-y-1">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Suffix</span>
-                        <input
-                          value={item.subtitle ?? ""}
-                          onChange={(event) =>
-                            setSections(
-                              draftWithSyncedLocations.sections.map((section) =>
-                                section.sectionKey === locationsDeliverySectionKey
-                                  ? {
-                                      ...section,
-                                      items: section.items.map((currentItem, itemIndex) =>
-                                        itemIndex === index ? { ...currentItem, subtitle: event.target.value } : currentItem
-                                      )
-                                    }
-                                  : section
+                            }
+                            className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                          />
+                        </label>
+                        <label className="space-y-1">
+                          <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                            Suffix
+                          </span>
+                          <input
+                            value={item.subtitle ?? ""}
+                            onChange={(event) =>
+                              setSections(
+                                draftWithSyncedLocations.sections.map(
+                                  (section) =>
+                                    section.sectionKey ===
+                                    locationsDeliverySectionKey
+                                      ? {
+                                          ...section,
+                                          items: section.items.map(
+                                            (currentItem, itemIndex) =>
+                                              itemIndex === index
+                                                ? {
+                                                    ...currentItem,
+                                                    subtitle:
+                                                      event.target.value,
+                                                  }
+                                                : currentItem,
+                                          ),
+                                        }
+                                      : section,
+                                ),
                               )
-                            )
-                          }
-                          className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                        />
-                      </label>
-                    </div>
-                  </article>
-                ))}
+                            }
+                            className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
+                          />
+                        </label>
+                      </div>
+                    </article>
+                  ))}
               </div>
             </section>
           ) : null}
@@ -612,9 +767,12 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
             <section className="admin-panel rounded-2xl p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-lg font-semibold text-white">Legal Content</h3>
+                  <h3 className="text-lg font-semibold text-white">
+                    Legal Content
+                  </h3>
                   <p className="mt-1 text-sm text-zinc-300">
-                    Terms & Conditions and Privacy Policy text blocks can be edited here.
+                    Terms & Conditions and Privacy Policy text blocks can be
+                    edited here.
                   </p>
                 </div>
                 <button
@@ -628,7 +786,10 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
 
               <div className="mt-4 space-y-4">
                 {draftWithSyncedLocations.sections.map((section, index) => (
-                  <article key={section.id} className="rounded-2xl border border-zinc-700/70 bg-zinc-900/45 p-4">
+                  <article
+                    key={section.id}
+                    className="rounded-2xl border border-zinc-700/70 bg-zinc-900/45 p-4"
+                  >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm font-semibold text-white">
                         {section.heading.trim() || `Clause ${index + 1}`}
@@ -673,16 +834,21 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
 
                     <div className="mt-4 grid gap-4">
                       <label className="space-y-1">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Section Title</span>
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                          Section Title
+                        </span>
                         <input
                           value={section.heading}
                           onChange={(event) =>
                             setSections(
                               draft.sections.map((currentSection) =>
                                 currentSection.id === section.id
-                                  ? { ...currentSection, heading: event.target.value }
-                                  : currentSection
-                              )
+                                  ? {
+                                      ...currentSection,
+                                      heading: event.target.value,
+                                    }
+                                  : currentSection,
+                              ),
                             )
                           }
                           disabled={section.sectionKey === locationsSectionKey}
@@ -691,16 +857,21 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                       </label>
 
                       <label className="space-y-1">
-                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Section Body</span>
+                        <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                          Section Body
+                        </span>
                         <textarea
                           value={section.body}
                           onChange={(event) =>
                             setSections(
                               draft.sections.map((currentSection) =>
                                 currentSection.id === section.id
-                                  ? { ...currentSection, body: event.target.value }
-                                  : currentSection
-                              )
+                                  ? {
+                                      ...currentSection,
+                                      body: event.target.value,
+                                    }
+                                  : currentSection,
+                              ),
                             )
                           }
                           disabled={section.sectionKey === locationsSectionKey}
@@ -724,98 +895,143 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
           <section className="admin-panel rounded-2xl p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-lg font-semibold text-white">Hero Content</h3>
-                <p className="mt-1 text-sm text-zinc-300">Control eyebrow, subtitle, CTAs, and hero imagery.</p>
+                <h3 className="text-lg font-semibold text-white">
+                  Hero Content
+                </h3>
+                <p className="mt-1 text-sm text-zinc-300">
+                  Control eyebrow, subtitle, CTAs, and hero imagery.
+                </p>
               </div>
             </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Hero Eyebrow</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Hero Eyebrow
+                </span>
                 <input
                   value={draft.heroEyebrow ?? ""}
-                  onChange={(event) => updateDraft({ heroEyebrow: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ heroEyebrow: event.target.value })
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Hero Title</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Hero Title
+                </span>
                 <input
                   value={draft.heroTitle}
-                  onChange={(event) => updateDraft({ heroTitle: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ heroTitle: event.target.value })
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
               <label className="space-y-1 lg:col-span-2">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Hero Subtitle</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Hero Subtitle
+                </span>
                 <textarea
                   value={draft.heroSubtitle ?? ""}
-                  onChange={(event) => updateDraft({ heroSubtitle: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ heroSubtitle: event.target.value })
+                  }
                   rows={2}
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
               <label className="space-y-1 lg:col-span-2">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Hero Body</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Hero Body
+                </span>
                 <textarea
                   value={draft.heroBody}
-                  onChange={(event) => updateDraft({ heroBody: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ heroBody: event.target.value })
+                  }
                   rows={4}
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Hero Image URL</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Hero Image URL
+                </span>
                 <input
                   value={draft.heroImage ?? ""}
-                  onChange={(event) => updateDraft({ heroImage: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ heroImage: event.target.value })
+                  }
                   placeholder="https://..."
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Upload Hero Image</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Upload Hero Image
+                </span>
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(event) => readImage(event, (result) => updateDraft({ heroImage: result }))}
+                  onChange={(event) =>
+                    readImage(event, (result) =>
+                      updateDraft({ heroImage: result }),
+                    )
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-300 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-900"
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Primary CTA Label</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Primary CTA Label
+                </span>
                 <input
                   value={draft.heroPrimaryCtaLabel ?? ""}
-                  onChange={(event) => updateDraft({ heroPrimaryCtaLabel: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ heroPrimaryCtaLabel: event.target.value })
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Primary CTA Link</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Primary CTA Link
+                </span>
                 <input
                   value={draft.heroPrimaryCtaLink ?? ""}
-                  onChange={(event) => updateDraft({ heroPrimaryCtaLink: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ heroPrimaryCtaLink: event.target.value })
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Secondary CTA Label</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Secondary CTA Label
+                </span>
                 <input
                   value={draft.heroSecondaryCtaLabel ?? ""}
-                  onChange={(event) => updateDraft({ heroSecondaryCtaLabel: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ heroSecondaryCtaLabel: event.target.value })
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Secondary CTA Link</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Secondary CTA Link
+                </span>
                 <input
                   value={draft.heroSecondaryCtaLink ?? ""}
-                  onChange={(event) => updateDraft({ heroSecondaryCtaLink: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ heroSecondaryCtaLink: event.target.value })
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
             </div>
           </section>
-
         </div>
 
         <aside className="space-y-5">
@@ -823,10 +1039,16 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
             <h3 className="text-lg font-semibold text-white">Publish</h3>
             <div className="mt-4 space-y-3">
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Status</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  Status
+                </span>
                 <select
                   value={draft.status}
-                  onChange={(event) => updateDraft({ status: event.target.value as WebsitePageRecord["status"] })}
+                  onChange={(event) =>
+                    updateDraft({
+                      status: event.target.value as WebsitePageRecord["status"],
+                    })
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 >
                   <option value="draft">Draft</option>
@@ -837,12 +1059,18 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                 <input
                   type="checkbox"
                   checked={draft.showInTopNav}
-                  onChange={(event) => updateDraft({ showInTopNav: event.target.checked })}
+                  onChange={(event) =>
+                    updateDraft({ showInTopNav: event.target.checked })
+                  }
                   className="mt-1 h-4 w-4 accent-amber-300"
                 />
                 <span>
-                  <span className="block text-sm font-medium text-zinc-100">Show in top navigation</span>
-                  <span className="block text-xs text-zinc-400">Turn page visibility on or off in the public header.</span>
+                  <span className="block text-sm font-medium text-zinc-100">
+                    Show in top navigation
+                  </span>
+                  <span className="block text-xs text-zinc-400">
+                    Turn page visibility on or off in the public header.
+                  </span>
                 </span>
               </label>
             </div>
@@ -852,18 +1080,26 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
             <h3 className="text-lg font-semibold text-white">SEO</h3>
             <div className="mt-4 space-y-3">
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">SEO Title</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  SEO Title
+                </span>
                 <input
                   value={draft.seoTitle}
-                  onChange={(event) => updateDraft({ seoTitle: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ seoTitle: event.target.value })
+                  }
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">SEO Description</span>
+                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+                  SEO Description
+                </span>
                 <textarea
                   value={draft.seoDescription}
-                  onChange={(event) => updateDraft({ seoDescription: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ seoDescription: event.target.value })
+                  }
                   rows={4}
                   className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
                 />
@@ -874,9 +1110,19 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
           <section className="admin-panel rounded-2xl p-5">
             <h3 className="text-lg font-semibold text-white">Preview</h3>
             <div className="mt-4 rounded-2xl border border-zinc-700/70 bg-zinc-900/45 p-4">
-              {draft.heroEyebrow ? <p className="text-xs uppercase tracking-[0.18em] text-amber-200">{draft.heroEyebrow}</p> : null}
-              <h4 className="mt-2 text-xl font-semibold text-white">{draft.heroTitle}</h4>
-              {draft.heroSubtitle ? <p className="mt-2 text-sm text-zinc-300">{draft.heroSubtitle}</p> : null}
+              {draft.heroEyebrow ? (
+                <p className="text-xs uppercase tracking-[0.18em] text-amber-200">
+                  {draft.heroEyebrow}
+                </p>
+              ) : null}
+              <h4 className="mt-2 text-xl font-semibold text-white">
+                {draft.heroTitle}
+              </h4>
+              {draft.heroSubtitle ? (
+                <p className="mt-2 text-sm text-zinc-300">
+                  {draft.heroSubtitle}
+                </p>
+              ) : null}
               <p className="mt-3 text-sm text-zinc-400">{draft.heroBody}</p>
 
               <div className="mt-4 flex flex-wrap gap-2">
@@ -897,13 +1143,25 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
                   .filter((section) => section.isVisible)
                   .slice(0, 3)
                   .map((section) => (
-                    <div key={section.id} className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
-                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">{section.sectionType}</p>
-                      <p className="mt-1 text-sm font-semibold text-white">{section.heading || section.sectionKey}</p>
-                      <p className="mt-1 text-xs text-zinc-400">{section.body || "No body copy yet."}</p>
+                    <div
+                      key={section.id}
+                      className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3"
+                    >
+                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                        {section.sectionType}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-white">
+                        {section.heading || section.sectionKey}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-400">
+                        {section.body || "No body copy yet."}
+                      </p>
                       {section.items[0] ? (
                         <p className="mt-2 text-[11px] text-zinc-500">
-                          First item: {section.items[0].title || section.items[0].value || "Untitled item"}
+                          First item:{" "}
+                          {section.items[0].title ||
+                            section.items[0].value ||
+                            "Untitled item"}
                         </p>
                       ) : null}
                     </div>
@@ -921,11 +1179,14 @@ export default function WebsitePageEditor({ page }: { page: WebsitePageRecord })
           ))}
         </div>
       ) : null}
-      {saveMessage ? <p className="text-sm text-emerald-300">{saveMessage}</p> : null}
+      {saveMessage ? (
+        <p className="text-sm text-emerald-300">{saveMessage}</p>
+      ) : null}
 
       <div className="sticky bottom-4 z-10 flex items-center justify-between gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/75 px-4 py-3 backdrop-blur">
         <p className="text-sm text-zinc-400">
-          CMS blocks now support hero controls, repeaters, visibility toggles, duplication, and section ordering.
+          CMS blocks now support hero controls, repeaters, visibility toggles,
+          duplication, and section ordering.
         </p>
         <button
           type="button"

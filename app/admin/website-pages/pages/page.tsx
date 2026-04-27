@@ -2,15 +2,24 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { EmptyState, ErrorState, LoadingState } from "@/components/admin/StateBlocks";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/admin/StateBlocks";
 import {
   useDeleteWebsitePageAdminMutation,
   useGetWebsitePagesAdminQuery,
-  useUpsertWebsitePageAdminMutation
+  useUpsertWebsitePageAdminMutation,
 } from "@/redux/api/adminApi";
-import type { WebsitePageRecord } from "@/redux/backoffice/types";
+import type {
+  WebsitePageRecord,
+  WebsitePageSection,
+} from "@/redux/backoffice/types";
 
-const createDraftPage = (kind: WebsitePageRecord["kind"]) => {
+const createDraftPage = (
+  kind: WebsitePageRecord["kind"],
+): WebsitePageRecord => {
   const stamp = Date.now();
   const title = kind === "legal" ? "New Legal Page" : "New Page";
 
@@ -21,7 +30,7 @@ const createDraftPage = (kind: WebsitePageRecord["kind"]) => {
     navLabel: title,
     summary: "Editable page summary",
     kind,
-    status: "draft" as const,
+    status: "draft",
     showInTopNav: false,
     heroEyebrow: "New page",
     heroTitle: title,
@@ -39,7 +48,7 @@ const createDraftPage = (kind: WebsitePageRecord["kind"]) => {
       {
         id: `section-${stamp}`,
         sectionKey: "section-heading",
-        sectionType: "richText",
+        sectionType: "richText" as WebsitePageSection["sectionType"],
         isVisible: true,
         sortOrder: 0,
         heading: "Section Heading",
@@ -48,17 +57,20 @@ const createDraftPage = (kind: WebsitePageRecord["kind"]) => {
         image: "",
         buttonLabel: "",
         buttonLink: "",
-        items: []
-      }
-    ]
+        items: [],
+      },
+    ],
   };
 };
 
 export default function WebsitePagesPage() {
   const { data, isLoading, isError } = useGetWebsitePagesAdminQuery();
-  const [upsertPage, { isLoading: isCreating }] = useUpsertWebsitePageAdminMutation();
-  const [deletePage, { isLoading: isDeleting }] = useDeleteWebsitePageAdminMutation();
-  const [createKind, setCreateKind] = useState<WebsitePageRecord["kind"]>("custom");
+  const [upsertPage, { isLoading: isCreating }] =
+    useUpsertWebsitePageAdminMutation();
+  const [deletePage, { isLoading: isDeleting }] =
+    useDeleteWebsitePageAdminMutation();
+  const [createKind, setCreateKind] =
+    useState<WebsitePageRecord["kind"]>("custom");
   const [feedback, setFeedback] = useState("");
 
   const pages = data?.data ?? [];
@@ -67,7 +79,9 @@ export default function WebsitePagesPage() {
     setFeedback("");
     try {
       const response = await upsertPage(createDraftPage(createKind)).unwrap();
-      setFeedback(`Created ${response.data.title}. Open it to finish the content.`);
+      setFeedback(
+        `Created ${response.data.title}. Open it to finish the content.`,
+      );
     } catch {
       setFeedback("Failed to create page draft.");
     }
@@ -76,18 +90,27 @@ export default function WebsitePagesPage() {
   return (
     <section className="space-y-7">
       <div>
-        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Website Pages</p>
+        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">
+          Website Pages
+        </p>
         <h2 className="mt-1 text-3xl font-semibold text-white">Pages</h2>
-        <p className="mt-2 text-sm text-zinc-300">Create and manage public pages, including custom landing pages and legal documents.</p>
+        <p className="mt-2 text-sm text-zinc-300">
+          Create and manage public pages, including custom landing pages and
+          legal documents.
+        </p>
       </div>
 
       <section className="admin-panel rounded-2xl p-5">
         <div className="flex flex-wrap items-end gap-3">
           <label className="space-y-1">
-            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Page Type</span>
+            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
+              Page Type
+            </span>
             <select
               value={createKind}
-              onChange={(event) => setCreateKind(event.target.value as WebsitePageRecord["kind"])}
+              onChange={(event) =>
+                setCreateKind(event.target.value as WebsitePageRecord["kind"])
+              }
               className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-300"
             >
               <option value="custom">Custom Page</option>
@@ -102,7 +125,9 @@ export default function WebsitePagesPage() {
           >
             {isCreating ? "Creating..." : "Create Draft Page"}
           </button>
-          {feedback ? <p className="text-sm text-zinc-300">{feedback}</p> : null}
+          {feedback ? (
+            <p className="text-sm text-zinc-300">{feedback}</p>
+          ) : null}
         </div>
       </section>
 
@@ -131,8 +156,12 @@ export default function WebsitePagesPage() {
                   </td>
                   <td className="py-3.5 pr-4 text-zinc-300">{page.kind}</td>
                   <td className="py-3.5 pr-4 text-zinc-300">{page.status}</td>
-                  <td className="py-3.5 pr-4 text-zinc-300">{page.showInTopNav ? "Visible" : "Hidden"}</td>
-                  <td className="py-3.5 pr-4 text-zinc-300">{new Date(page.updatedAt).toLocaleDateString("en-US")}</td>
+                  <td className="py-3.5 pr-4 text-zinc-300">
+                    {page.showInTopNav ? "Visible" : "Hidden"}
+                  </td>
+                  <td className="py-3.5 pr-4 text-zinc-300">
+                    {new Date(page.updatedAt).toLocaleDateString("en-US")}
+                  </td>
                   <td className="py-3.5">
                     <div className="flex flex-wrap gap-2">
                       <Link
