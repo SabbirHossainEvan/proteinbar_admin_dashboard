@@ -78,6 +78,10 @@ export interface MonthlyPlanContent {
   heroSubtitle?: string;
   selectMealsText?: string;
   checkoutText?: string;
+  regularStepTwo?: {
+    categories: CustomPlanCategory[];
+    foodItems: CustomPlanFoodItem[];
+  };
   customStepTwo?: {
     categories: CustomPlanCategory[];
     foodItems: CustomPlanFoodItem[];
@@ -119,6 +123,7 @@ export interface MealLibraryItem {
   carbs: number;
   fat: number;
   tags: string[];
+  addOnOptions?: string[];
   status: "active" | "inactive";
   image?: string;
 }
@@ -155,6 +160,7 @@ export interface CustomPlanFoodItem {
   id: string;
   planId: string;
   categoryId: string;
+  sourceMealId?: string;
   name: string;
   imageUrl: string;
   description?: string;
@@ -167,7 +173,10 @@ export interface SubscriptionRecord {
   id: string;
   subscriptionId: string;
   customerName: string;
+  customerEmail?: string;
   customerPhone: string;
+  customerEmirate?: string;
+  customerArea?: string;
   planId: string;
   planTitle: string;
   planKind: PlanKind;
@@ -178,15 +187,31 @@ export interface SubscriptionRecord {
   totalWeeks: number;
   progressDays: string;
   remainingMeals: number;
+  deliveryAddress?: string;
+  pickupLocationName?: string;
   selections: {
     meals: number;
     days: number;
+    weeks?: number;
     snacks: number;
     startDate: string;
-    deliveryDays: number[];
+    deliveryDays: string[];
     planType?: string;
     deliveryOption: DeliveryOption;
   };
+  selectedMeals?: Array<{
+    instanceId: string;
+    id: string;
+    title: string;
+    date: string;
+    extrasSummary?: string;
+    calories: number;
+    protein: number;
+    carb: number;
+    fat: number;
+    basePrice: number;
+    totalPrice: number;
+  }>;
 }
 
 export interface OrderRecord {
@@ -194,6 +219,10 @@ export interface OrderRecord {
   orderId: string;
   subscriptionId: string;
   customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerEmirate?: string;
+  customerArea?: string;
   planId: string;
   planTitle: string;
   planKind: PlanKind;
@@ -202,9 +231,44 @@ export interface OrderRecord {
   amount: number;
   orderDate: string;
   deliveryOption: DeliveryOption;
+  deliveryAddress?: string;
   locationId: string;
   locationName: string;
-  items: Array<{ mealId: string; mealName: string; qty: number; mealType: MealType }>;
+  selections?: {
+    meals: number;
+    days: number;
+    weeks: number;
+    snacks: number;
+    startDate: string;
+    deliveryDays: string;
+    planType?: string;
+  };
+  items: Array<{
+    mealId: string;
+    mealName: string;
+    qty: number;
+    mealType: MealType;
+    instanceId?: string;
+    date?: string;
+    extrasSummary?: string;
+    calories?: number;
+    protein?: number;
+    carb?: number;
+    fat?: number;
+    basePrice?: number;
+    totalPrice?: number;
+  }>;
+  totals?: {
+    subtotal: number;
+    giftDiscount: number;
+    vat: number;
+    safetyBag: number;
+    grandTotal: number;
+  };
+  promoCode?: {
+    code: string;
+    discountAmount: number;
+  };
 }
 
 export interface LocationRecord {

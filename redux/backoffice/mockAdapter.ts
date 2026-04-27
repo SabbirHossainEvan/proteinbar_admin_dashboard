@@ -292,7 +292,7 @@ const pages: Record<string, WebsitePageRecord> = {
   }),
   terms: createPage({
     id: "terms",
-    slug: "terms",
+    slug: "terms-and-conditions",
     title: "Terms & Conditions",
     navLabel: "Terms",
     summary: "Legal terms for website use, ordering, delivery, and subscriptions.",
@@ -319,7 +319,7 @@ const pages: Record<string, WebsitePageRecord> = {
   }),
   privacy: createPage({
     id: "privacy",
-    slug: "privacy",
+    slug: "privacy-policy",
     title: "Privacy Policy",
     navLabel: "Privacy",
     summary: "Privacy disclosures for customer accounts, contact data, and order history.",
@@ -402,6 +402,7 @@ const roles: Record<string, AdminRoleRecord> = {
     name: "Super Admin",
     description: "Full access to content, operations, pricing, and users.",
     scopes: ["website-pages", "orders", "subscriptions", "settings", "users"],
+    allowedPages: ["/admin", "/admin/users-permissions", "/admin/profile", "/admin/website"],
     canPublish: true,
     canManageUsers: true,
     memberCount: 2
@@ -411,6 +412,7 @@ const roles: Record<string, AdminRoleRecord> = {
     name: "Operations Manager",
     description: "Focuses on subscriptions, daily orders, labels, and locations.",
     scopes: ["orders", "subscriptions", "locations", "printing"],
+    allowedPages: ["/admin", "/admin/orders", "/admin/subscriptions", "/admin/locations", "/admin/profile"],
     canPublish: false,
     canManageUsers: false,
     memberCount: 5
@@ -420,6 +422,7 @@ const roles: Record<string, AdminRoleRecord> = {
     name: "Content Manager",
     description: "Owns website pages, menu category visibility, and legal content.",
     scopes: ["website-pages", "menu-categories", "legal-pages"],
+    allowedPages: ["/admin", "/admin/website-pages", "/admin/header-navigation", "/admin/profile"],
     canPublish: true,
     canManageUsers: false,
     memberCount: 4
@@ -435,7 +438,7 @@ const clonePage = (page: WebsitePageRecord): WebsitePageRecord => ({
 });
 
 const cloneCategory = (category: WebsiteMenuCategoryRecord): WebsiteMenuCategoryRecord => ({ ...category });
-const cloneRole = (role: AdminRoleRecord): AdminRoleRecord => ({ ...role, scopes: [...role.scopes] });
+const cloneRole = (role: AdminRoleRecord): AdminRoleRecord => ({ ...role, scopes: [...role.scopes], allowedPages: [...role.allowedPages] });
 const cloneSettings = (settings: WebsiteSettingsRecord): WebsiteSettingsRecord => ({
   ...settings,
   supportedLanguages: [...settings.supportedLanguages]
@@ -570,7 +573,8 @@ export const backofficeMockAdapter = {
       id,
       name: payload.name.trim(),
       description: payload.description.trim(),
-      scopes: payload.scopes.map((scope) => scope.trim()).filter(Boolean)
+      scopes: payload.scopes.map((scope) => scope.trim()).filter(Boolean),
+      allowedPages: payload.allowedPages.map((page) => page.trim()).filter(Boolean)
     };
     roles[id] = nextRole;
     return wait(cloneRole(nextRole));

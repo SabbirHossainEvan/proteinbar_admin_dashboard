@@ -57,13 +57,16 @@ export default function WebsitePagesOverviewPage() {
 
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {[
+                  { href: "/admin/header-navigation", title: "Header Navigation", text: "Rename or hide the main website nav items with a dedicated preview-first editor." },
                   { href: "/admin/website-pages/pages", title: "Pages", text: "Create custom pages, legal pages, and manage publish state." },
                   { href: "/admin/website-pages/home", title: "Home", text: "Edit homepage text, hero image, and supporting content blocks." },
                   { href: "/admin/website-pages/menu", title: "Menu", text: "Manage hero, helper copy, and CTA content around live menu data." },
                   { href: "/admin/website-pages/locations", title: "Locations", text: "Control locations-page hero and notes while location entities stay dynamic." },
                   { href: "/admin/website-pages/meal-prep", title: "Meal Prep", text: "Manage hero, FAQ, and conversion copy around the plan builder." },
                   { href: "/admin/website-pages/about-us", title: "About Us", text: "Update brand story, proof points, and trust-building content." },
-                  { href: "/admin/website-pages/contact", title: "Contact", text: "Manage contact copy, CTA language, and support blocks." }
+                  { href: "/admin/website-pages/contact", title: "Contact", text: "Manage contact copy, CTA language, and support blocks." },
+                  { href: "/admin/legal/terms-and-conditions", title: "Terms & Conditions", text: "Edit the legal clauses customers see on the public terms page." },
+                  { href: "/admin/legal/privacy-policy", title: "Privacy Policy", text: "Update privacy disclosures and customer-data policy content." }
                 ].map((card) => (
                   <Link
                     key={card.href}

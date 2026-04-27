@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { adminNavSections } from "@/data/admin/navigation";
+import { getAdminAuth } from "@/lib/adminAuth";
+import { getVisibleAdminNavSections } from "@/lib/adminPermissions";
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -22,11 +23,13 @@ function Chevron({ open }: { open: boolean }) {
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const auth = useMemo(() => getAdminAuth(), []);
+  const navSections = useMemo(() => getVisibleAdminNavSections(auth?.user), [auth]);
   const isItemActive = (href: string) => (href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`));
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(
-      adminNavSections.map((section) => [
+      navSections.map((section) => [
         section.title,
         section.items.some((item) => isItemActive(item.href)) || section.title === "Dashboard"
       ])
@@ -51,7 +54,7 @@ export default function AdminSidebar() {
         <div className="mx-5 h-px bg-zinc-700/60" />
         <div className="admin-scrollbar px-5 pb-5 pt-4 md:min-h-0 md:flex-1 md:overflow-y-auto">
           <div className="space-y-3">
-            {adminNavSections.map((section) => {
+            {navSections.map((section) => {
               const isOpen = openSections[section.title];
               const hasActiveChild = section.items.some((item) => isItemActive(item.href));
 

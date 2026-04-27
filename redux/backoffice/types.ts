@@ -87,19 +87,67 @@ export interface WebsiteSettingsRecord {
   rtlEnabled: boolean;
 }
 
+export interface PromoCodeRecord {
+  id: string;
+  code: string;
+  description: string;
+  discountType: "percent" | "fixed";
+  discountValue: number;
+  maxDiscount: number | null;
+  startDate: string;
+  endDate: string;
+  usageLimit: number | null;
+  usedCount: number;
+  isActive: boolean;
+  appliesToMonthlyPlans: boolean;
+  appliesToDirectOrders: boolean;
+  stackable: boolean;
+  showOnHomepage: boolean;
+  eligibilityNote: string;
+  updatedAt: string;
+}
+
 export interface AdminRoleRecord {
   id: string;
   name: string;
   description: string;
   scopes: string[];
+  allowedPages: string[];
   canPublish: boolean;
   canManageUsers: boolean;
   memberCount: number;
+}
+
+export interface AdminUserRecord {
+  id: string;
+  fullName: string;
+  email: string;
+  role: "super_admin" | "admin" | "employee";
+  adminRoleId: string;
+  roleName: string;
+  allowedPages: string[];
+  canPublish: boolean;
+  canManageUsers: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AdminAuthUser = Omit<AdminUserRecord, "isActive" | "createdAt" | "updatedAt">;
+
+export interface AdminAuthRecord {
+  user: AdminAuthUser;
+  token: string;
+  session?: {
+    token: string;
+    expiresAt: string;
+  };
 }
 
 export interface BackofficeSnapshot {
   pages: WebsitePageRecord[];
   menuCategories: WebsiteMenuCategoryRecord[];
   settings: WebsiteSettingsRecord;
+  promoCodes?: PromoCodeRecord[];
   roles: AdminRoleRecord[];
 }

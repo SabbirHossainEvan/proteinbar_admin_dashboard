@@ -49,6 +49,7 @@ export const adminNavSections: AdminNavSection[] = [
     title: "Website Pages",
     items: [
       { href: "/admin/website-pages", label: "Pages Overview", description: "Manage public content and navigation surfaces." },
+      { href: "/admin/header-navigation", label: "Header Navigation", description: "Control which top-nav items appear and what each one is called." },
       { href: "/admin/website-pages/pages", label: "Pages", description: "Create, edit, publish, and archive website pages." },
       { href: "/admin/website-pages/home", label: "Home", description: "Homepage text, imagery, and section content." },
       { href: "/admin/website-pages/menu", label: "Menu", description: "Hero, helper copy, and CTA content around the live menu." },
@@ -56,6 +57,13 @@ export const adminNavSections: AdminNavSection[] = [
       { href: "/admin/website-pages/meal-prep", label: "Meal Prep", description: "Page-level content for the meal-prep and plan builder flow." },
       { href: "/admin/website-pages/about-us", label: "About Us", description: "Brand story and trust-building content." },
       { href: "/admin/website-pages/contact", label: "Contact", description: "Support details, CTA blocks, and contact copy." }
+    ]
+  },
+  {
+    title: "Legal Pages",
+    items: [
+      { href: "/admin/legal/terms-and-conditions", label: "Terms & Conditions", description: "Manage the customer-facing terms and conditions page." },
+      { href: "/admin/legal/privacy-policy", label: "Privacy Policy", description: "Manage the customer-facing privacy policy page." }
     ]
   },
   {

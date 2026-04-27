@@ -2,7 +2,10 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { backofficeMockAdapter } from "@/redux/backoffice/mockAdapter";
 import type {
+  AdminAuthRecord,
   AdminRoleRecord,
+  AdminUserRecord,
+  PromoCodeRecord,
   WebsiteMenuCategoryRecord,
   WebsitePageRecord,
   WebsiteSettingsRecord
@@ -41,9 +44,152 @@ type CustomPlanFoodListFilters = {
   categoryId?: string;
 };
 
+const normalizeSubscriptionRecord = (item: Partial<SubscriptionRecord> & Record<string, unknown>): SubscriptionRecord => ({
+  id: String(item.id ?? ""),
+  subscriptionId: String(item.subscriptionId ?? ""),
+  customerName: String(item.customerName ?? ""),
+  customerEmail: item.customerEmail ? String(item.customerEmail) : undefined,
+  customerPhone: String(item.customerPhone ?? ""),
+  customerEmirate: item.customerEmirate ? String(item.customerEmirate) : undefined,
+  customerArea: item.customerArea ? String(item.customerArea) : undefined,
+  planId: String(item.planId ?? ""),
+  planTitle: String(item.planTitle ?? ""),
+  planKind: item.planKind === "custom" ? "custom" : "normal",
+  status:
+    item.status === "paused" || item.status === "cancelled" || item.status === "completed"
+      ? item.status
+      : "active",
+  startDate: String(item.startDate ?? ""),
+  endDate: String(item.endDate ?? ""),
+  currentWeek: Number(item.currentWeek ?? 0),
+  totalWeeks: Number(item.totalWeeks ?? 0),
+  progressDays: String(item.progressDays ?? "0/0"),
+  remainingMeals: Number(item.remainingMeals ?? 0),
+  deliveryAddress: item.deliveryAddress ? String(item.deliveryAddress) : undefined,
+  pickupLocationName: item.pickupLocationName ? String(item.pickupLocationName) : undefined,
+  selections: {
+    meals: Number((item.selections as SubscriptionRecord["selections"] | undefined)?.meals ?? 0),
+    days: Number((item.selections as SubscriptionRecord["selections"] | undefined)?.days ?? 0),
+    weeks: Number((item.selections as SubscriptionRecord["selections"] | undefined)?.weeks ?? 0) || undefined,
+    snacks: Number((item.selections as SubscriptionRecord["selections"] | undefined)?.snacks ?? 0),
+    startDate: String((item.selections as SubscriptionRecord["selections"] | undefined)?.startDate ?? ""),
+    deliveryDays: Array.isArray((item.selections as SubscriptionRecord["selections"] | undefined)?.deliveryDays)
+      ? (((item.selections as SubscriptionRecord["selections"] | undefined)?.deliveryDays ?? []) as Array<number | string>)
+          .map((value) => String(value).trim())
+          .filter(Boolean)
+      : [],
+    planType: (item.selections as SubscriptionRecord["selections"] | undefined)?.planType,
+    deliveryOption: (((item.selections as SubscriptionRecord["selections"] | undefined)?.deliveryOption ??
+      "daily-delivery") as SubscriptionRecord["selections"]["deliveryOption"])
+  },
+  selectedMeals: Array.isArray(item.selectedMeals)
+    ? item.selectedMeals.map((meal) => ({
+        instanceId: String((meal as Record<string, unknown>).instanceId ?? ""),
+        id: String((meal as Record<string, unknown>).id ?? ""),
+        title: String((meal as Record<string, unknown>).title ?? ""),
+        date: String((meal as Record<string, unknown>).date ?? ""),
+        extrasSummary: (meal as Record<string, unknown>).extrasSummary
+          ? String((meal as Record<string, unknown>).extrasSummary)
+          : undefined,
+        calories: Number((meal as Record<string, unknown>).calories ?? 0),
+        protein: Number((meal as Record<string, unknown>).protein ?? 0),
+        carb: Number((meal as Record<string, unknown>).carb ?? 0),
+        fat: Number((meal as Record<string, unknown>).fat ?? 0),
+        basePrice: Number((meal as Record<string, unknown>).basePrice ?? 0),
+        totalPrice: Number((meal as Record<string, unknown>).totalPrice ?? 0)
+      }))
+    : []
+});
+
+const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknown>): OrderRecord => ({
+  id: String(item.id ?? ""),
+  orderId: String(item.orderId ?? ""),
+  subscriptionId: String(item.subscriptionId ?? ""),
+  customerName: String(item.customerName ?? ""),
+  customerEmail: item.customerEmail ? String(item.customerEmail) : undefined,
+  customerPhone: item.customerPhone ? String(item.customerPhone) : undefined,
+  customerEmirate: item.customerEmirate ? String(item.customerEmirate) : undefined,
+  customerArea: item.customerArea ? String(item.customerArea) : undefined,
+  planId: String(item.planId ?? ""),
+  planTitle: String(item.planTitle ?? ""),
+  planKind: item.planKind === "custom" ? "custom" : "normal",
+  status:
+    item.status === "confirmed" ||
+    item.status === "preparing" ||
+    item.status === "out-for-delivery" ||
+    item.status === "completed"
+      ? item.status
+      : "pending",
+  paymentStatus:
+    item.paymentStatus === "cod" || item.paymentStatus === "unpaid" ? item.paymentStatus : "paid",
+  amount: Number(item.amount ?? 0),
+  orderDate: String(item.orderDate ?? ""),
+  deliveryOption: ((item.deliveryOption ?? "daily-delivery") as OrderRecord["deliveryOption"]),
+  deliveryAddress: item.deliveryAddress ? String(item.deliveryAddress) : undefined,
+  locationId: String(item.locationId ?? ""),
+  locationName: String(item.locationName ?? ""),
+  selections: item.selections ? {
+    meals: Number((item.selections as Record<string, unknown>).meals ?? 0),
+    days: Number((item.selections as Record<string, unknown>).days ?? 0),
+    weeks: Number((item.selections as Record<string, unknown>).weeks ?? 0),
+    snacks: Number((item.selections as Record<string, unknown>).snacks ?? 0),
+    startDate: String((item.selections as Record<string, unknown>).startDate ?? ""),
+    deliveryDays: String((item.selections as Record<string, unknown>).deliveryDays ?? ""),
+    planType: String((item.selections as Record<string, unknown>).planType ?? ""),
+  } : undefined,
+  totals: item.totals ? {
+    subtotal: Number((item.totals as Record<string, unknown>).subtotal ?? 0),
+    giftDiscount: Number((item.totals as Record<string, unknown>).giftDiscount ?? 0),
+    vat: Number((item.totals as Record<string, unknown>).vat ?? 0),
+    safetyBag: Number((item.totals as Record<string, unknown>).safetyBag ?? 0),
+    grandTotal: Number((item.totals as Record<string, unknown>).grandTotal ?? 0),
+  } : undefined,
+  promoCode: item.promoCode ? {
+    code: String((item.promoCode as Record<string, unknown>).code ?? ""),
+    discountAmount: Number((item.promoCode as Record<string, unknown>).discountAmount ?? 0),
+  } : undefined,
+  items: Array.isArray(item.items)
+    ? item.items.map((line) => ({
+        instanceId: String((line as Record<string, unknown>).instanceId ?? ""),
+        mealId: String((line as Record<string, unknown>).mealId ?? (line as Record<string, unknown>).id ?? ""),
+        mealName: String((line as Record<string, unknown>).mealName ?? (line as Record<string, unknown>).title ?? ""),
+        date: String((line as Record<string, unknown>).date ?? ""),
+        extrasSummary: String((line as Record<string, unknown>).extrasSummary ?? ""),
+        calories: Number((line as Record<string, unknown>).calories ?? 0),
+        protein: Number((line as Record<string, unknown>).protein ?? 0),
+        carb: Number((line as Record<string, unknown>).carb ?? 0),
+        fat: Number((line as Record<string, unknown>).fat ?? 0),
+        basePrice: Number((line as Record<string, unknown>).basePrice ?? 0),
+        totalPrice: Number((line as Record<string, unknown>).totalPrice ?? 0),
+        qty: Number((line as Record<string, unknown>).qty ?? 0),
+        mealType: (((line as Record<string, unknown>).mealType ?? "Lunch") as OrderRecord["items"][number]["mealType"])
+      }))
+    : []
+});
+
 export const adminApi = createApi({
   reducerPath: "adminApi",
-  baseQuery: fetchBaseQuery({ baseUrl }),
+  baseQuery: fetchBaseQuery({
+    baseUrl,
+    prepareHeaders: (headers) => {
+      if (typeof window !== "undefined") {
+        try {
+          const raw = window.sessionStorage.getItem("proteinbar_admin_auth");
+          if (raw) {
+            const parsed = JSON.parse(raw) as Partial<AdminAuthRecord>;
+            const token = parsed.token || parsed.session?.token;
+            if (token) {
+              headers.set("Authorization", `Bearer ${token}`);
+            }
+          }
+        } catch {
+          // ignore malformed client storage
+        }
+      }
+
+      return headers;
+    }
+  }),
   tagTypes: [
     "Dashboard",
     "Products",
@@ -70,7 +216,10 @@ export const adminApi = createApi({
     "WebsitePagesAdmin",
     "WebsiteMenuCategoriesAdmin",
     "WebsiteSettingsAdmin",
-    "AdminRoles"
+    "AdminRoles",
+    "AdminUsers",
+    "AdminAuth",
+    "PromoCodesAdmin"
   ],
   endpoints: (builder) => ({
     getDashboard: builder.query<ApiResponse<any>, void>({
@@ -216,6 +365,23 @@ export const adminApi = createApi({
       invalidatesTags: ["Notifications"]
     }),
 
+    getPromoCodesAdmin: builder.query<ApiResponse<PromoCodeRecord[]>, void>({
+      query: () => "/promo-codes",
+      providesTags: ["PromoCodesAdmin"]
+    }),
+    createPromoCodeAdmin: builder.mutation<ApiResponse<PromoCodeRecord>, Omit<PromoCodeRecord, "updatedAt">>({
+      query: (body) => ({ url: "/promo-codes", method: "POST", body }),
+      invalidatesTags: ["PromoCodesAdmin"]
+    }),
+    updatePromoCodeAdmin: builder.mutation<ApiResponse<PromoCodeRecord>, { id: string; body: Omit<PromoCodeRecord, "id" | "updatedAt"> }>({
+      query: ({ id, body }) => ({ url: `/promo-codes/${id}`, method: "PATCH", body }),
+      invalidatesTags: ["PromoCodesAdmin"]
+    }),
+    deletePromoCodeAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
+      query: (id) => ({ url: `/promo-codes/${id}`, method: "DELETE" }),
+      invalidatesTags: ["PromoCodesAdmin"]
+    }),
+
     getOrdersOfDay: builder.query<ApiResponse<any[]>, void>({
       query: () => "/orders-of-day",
       providesTags: ["OrdersOfDay"]
@@ -225,8 +391,16 @@ export const adminApi = createApi({
       providesTags: ["Printable"]
     }),
 
-    adminLogin: builder.mutation<ApiResponse<any>, { email: string; password: string }>({
+    adminLogin: builder.mutation<ApiResponse<AdminAuthRecord>, { email: string; password: string }>({
       query: (body) => ({ url: "/auth/admin-login", method: "POST", body })
+    }),
+    getAdminMe: builder.query<ApiResponse<AdminAuthRecord>, void>({
+      query: () => "/auth/admin-me",
+      providesTags: ["AdminAuth"]
+    }),
+    adminLogout: builder.mutation<ApiResponse<{ loggedOut: boolean }>, void>({
+      query: () => ({ url: "/auth/admin-logout", method: "POST" }),
+      invalidatesTags: ["AdminAuth"]
     }),
     sendCode: builder.mutation<ApiResponse<any>, { email: string }>({
       query: (body) => ({ url: "/auth/send-code", method: "POST", body })
@@ -239,10 +413,7 @@ export const adminApi = createApi({
     }),
 
     getMonthlyPlanOverview: builder.query<ApiResponse<MonthlyPlanOverview>, void>({
-      queryFn: async () => {
-        const data = await monthlyPlanMockAdapter.getOverview();
-        return { data: { success: true, data } };
-      },
+      query: () => "/admin/monthly-plan/overview",
       providesTags: ["MonthlyPlanAdmin"]
     }),
     getMonthlyPlanAdminList: builder.query<ApiResponse<MonthlyPlan[]>, PlanListFilters | void>({
@@ -282,25 +453,23 @@ export const adminApi = createApi({
       invalidatesTags: ["MonthlyPlanAdmin"]
     }),
     getMealLibraryAdmin: builder.query<ApiResponse<MealLibraryItem[]>, void>({
-      queryFn: async () => {
-        const data = await monthlyPlanMockAdapter.listMealLibrary();
-        return { data: { success: true, data } };
-      },
+      query: () => "/admin/monthly-plan/meals",
       providesTags: ["MealLibraryAdmin"]
     }),
     upsertMealLibraryAdmin: builder.mutation<ApiResponse<MealLibraryItem>, MealLibraryItem>({
-      queryFn: async (payload) => {
-        const data = await monthlyPlanMockAdapter.upsertMealLibraryItem(payload);
-        return { data: { success: true, data } };
-      },
-      invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin"]
+      query: (payload) => ({
+        url: `/admin/monthly-plan/meals/${payload.id}`,
+        method: "PUT",
+        body: payload
+      }),
+      invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin", "MonthlyPlanDetails"]
     }),
     deleteMealLibraryAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
-      queryFn: async (id) => {
-        const data = await monthlyPlanMockAdapter.deleteMealLibraryItem(id);
-        return { data: { success: true, data } };
-      },
-      invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin"]
+      query: (id) => ({
+        url: `/admin/monthly-plan/meals/${id}`,
+        method: "DELETE"
+      }),
+      invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin", "MonthlyPlanDetails"]
     }),
     getCustomPlanCategoriesAdmin: builder.query<ApiResponse<CustomPlanCategory[]>, string>({
       query: (planId) => ({
@@ -421,31 +590,43 @@ export const adminApi = createApi({
       ]
     }),
     getMonthlySubscriptionsAdmin: builder.query<ApiResponse<SubscriptionRecord[]>, void>({
-      queryFn: async () => {
-        const data = await monthlyPlanMockAdapter.listSubscriptions();
-        return { data: { success: true, data } };
-      },
+      query: () => "/admin/monthly-plan/subscriptions",
+      transformResponse: (response: ApiResponse<Array<Record<string, unknown>>>) => ({
+        ...response,
+        data: (response.data ?? []).map(normalizeSubscriptionRecord)
+      }),
       providesTags: ["MonthlySubscriptionAdmin"]
     }),
     updateMonthlySubscriptionAdmin: builder.mutation<ApiResponse<SubscriptionRecord | null>, { id: string; patch: Partial<SubscriptionRecord> }>({
-      queryFn: async ({ id, patch }) => {
-        const data = await monthlyPlanMockAdapter.updateSubscription(id, patch);
-        return { data: { success: true, data } };
-      },
+      query: ({ id, patch }) => ({
+        url: `/admin/monthly-plan/subscriptions/${id}`,
+        method: "PATCH",
+        body: patch
+      }),
+      transformResponse: (response: ApiResponse<Record<string, unknown> | null>) => ({
+        ...response,
+        data: response.data ? normalizeSubscriptionRecord(response.data) : null
+      }),
       invalidatesTags: ["MonthlySubscriptionAdmin", "MonthlyPlanAdmin"]
     }),
     getMonthlyOrdersAdmin: builder.query<ApiResponse<OrderRecord[]>, void>({
-      queryFn: async () => {
-        const data = await monthlyPlanMockAdapter.listOrders();
-        return { data: { success: true, data } };
-      },
+      query: () => "/admin/monthly-plan/orders",
+      transformResponse: (response: ApiResponse<Array<Record<string, unknown>>>) => ({
+        ...response,
+        data: (response.data ?? []).map(normalizeOrderRecord)
+      }),
       providesTags: ["MonthlyOrderAdmin"]
     }),
     updateMonthlyOrderAdmin: builder.mutation<ApiResponse<OrderRecord | null>, { id: string; patch: Partial<OrderRecord> }>({
-      queryFn: async ({ id, patch }) => {
-        const data = await monthlyPlanMockAdapter.updateOrder(id, patch);
-        return { data: { success: true, data } };
-      },
+      query: ({ id, patch }) => ({
+        url: `/admin/monthly-plan/orders/${id}`,
+        method: "PATCH",
+        body: patch
+      }),
+      transformResponse: (response: ApiResponse<Record<string, unknown> | null>) => ({
+        ...response,
+        data: response.data ? normalizeOrderRecord(response.data) : null
+      }),
       invalidatesTags: ["MonthlyOrderAdmin", "MonthlyPlanAdmin"]
     }),
     getMonthlyLocationsAdmin: builder.query<ApiResponse<LocationRecord[]>, void>({
@@ -484,34 +665,29 @@ export const adminApi = createApi({
       invalidatesTags: ["MonthlySettingsAdmin"]
     }),
     getWebsitePagesAdmin: builder.query<ApiResponse<WebsitePageRecord[]>, void>({
-      queryFn: async () => {
-        const data = await backofficeMockAdapter.listWebsitePages();
-        return { data: { success: true, data } };
-      },
+      query: () => "/website-pages",
       providesTags: ["WebsitePagesAdmin"]
     }),
     getWebsitePageAdmin: builder.query<ApiResponse<WebsitePageRecord | null>, string>({
-      queryFn: async (slug) => {
-        const data = await backofficeMockAdapter.getWebsitePageBySlug(slug);
-        return { data: { success: true, data } };
-      },
+      query: (slug) => `/website-pages/${slug}`,
       providesTags: (_result, _error, slug) => [{ type: "WebsitePagesAdmin", id: slug }]
     }),
     upsertWebsitePageAdmin: builder.mutation<ApiResponse<WebsitePageRecord>, WebsitePageRecord>({
-      queryFn: async (payload) => {
-        const data = await backofficeMockAdapter.upsertWebsitePage(payload);
-        return { data: { success: true, data } };
-      },
+      query: (payload) => ({
+        url: "/website-pages/upsert",
+        method: "POST",
+        body: payload
+      }),
       invalidatesTags: (_result, _error, payload) => [
         "WebsitePagesAdmin",
         { type: "WebsitePagesAdmin", id: payload.slug }
       ]
     }),
     deleteWebsitePageAdmin: builder.mutation<ApiResponse<{ id: string }>, string>({
-      queryFn: async (id) => {
-        const data = await backofficeMockAdapter.deleteWebsitePage(id);
-        return { data: { success: true, data } };
-      },
+      query: (id) => ({
+        url: `/website-pages/${id}`,
+        method: "DELETE"
+      }),
       invalidatesTags: ["WebsitePagesAdmin"]
     }),
     getWebsiteMenuCategoriesAdmin: builder.query<ApiResponse<WebsiteMenuCategoryRecord[]>, void>({
@@ -550,25 +726,55 @@ export const adminApi = createApi({
       invalidatesTags: ["WebsiteSettingsAdmin"]
     }),
     getAdminRoles: builder.query<ApiResponse<AdminRoleRecord[]>, void>({
-      queryFn: async () => {
-        const data = await backofficeMockAdapter.listAdminRoles();
-        return { data: { success: true, data } };
-      },
+      query: () => "/admin-roles",
       providesTags: ["AdminRoles"]
     }),
     upsertAdminRole: builder.mutation<ApiResponse<AdminRoleRecord>, AdminRoleRecord>({
-      queryFn: async (payload) => {
-        const data = await backofficeMockAdapter.upsertAdminRole(payload);
-        return { data: { success: true, data } };
-      },
-      invalidatesTags: ["AdminRoles"]
+      query: (body) => ({
+        url: "/admin-roles/upsert",
+        method: "POST",
+        body
+      }),
+      invalidatesTags: ["AdminRoles", "AdminUsers", "AdminAuth"]
     }),
     deleteAdminRole: builder.mutation<ApiResponse<{ id: string }>, string>({
-      queryFn: async (id) => {
-        const data = await backofficeMockAdapter.deleteAdminRole(id);
-        return { data: { success: true, data } };
-      },
-      invalidatesTags: ["AdminRoles"]
+      query: (id) => ({
+        url: `/admin-roles/${id}`,
+        method: "DELETE"
+      }),
+      invalidatesTags: ["AdminRoles", "AdminUsers", "AdminAuth"]
+    }),
+    getAdminUsers: builder.query<ApiResponse<AdminUserRecord[]>, void>({
+      query: () => "/admin-users",
+      providesTags: ["AdminUsers"]
+    }),
+    upsertAdminUser: builder.mutation<
+      ApiResponse<AdminUserRecord>,
+      {
+        id?: string;
+        fullName: string;
+        email: string;
+        password?: string;
+        role: AdminUserRecord["role"];
+        adminRoleId: string;
+        allowedPages: string[];
+        canPublish: boolean;
+        canManageUsers: boolean;
+        isActive: boolean;
+      }
+    >({
+      query: ({ id, ...body }) =>
+        id
+          ? { url: `/admin-users/${id}`, method: "PATCH", body }
+          : { url: "/admin-users", method: "POST", body },
+      invalidatesTags: ["AdminUsers", "AdminRoles", "AdminAuth"]
+    }),
+    deleteAdminUser: builder.mutation<ApiResponse<{ id: string }>, string>({
+      query: (id) => ({
+        url: `/admin-users/${id}`,
+        method: "DELETE"
+      }),
+      invalidatesTags: ["AdminUsers", "AdminRoles", "AdminAuth"]
     })
   })
 });
@@ -607,9 +813,15 @@ export const {
   useUpdateSubscriptionMutation,
   useGetNotificationsQuery,
   useDeleteNotificationMutation,
+  useGetPromoCodesAdminQuery,
+  useCreatePromoCodeAdminMutation,
+  useUpdatePromoCodeAdminMutation,
+  useDeletePromoCodeAdminMutation,
   useGetOrdersOfDayQuery,
   useGetPrintableOrdersQuery,
   useAdminLoginMutation,
+  useGetAdminMeQuery,
+  useAdminLogoutMutation,
   useSendCodeMutation,
   useVerifyCodeMutation,
   useResetPasswordMutation,
@@ -651,6 +863,9 @@ export const {
   useUpdateWebsiteSettingsAdminMutation,
   useGetAdminRolesQuery,
   useUpsertAdminRoleMutation,
-  useDeleteAdminRoleMutation
+  useDeleteAdminRoleMutation,
+  useGetAdminUsersQuery,
+  useUpsertAdminUserMutation,
+  useDeleteAdminUserMutation
 } = adminApi;
 

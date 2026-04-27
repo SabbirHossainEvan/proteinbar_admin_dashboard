@@ -18,6 +18,7 @@ const initialForm = {
   carbs: 0,
   fat: 0,
   tags: "",
+  addOnOptions: "",
   status: "active" as "active" | "inactive",
   image: ""
 };
@@ -63,6 +64,10 @@ export default function MealLibraryPage() {
         .split(",")
         .map((tag) => tag.trim())
         .filter(Boolean),
+      addOnOptions: form.addOnOptions
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
       status: form.status,
       image: form.image || undefined
     };
@@ -80,6 +85,7 @@ export default function MealLibraryPage() {
       carbs: meal.carbs,
       fat: meal.fat,
       tags: meal.tags.join(", "),
+      addOnOptions: (meal.addOnOptions ?? []).join(", "),
       status: meal.status,
       image: meal.image ?? ""
     });
@@ -184,6 +190,15 @@ export default function MealLibraryPage() {
               className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
             />
           </label>
+          <label className="space-y-1 md:col-span-3">
+            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Extra Options</span>
+            <input
+              value={form.addOnOptions}
+              onChange={(event) => setForm((prev) => ({ ...prev, addOnOptions: event.target.value }))}
+              placeholder="Extra Chicken, Extra Potatoes"
+              className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+            />
+          </label>
           <label className="space-y-1">
             <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Image Upload</span>
             <input
@@ -242,6 +257,7 @@ export default function MealLibraryPage() {
                 <th className="pb-2 pr-4 font-medium">Type</th>
                 <th className="pb-2 pr-4 font-medium">Macros</th>
                 <th className="pb-2 pr-4 font-medium">Tags</th>
+                <th className="pb-2 pr-4 font-medium">Extras</th>
                 <th className="pb-2 pr-4 font-medium">Status</th>
                 <th className="pb-2 font-medium">Actions</th>
               </tr>
@@ -267,6 +283,7 @@ export default function MealLibraryPage() {
                     kcal:{meal.calories} P:{meal.protein} C:{meal.carbs} F:{meal.fat}
                   </td>
                   <td className="py-3.5 pr-4 text-zinc-300">{meal.tags.join(", ") || "-"}</td>
+                  <td className="py-3.5 pr-4 text-zinc-300">{meal.addOnOptions?.join(", ") || "-"}</td>
                   <td className="py-3.5 pr-4 text-zinc-200">{meal.status}</td>
                   <td className="py-3.5">
                     <div className="flex gap-2">
@@ -291,7 +308,7 @@ export default function MealLibraryPage() {
               ))}
               {!meals.length ? (
                 <tr>
-                  <td className="py-3.5 text-zinc-400" colSpan={7}>
+                  <td className="py-3.5 text-zinc-400" colSpan={8}>
                     No meals found.
                   </td>
                 </tr>

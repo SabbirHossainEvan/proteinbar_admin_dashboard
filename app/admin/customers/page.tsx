@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import {
   useGetMonthlyOrdersAdminQuery,
@@ -26,63 +26,6 @@ type ClientRecord = {
   status: "Active" | "Paused" | "Lead";
 };
 
-const clientRecords: ClientRecord[] = [
-  {
-    id: "client-sara",
-    fullName: "Sara Benali",
-    firstName: "Sara",
-    lastName: "Benali",
-    phone: "+212600100200",
-    email: "sara@example.com",
-    state: "Casablanca",
-    area: "CFC",
-    address: "Apartment 12B, Street 8, CFC, Casablanca",
-    preferredDeliveryOption: "daily-delivery",
-    selectedPlan: "Weight loss for woman",
-    meals: 2,
-    days: 4,
-    snacks: 0,
-    startDate: "2026-04-23",
-    status: "Active"
-  },
-  {
-    id: "client-yassine",
-    fullName: "Yassine Hadi",
-    firstName: "Yassine",
-    lastName: "Hadi",
-    phone: "+212600100201",
-    email: "yassine@example.com",
-    state: "Casablanca",
-    area: "Bourgogne",
-    address: "Bourgogne Branch, Rue Taha Hussein, Casablanca",
-    preferredDeliveryOption: "weekly-pickup",
-    selectedPlan: "Lean muscle preset",
-    meals: 2,
-    days: 6,
-    snacks: 1,
-    startDate: "2026-04-21",
-    status: "Paused"
-  },
-  {
-    id: "client-nora",
-    fullName: "Nora Ilyas",
-    firstName: "Nora",
-    lastName: "Ilyas",
-    phone: "+212600100202",
-    email: "nora@example.com",
-    state: "Casablanca",
-    area: "Maarif",
-    address: "Building 4, Maarif Zone A, Casablanca",
-    preferredDeliveryOption: "daily-delivery",
-    selectedPlan: "Weight loss for woman",
-    meals: 3,
-    days: 5,
-    snacks: 0,
-    startDate: "2026-04-18",
-    status: "Active"
-  }
-];
-
 function EyeIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
@@ -94,9 +37,75 @@ function EyeIcon() {
 
 export default function ClientsPage() {
   const [search, setSearch] = useState("");
-  const [selectedClientId, setSelectedClientId] = useState(clientRecords[0].id);
+  const [selectedClientId, setSelectedClientId] = useState("");
   const { data: ordersData, isLoading: isLoadingOrders, isError: isOrdersError } = useGetMonthlyOrdersAdminQuery();
   const { data: subscriptionsData, isLoading: isLoadingSubscriptions, isError: isSubscriptionsError } = useGetMonthlySubscriptionsAdminQuery();
+
+  const clientRecords = useMemo<ClientRecord[]>(() => {
+    const subscriptions = subscriptionsData?.data ?? [];
+    const orders = ordersData?.data ?? [];
+    const records = new Map<string, ClientRecord>();
+
+    subscriptions.forEach((subscription) => {
+      const [firstName = subscription.customerName, ...rest] = subscription.customerName.split(" ");
+      const lastName = rest.join(" ");
+      const existing = records.get(subscription.customerName);
+      records.set(subscription.customerName, {
+        id: existing?.id ?? subscription.id,
+        fullName: subscription.customerName,
+        firstName: existing?.firstName ?? firstName,
+        lastName: existing?.lastName ?? lastName,
+        phone: subscription.customerPhone || existing?.phone || "-",
+        email: existing?.email ?? "-",
+        state: existing?.state ?? "-",
+        area: existing?.area ?? "-",
+        address: existing?.address ?? "-",
+        preferredDeliveryOption: subscription.selections.deliveryOption,
+        selectedPlan: subscription.planTitle,
+        meals: subscription.selections.meals,
+        days: subscription.selections.days,
+        snacks: subscription.selections.snacks,
+        startDate: subscription.startDate,
+        status:
+          subscription.status === "paused"
+            ? "Paused"
+            : subscription.status === "cancelled"
+              ? "Lead"
+              : "Active"
+      });
+    });
+
+    orders.forEach((order) => {
+      if (records.has(order.customerName)) return;
+      const [firstName = order.customerName, ...rest] = order.customerName.split(" ");
+      records.set(order.customerName, {
+        id: order.id,
+        fullName: order.customerName,
+        firstName,
+        lastName: rest.join(" "),
+        phone: "-",
+        email: "-",
+        state: "-",
+        area: order.locationName || "-",
+        address: order.locationName || "-",
+        preferredDeliveryOption: order.deliveryOption,
+        selectedPlan: order.planTitle,
+        meals: order.items.reduce((sum, item) => sum + item.qty, 0),
+        days: 0,
+        snacks: 0,
+        startDate: order.orderDate,
+        status: "Lead"
+      });
+    });
+
+    return Array.from(records.values()).sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }, [ordersData, subscriptionsData]);
+
+  useEffect(() => {
+    if (!selectedClientId && clientRecords[0]?.id) {
+      setSelectedClientId(clientRecords[0].id);
+    }
+  }, [clientRecords, selectedClientId]);
 
   const filteredClients = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -110,6 +119,18 @@ export default function ClientsPage() {
     filteredClients.find((client) => client.id === selectedClientId) ??
     clientRecords.find((client) => client.id === selectedClientId) ??
     clientRecords[0];
+
+  if (!selectedClient) {
+    return (
+      <section className="space-y-7">
+        <div className="overflow-hidden rounded-[28px] border border-zinc-800 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_30%),linear-gradient(180deg,rgba(24,24,27,0.96),rgba(9,9,11,0.96))] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.28)]">
+          <p className="text-xs uppercase tracking-[0.16em] text-blue-200/80">Client Database</p>
+          <h2 className="mt-2 text-3xl font-semibold text-white md:text-4xl">Clients</h2>
+          <p className="mt-3 max-w-3xl text-sm text-zinc-300">No monthly-plan client records found yet.</p>
+        </div>
+      </section>
+    );
+  }
 
   const clientOrders = useMemo(() => {
     const orders = ordersData?.data ?? [];
