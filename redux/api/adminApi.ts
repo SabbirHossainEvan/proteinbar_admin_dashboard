@@ -48,7 +48,10 @@ const normalizeSubscriptionRecord = (item: Partial<SubscriptionRecord> & Record<
   id: String(item.id ?? ""),
   subscriptionId: String(item.subscriptionId ?? ""),
   customerName: String(item.customerName ?? ""),
+  customerEmail: item.customerEmail ? String(item.customerEmail) : undefined,
   customerPhone: String(item.customerPhone ?? ""),
+  customerEmirate: item.customerEmirate ? String(item.customerEmirate) : undefined,
+  customerArea: item.customerArea ? String(item.customerArea) : undefined,
   planId: String(item.planId ?? ""),
   planTitle: String(item.planTitle ?? ""),
   planKind: item.planKind === "custom" ? "custom" : "normal",
@@ -62,20 +65,40 @@ const normalizeSubscriptionRecord = (item: Partial<SubscriptionRecord> & Record<
   totalWeeks: Number(item.totalWeeks ?? 0),
   progressDays: String(item.progressDays ?? "0/0"),
   remainingMeals: Number(item.remainingMeals ?? 0),
+  deliveryAddress: item.deliveryAddress ? String(item.deliveryAddress) : undefined,
+  pickupLocationName: item.pickupLocationName ? String(item.pickupLocationName) : undefined,
   selections: {
     meals: Number((item.selections as SubscriptionRecord["selections"] | undefined)?.meals ?? 0),
     days: Number((item.selections as SubscriptionRecord["selections"] | undefined)?.days ?? 0),
+    weeks: Number((item.selections as SubscriptionRecord["selections"] | undefined)?.weeks ?? 0) || undefined,
     snacks: Number((item.selections as SubscriptionRecord["selections"] | undefined)?.snacks ?? 0),
     startDate: String((item.selections as SubscriptionRecord["selections"] | undefined)?.startDate ?? ""),
     deliveryDays: Array.isArray((item.selections as SubscriptionRecord["selections"] | undefined)?.deliveryDays)
       ? (((item.selections as SubscriptionRecord["selections"] | undefined)?.deliveryDays ?? []) as Array<number | string>)
-          .map((value) => (typeof value === "number" ? value : Number(value)))
-          .filter((value) => Number.isFinite(value))
+          .map((value) => String(value).trim())
+          .filter(Boolean)
       : [],
     planType: (item.selections as SubscriptionRecord["selections"] | undefined)?.planType,
     deliveryOption: (((item.selections as SubscriptionRecord["selections"] | undefined)?.deliveryOption ??
       "daily-delivery") as SubscriptionRecord["selections"]["deliveryOption"])
-  }
+  },
+  selectedMeals: Array.isArray(item.selectedMeals)
+    ? item.selectedMeals.map((meal) => ({
+        instanceId: String((meal as Record<string, unknown>).instanceId ?? ""),
+        id: String((meal as Record<string, unknown>).id ?? ""),
+        title: String((meal as Record<string, unknown>).title ?? ""),
+        date: String((meal as Record<string, unknown>).date ?? ""),
+        extrasSummary: (meal as Record<string, unknown>).extrasSummary
+          ? String((meal as Record<string, unknown>).extrasSummary)
+          : undefined,
+        calories: Number((meal as Record<string, unknown>).calories ?? 0),
+        protein: Number((meal as Record<string, unknown>).protein ?? 0),
+        carb: Number((meal as Record<string, unknown>).carb ?? 0),
+        fat: Number((meal as Record<string, unknown>).fat ?? 0),
+        basePrice: Number((meal as Record<string, unknown>).basePrice ?? 0),
+        totalPrice: Number((meal as Record<string, unknown>).totalPrice ?? 0)
+      }))
+    : []
 });
 
 const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknown>): OrderRecord => ({

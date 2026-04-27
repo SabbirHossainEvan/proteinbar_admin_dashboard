@@ -173,7 +173,10 @@ export interface SubscriptionRecord {
   id: string;
   subscriptionId: string;
   customerName: string;
+  customerEmail?: string;
   customerPhone: string;
+  customerEmirate?: string;
+  customerArea?: string;
   planId: string;
   planTitle: string;
   planKind: PlanKind;
@@ -184,15 +187,31 @@ export interface SubscriptionRecord {
   totalWeeks: number;
   progressDays: string;
   remainingMeals: number;
+  deliveryAddress?: string;
+  pickupLocationName?: string;
   selections: {
     meals: number;
     days: number;
+    weeks?: number;
     snacks: number;
     startDate: string;
-    deliveryDays: number[];
+    deliveryDays: string[];
     planType?: string;
     deliveryOption: DeliveryOption;
   };
+  selectedMeals?: Array<{
+    instanceId: string;
+    id: string;
+    title: string;
+    date: string;
+    extrasSummary?: string;
+    calories: number;
+    protein: number;
+    carb: number;
+    fat: number;
+    basePrice: number;
+    totalPrice: number;
+  }>;
 }
 
 export interface OrderRecord {
