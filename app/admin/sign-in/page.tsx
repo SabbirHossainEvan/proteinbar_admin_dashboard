@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { setAdminAuth } from "@/lib/adminAuth";
 import { useAdminLoginMutation } from "@/redux/api/adminApi";
 
 export default function AdminSignInPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@proteinbar.com");
+  const [email, setEmail] = useState("superadmin@proteinbar.com");
   const [password, setPassword] = useState("admin12345");
   const [error, setError] = useState("");
   const [adminLogin, { isLoading }] = useAdminLoginMutation();
@@ -18,9 +19,7 @@ export default function AdminSignInPage() {
 
     try {
       const response = await adminLogin({ email, password }).unwrap();
-      if (typeof window !== "undefined") {
-        window.sessionStorage.setItem("proteinbar_admin_auth", JSON.stringify(response.data ?? {}));
-      }
+      if (response.data) setAdminAuth(response.data);
       router.push("/admin");
     } catch {
       setError("Invalid credentials.");

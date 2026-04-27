@@ -112,9 +112,36 @@ export interface AdminRoleRecord {
   name: string;
   description: string;
   scopes: string[];
+  allowedPages: string[];
   canPublish: boolean;
   canManageUsers: boolean;
   memberCount: number;
+}
+
+export interface AdminUserRecord {
+  id: string;
+  fullName: string;
+  email: string;
+  role: "super_admin" | "admin" | "employee";
+  adminRoleId: string;
+  roleName: string;
+  allowedPages: string[];
+  canPublish: boolean;
+  canManageUsers: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AdminAuthUser = Omit<AdminUserRecord, "isActive" | "createdAt" | "updatedAt">;
+
+export interface AdminAuthRecord {
+  user: AdminAuthUser;
+  token: string;
+  session?: {
+    token: string;
+    expiresAt: string;
+  };
 }
 
 export interface BackofficeSnapshot {

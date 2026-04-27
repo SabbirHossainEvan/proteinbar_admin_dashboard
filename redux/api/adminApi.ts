@@ -2,7 +2,9 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { backofficeMockAdapter } from "@/redux/backoffice/mockAdapter";
 import type {
+  AdminAuthRecord,
   AdminRoleRecord,
+  AdminUserRecord,
   PromoCodeRecord,
   WebsiteMenuCategoryRecord,
   WebsitePageRecord,
@@ -144,7 +146,27 @@ const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknow
 
 export const adminApi = createApi({
   reducerPath: "adminApi",
-  baseQuery: fetchBaseQuery({ baseUrl }),
+  baseQuery: fetchBaseQuery({
+    baseUrl,
+    prepareHeaders: (headers) => {
+      if (typeof window !== "undefined") {
+        try {
+          const raw = window.sessionStorage.getItem("proteinbar_admin_auth");
+          if (raw) {
+            const parsed = JSON.parse(raw) as Partial<AdminAuthRecord>;
+            const token = parsed.token || parsed.session?.token;
+            if (token) {
+              headers.set("Authorization", `Bearer ${token}`);
+            }
+          }
+        } catch {
+          // ignore malformed client storage
+        }
+      }
+
+      return headers;
+    }
+  }),
   tagTypes: [
     "Dashboard",
     "Products",
@@ -172,6 +194,8 @@ export const adminApi = createApi({
     "WebsiteMenuCategoriesAdmin",
     "WebsiteSettingsAdmin",
     "AdminRoles",
+    "AdminUsers",
+    "AdminAuth",
     "PromoCodesAdmin"
   ],
   endpoints: (builder) => ({
@@ -344,8 +368,16 @@ export const adminApi = createApi({
       providesTags: ["Printable"]
     }),
 
-    adminLogin: builder.mutation<ApiResponse<any>, { email: string; password: string }>({
+    adminLogin: builder.mutation<ApiResponse<AdminAuthRecord>, { email: string; password: string }>({
       query: (body) => ({ url: "/auth/admin-login", method: "POST", body })
+    }),
+    getAdminMe: builder.query<ApiResponse<AdminAuthRecord>, void>({
+      query: () => "/auth/admin-me",
+      providesTags: ["AdminAuth"]
+    }),
+    adminLogout: builder.mutation<ApiResponse<{ loggedOut: boolean }>, void>({
+      query: () => ({ url: "/auth/admin-logout", method: "POST" }),
+      invalidatesTags: ["AdminAuth"]
     }),
     sendCode: builder.mutation<ApiResponse<any>, { email: string }>({
       query: (body) => ({ url: "/auth/send-code", method: "POST", body })
@@ -671,25 +703,55 @@ export const adminApi = createApi({
       invalidatesTags: ["WebsiteSettingsAdmin"]
     }),
     getAdminRoles: builder.query<ApiResponse<AdminRoleRecord[]>, void>({
-      queryFn: async () => {
-        const data = await backofficeMockAdapter.listAdminRoles();
-        return { data: { success: true, data } };
-      },
+      query: () => "/admin-roles",
       providesTags: ["AdminRoles"]
     }),
     upsertAdminRole: builder.mutation<ApiResponse<AdminRoleRecord>, AdminRoleRecord>({
-      queryFn: async (payload) => {
-        const data = await backofficeMockAdapter.upsertAdminRole(payload);
-        return { data: { success: true, data } };
-      },
-      invalidatesTags: ["AdminRoles"]
+      query: (body) => ({
+        url: "/admin-roles/upsert",
+        method: "POST",
+        body
+      }),
+      invalidatesTags: ["AdminRoles", "AdminUsers", "AdminAuth"]
     }),
     deleteAdminRole: builder.mutation<ApiResponse<{ id: string }>, string>({
-      queryFn: async (id) => {
-        const data = await backofficeMockAdapter.deleteAdminRole(id);
-        return { data: { success: true, data } };
-      },
-      invalidatesTags: ["AdminRoles"]
+      query: (id) => ({
+        url: `/admin-roles/${id}`,
+        method: "DELETE"
+      }),
+      invalidatesTags: ["AdminRoles", "AdminUsers", "AdminAuth"]
+    }),
+    getAdminUsers: builder.query<ApiResponse<AdminUserRecord[]>, void>({
+      query: () => "/admin-users",
+      providesTags: ["AdminUsers"]
+    }),
+    upsertAdminUser: builder.mutation<
+      ApiResponse<AdminUserRecord>,
+      {
+        id?: string;
+        fullName: string;
+        email: string;
+        password?: string;
+        role: AdminUserRecord["role"];
+        adminRoleId: string;
+        allowedPages: string[];
+        canPublish: boolean;
+        canManageUsers: boolean;
+        isActive: boolean;
+      }
+    >({
+      query: ({ id, ...body }) =>
+        id
+          ? { url: `/admin-users/${id}`, method: "PATCH", body }
+          : { url: "/admin-users", method: "POST", body },
+      invalidatesTags: ["AdminUsers", "AdminRoles", "AdminAuth"]
+    }),
+    deleteAdminUser: builder.mutation<ApiResponse<{ id: string }>, string>({
+      query: (id) => ({
+        url: `/admin-users/${id}`,
+        method: "DELETE"
+      }),
+      invalidatesTags: ["AdminUsers", "AdminRoles", "AdminAuth"]
     })
   })
 });
@@ -735,6 +797,8 @@ export const {
   useGetOrdersOfDayQuery,
   useGetPrintableOrdersQuery,
   useAdminLoginMutation,
+  useGetAdminMeQuery,
+  useAdminLogoutMutation,
   useSendCodeMutation,
   useVerifyCodeMutation,
   useResetPasswordMutation,
@@ -776,6 +840,9 @@ export const {
   useUpdateWebsiteSettingsAdminMutation,
   useGetAdminRolesQuery,
   useUpsertAdminRoleMutation,
-  useDeleteAdminRoleMutation
+  useDeleteAdminRoleMutation,
+  useGetAdminUsersQuery,
+  useUpsertAdminUserMutation,
+  useDeleteAdminUserMutation
 } = adminApi;
 

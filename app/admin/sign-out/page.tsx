@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { clearAdminAuth } from "@/lib/adminAuth";
 
 export default function AdminSignOutPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
-      window.sessionStorage.removeItem("proteinbar_admin_auth");
+      clearAdminAuth();
       window.sessionStorage.removeItem("proteinbar_admin_reset_email");
     }
   }, []);
