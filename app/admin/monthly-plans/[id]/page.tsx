@@ -235,6 +235,47 @@ const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
   })),
 });
 
+const reconcileAssignedMeals = (
+  details: MonthlyPlanDetails,
+  availableMeals: MonthlyPlanDetails["mealLibrary"] = [],
+): MonthlyPlanDetails => {
+  const mealsById = new Map(availableMeals.map((meal) => [meal.id, meal]));
+  const mealsByName = new Map(
+    availableMeals.map((meal) => [
+      meal.name.trim().toLowerCase().replace(/\s+/g, " "),
+      meal,
+    ]),
+  );
+
+  return {
+    ...details,
+    weekAssignments: details.weekAssignments.map((week) => ({
+      ...week,
+      mealsByDate: Object.fromEntries(
+        Object.entries(week.mealsByDate).map(([dateIso, meals]) => [
+          dateIso,
+          meals.map((meal) => {
+            const linkedMeal =
+              mealsById.get(meal.mealId) ??
+              mealsByName.get(
+                meal.mealName.trim().toLowerCase().replace(/\s+/g, " "),
+              );
+
+            if (!linkedMeal) return meal;
+
+            return {
+              ...meal,
+              mealId: linkedMeal.id,
+              mealName: linkedMeal.name,
+              mealType: meal.mealType || linkedMeal.mealType || "Lunch",
+            };
+          }),
+        ]),
+      ),
+    })),
+  };
+};
+
 const validateDetails = (
   details: MonthlyPlanDetails,
   availableMeals: MonthlyPlanDetails["mealLibrary"] = [],
@@ -243,6 +284,10 @@ const validateDetails = (
   const deliveryOptionIdsSeen = new Set<string>();
   const normalizeMealValue = (value: string) =>
     value.trim().toLowerCase().replace(/\s+/g, " ");
+  const mealsById = new Map(availableMeals.map((meal) => [meal.id, meal]));
+  const mealsByName = new Map(
+    availableMeals.map((meal) => [normalizeMealValue(meal.name), meal]),
+  );
 
   if (!details.plan.title.trim()) errors.push("Title is required.");
   if (!details.plan.slug.trim()) errors.push("Slug is required.");
@@ -326,11 +371,13 @@ const validateDetails = (
           `Week ${week.weekIndex} contains date ${dateIso} outside its range.`,
         );
       meals.forEach((meal) => {
-        if (
-          !availableMeals.some((libraryMeal) => libraryMeal.id === meal.mealId)
-        ) {
+        const linkedMeal =
+          mealsById.get(meal.mealId) ??
+          mealsByName.get(normalizeMealValue(meal.mealName));
+
+        if (!linkedMeal) {
           errors.push(
-            `Assigned meal ${meal.mealName} references a missing meal library item.`,
+            `Assigned meal "${meal.mealName}" on ${dateIso} in week ${week.weekIndex} is no longer in Meal Library. Re-add that meal from Meal Library or remove it from this date.`,
           );
         }
       });
@@ -409,11 +456,14 @@ export default function MonthlyPlanDetailEditorPage() {
 
   useEffect(() => {
     if (!data?.data) return;
-    const normalized = normalizeDetails(data.data);
+    const normalized = reconcileAssignedMeals(
+      normalizeDetails(data.data),
+      mealLibraryData?.data ?? data.data.mealLibrary ?? [],
+    );
     setDraft(normalized);
     setAllowedMealsInput(normalized.rules.allowedMealsPerDay.join(","));
     setAssignmentForm(createAssignmentForm());
-  }, [data]);
+  }, [data, mealLibraryData]);
 
   useEffect(() => {
     if (!draft?.weekAssignments.length) return;
@@ -754,16 +804,19 @@ export default function MonthlyPlanDetailEditorPage() {
 
   const saveAll = async () => {
     if (!draft) return;
-    const payload = normalizeDetails({
-      ...draft,
-      rules:
-        draft.plan.planKind === "normal"
-          ? {
-              ...draft.rules,
-              allowedMealsPerDay: [draft.rules.defaults.meals],
-            }
-          : draft.rules,
-    });
+    const payload = reconcileAssignedMeals(
+      normalizeDetails({
+        ...draft,
+        rules:
+          draft.plan.planKind === "normal"
+            ? {
+                ...draft.rules,
+                allowedMealsPerDay: [draft.rules.defaults.meals],
+              }
+            : draft.rules,
+      }),
+      meals,
+    );
     const errors = validateDetails(payload, meals);
     if (errors.length) {
       setSaveErrors(errors);
@@ -772,7 +825,10 @@ export default function MonthlyPlanDetailEditorPage() {
     }
     try {
       const response = await upsertPlanDetails(payload).unwrap();
-      const normalized = normalizeDetails(response.data);
+      const normalized = reconcileAssignedMeals(
+        normalizeDetails(response.data),
+        meals,
+      );
       setDraft(normalized);
       setAllowedMealsInput(normalized.rules.allowedMealsPerDay.join(","));
       setSaveErrors([]);

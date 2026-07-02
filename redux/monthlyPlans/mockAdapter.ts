@@ -929,6 +929,11 @@ const cloneDetails = (
 
 const ensureValidDetailPayload = (payload: MonthlyPlanDetailsPayload) => {
   const mealIds = new Set((payload.mealLibrary ?? []).map((meal) => meal.id));
+  const mealNames = new Set(
+    (payload.mealLibrary ?? []).map((meal) =>
+      meal.name.trim().toLowerCase().replace(/\s+/g, " "),
+    ),
+  );
   const deliveryOptionSet = new Set<string>();
 
   if (!payload.plan.title.trim()) throw new Error("Title is required.");
@@ -991,9 +996,13 @@ const ensureValidDetailPayload = (payload: MonthlyPlanDetailsPayload) => {
         );
       }
       meals.forEach((meal) => {
-        if (!mealIds.has(meal.mealId)) {
+        const normalizedMealName = meal.mealName
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, " ");
+        if (!mealIds.has(meal.mealId) && !mealNames.has(normalizedMealName)) {
           throw new Error(
-            `Assigned meal ${meal.mealName} references a missing meal library item.`,
+            `Assigned meal "${meal.mealName}" on ${dateIso} in week ${week.weekIndex} is no longer in Meal Library. Re-add that meal from Meal Library or remove it from this date.`,
           );
         }
       });
