@@ -126,6 +126,9 @@ export interface MealLibraryItem {
   addOnOptions?: string[];
   status: "active" | "inactive";
   image?: string;
+  archiveReason?: string;
+  archivedReferenceCount?: number;
+  archivedPlanCount?: number;
 }
 
 export interface CustomPlanCategory {

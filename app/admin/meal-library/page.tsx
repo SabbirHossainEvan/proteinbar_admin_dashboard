@@ -29,9 +29,26 @@ export default function MealLibraryPage() {
   const [deleteMeal, { isLoading: isDeleting }] = useDeleteMealLibraryAdminMutation();
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState("");
 
   const meals = useMemo(() => data?.data ?? [], [data]);
   const activeCount = useMemo(() => meals.filter((meal) => meal.status === "active").length, [meals]);
+  const protectedMeals = useMemo(
+    () => meals.filter((meal) => meal.status === "inactive" && (meal.archivedPlanCount ?? 0) > 0),
+    [meals]
+  );
+  const archivedProtectedCount = useMemo(
+    () => protectedMeals.length,
+    [protectedMeals]
+  );
+
+  const getProtectedMealMessage = (meal: MealLibraryItem) => {
+    if (meal.archiveReason) return meal.archiveReason;
+    const planCount = meal.archivedPlanCount ?? 0;
+    if (planCount > 1) return `Archived because this meal is still assigned to ${planCount} plans.`;
+    if (planCount === 1) return "Archived because this meal is still assigned to 1 plan.";
+    return "Archived to avoid breaking existing plan data.";
+  };
 
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -45,6 +62,11 @@ export default function MealLibraryPage() {
     reader.readAsDataURL(file);
   };
 
+  const getApiMessage = (issue: unknown, fallback: string) =>
+    issue && typeof issue === "object" && "data" in issue && issue.data && typeof issue.data === "object" && "message" in issue.data
+      ? String((issue.data as { message?: string }).message ?? fallback)
+      : fallback;
+
   const save = async (event: FormEvent) => {
     event.preventDefault();
     if (!form.name.trim()) {
@@ -52,6 +74,7 @@ export default function MealLibraryPage() {
       return;
     }
     setError("");
+    setFeedback("");
     const payload: MealLibraryItem = {
       id: form.id || `meal-${Date.now()}`,
       name: form.name.trim(),
@@ -71,11 +94,18 @@ export default function MealLibraryPage() {
       status: form.status,
       image: form.image || undefined
     };
-    await upsertMeal(payload).unwrap();
-    setForm(initialForm);
+    try {
+      await upsertMeal(payload).unwrap();
+      setForm(initialForm);
+      setFeedback(form.id ? "Meal updated successfully." : "Meal added successfully.");
+    } catch (issue) {
+      setError(getApiMessage(issue, "Failed to save meal."));
+    }
   };
 
   const startEdit = (meal: MealLibraryItem) => {
+    setError("");
+    setFeedback("");
     setForm({
       id: meal.id,
       name: meal.name,
@@ -91,6 +121,26 @@ export default function MealLibraryPage() {
     });
   };
 
+  const removeMeal = async (meal: MealLibraryItem) => {
+    setError("");
+    setFeedback("");
+
+    try {
+      const response = await deleteMeal(meal.id).unwrap();
+      if (form.id === meal.id) {
+        setForm(initialForm);
+      }
+      setFeedback(
+        response.message ??
+          (meal.status === "inactive"
+            ? "Meal removed successfully."
+            : "Meal status updated successfully.")
+      );
+    } catch (issue) {
+      setError(getApiMessage(issue, "Failed to remove meal."));
+    }
+  };
+
   return (
     <section className="space-y-7">
       <div>
@@ -103,6 +153,23 @@ export default function MealLibraryPage() {
         <p className="text-sm text-zinc-300">
           Active meals: <span className="font-semibold text-amber-200">{activeCount}</span>
         </p>
+        <p className="mt-1 text-sm text-zinc-300">
+          Archived but still used in plans: <span className="font-semibold text-zinc-100">{archivedProtectedCount}</span>
+        </p>
+        <p className="mt-2 text-sm text-zinc-400">
+          Removing a meal that is already used in plans will archive it automatically so existing plan data does not break.
+        </p>
+        {archivedProtectedCount > 0 ? (
+          <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-sm text-amber-100">
+            <p className="font-semibold">Some meals were not removed.</p>
+            <p className="mt-1 text-amber-50/90">
+              {archivedProtectedCount === 1
+                ? "1 meal is still used in active or saved plans, so it was archived instead of deleted."
+                : `${archivedProtectedCount} meals are still used in active or saved plans, so they were archived instead of deleted.`}
+            </p>
+            <p className="mt-1 text-amber-50/80">Those meals stay visible here as inactive to protect existing monthly plans.</p>
+          </div>
+        ) : null}
         <form onSubmit={save} className="mt-4 grid gap-3 md:grid-cols-3">
           <label className="space-y-1">
             <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Name</span>
@@ -223,6 +290,7 @@ export default function MealLibraryPage() {
             </div>
           </div>
           {error ? <p className="text-sm text-rose-300 md:col-span-3">{error}</p> : null}
+          {feedback ? <p className="text-sm text-emerald-300 md:col-span-3">{feedback}</p> : null}
           <div className="md:col-span-3 flex gap-2">
             <button
               type="submit"
@@ -249,6 +317,21 @@ export default function MealLibraryPage() {
 
       {!isLoading ? (
         <section className="admin-panel overflow-x-auto rounded-2xl p-4 md:p-5">
+          {protectedMeals.length > 0 ? (
+            <div className="mb-4 rounded-2xl border border-amber-300/25 bg-zinc-950/40 p-4">
+              <p className="text-sm font-semibold text-amber-200">Archived meals protected from deletion</p>
+              <div className="mt-2 space-y-2">
+                {protectedMeals.slice(0, 5).map((meal) => (
+                  <p key={meal.id} className="text-sm text-zinc-200">
+                    <span className="font-medium text-white">{meal.name}:</span> {getProtectedMealMessage(meal)}
+                  </p>
+                ))}
+                {protectedMeals.length > 5 ? (
+                  <p className="text-xs text-zinc-400">Showing 5 of {protectedMeals.length} protected meals.</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           <table className="admin-table min-w-full text-left text-sm">
             <thead>
               <tr>
@@ -265,7 +348,19 @@ export default function MealLibraryPage() {
             <tbody>
               {meals.map((meal) => (
                 <tr key={meal.id}>
-                  <td className="py-3.5 pr-4 text-zinc-100">{meal.name}</td>
+                  <td className="py-3.5 pr-4 text-zinc-100">
+                    <div className="space-y-1">
+                      <p>{meal.name}</p>
+                      {meal.status === "inactive" && (meal.archiveReason || (meal.archivedPlanCount ?? 0) > 0) ? (
+                        <p className="max-w-xs text-xs text-amber-200">
+                          Not removed: {getProtectedMealMessage(meal)}
+                          {(meal.archivedPlanCount ?? 0) > 0
+                            ? ` Existing plans using this meal: ${meal.archivedPlanCount}.`
+                            : ""}
+                        </p>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className="py-3.5 pr-4 text-zinc-300">
                     {meal.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -284,7 +379,16 @@ export default function MealLibraryPage() {
                   </td>
                   <td className="py-3.5 pr-4 text-zinc-300">{meal.tags.join(", ") || "-"}</td>
                   <td className="py-3.5 pr-4 text-zinc-300">{meal.addOnOptions?.join(", ") || "-"}</td>
-                  <td className="py-3.5 pr-4 text-zinc-200">{meal.status}</td>
+                  <td className="py-3.5 pr-4 text-zinc-200">
+                    <div className="space-y-1">
+                      <span>{meal.status}</span>
+                      {meal.status === "inactive" && (meal.archiveReason || (meal.archivedPlanCount ?? 0) > 0) ? (
+                        <span className="inline-flex rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-1 text-[11px] text-amber-200">
+                          Protected from deletion
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className="py-3.5">
                     <div className="flex gap-2">
                       <button
@@ -296,11 +400,11 @@ export default function MealLibraryPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => void deleteMeal(meal.id)}
+                        onClick={() => void removeMeal(meal)}
                         disabled={isDeleting}
                         className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-100 disabled:opacity-60"
                       >
-                        Delete
+                        {meal.status === "inactive" ? "Remove" : "Archive / Remove"}
                       </button>
                     </div>
                   </td>
