@@ -114,7 +114,7 @@ const pages: Record<string, WebsitePageRecord> = {
     heroImage:
       "https://images.unsplash.com/photo-1547592180-85f173990554?w=1200",
     heroPrimaryCtaLabel: "Browse plans",
-    heroPrimaryCtaLink: "/plans",
+    heroPrimaryCtaLink: "/mealprep",
     heroSecondaryCtaLabel: "View menu",
     heroSecondaryCtaLink: "/menu",
     seoTitle: "Proteinbar | Healthy Meals & Meal Plans",
@@ -232,7 +232,7 @@ const pages: Record<string, WebsitePageRecord> = {
         heading: "Need help choosing?",
         body: "Add helper copy above the menu grid for location filters, notes, or chef suggestions.",
         buttonLabel: "See meal plans",
-        buttonLink: "/plans",
+        buttonLink: "/mealprep",
       }),
     ],
   }),
@@ -340,7 +340,7 @@ const pages: Record<string, WebsitePageRecord> = {
     heroImage:
       "https://images.unsplash.com/photo-1543332164-6e82f355badc?w=1200",
     heroPrimaryCtaLabel: "Choose a plan",
-    heroPrimaryCtaLink: "/plans",
+    heroPrimaryCtaLink: "/mealprep",
     seoTitle: "Proteinbar Meal Prep Plans",
     seoDescription:
       "Meal-prep subscriptions, flexible plan options, and onboarding copy.",
