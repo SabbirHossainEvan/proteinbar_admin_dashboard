@@ -1482,9 +1482,15 @@ export default function MonthlyPlanDetailEditorPage() {
                           key={dateIso}
                           type="button"
                           onClick={() => setSelectedDate(dateIso)}
-                          className={`rounded-xl px-3 py-1.5 text-xs ${selectedDate === dateIso ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"}`}
+                          title={`${formatWeekDayLabel(dateIso)} ${dateIso}`}
+                          className={`inline-flex min-w-28 flex-col items-start rounded-xl px-3 py-2 text-left text-xs ${selectedDate === dateIso ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-300"}`}
                         >
-                          {formatWeekDayLabel(dateIso)}
+                          <span className="font-semibold uppercase">
+                            {formatWeekDayLabel(dateIso)}
+                          </span>
+                          <span className="mt-0.5 text-[11px] opacity-80">
+                            {dateIso}
+                          </span>
                         </button>
                       ))}
                     </div>

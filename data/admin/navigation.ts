@@ -26,7 +26,6 @@ export const adminNavSections: AdminNavSection[] = [
   {
     title: "Mealprep Menus",
     items: [
-      { href: "/admin/meal-prep-menus", label: "Meal Prep Menus", description: "Weekly menu themes and production windows." },
       { href: "/admin/monthly-plans", label: "Meal Plans", description: "Create and manage meal plans with frequency rules." },
       { href: "/admin/meal-library", label: "Meal Library", description: "Meal creation, variants, and add-ons." },
       { href: "/admin/custom-plan-food-items", label: "Custom Food Items", description: "Custom flow item options." },
