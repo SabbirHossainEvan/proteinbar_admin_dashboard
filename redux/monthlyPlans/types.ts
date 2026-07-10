@@ -274,6 +274,50 @@ export interface OrderRecord {
   };
 }
 
+export interface MonthlyClientRecord {
+  id: string;
+  key: string;
+  fullName: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  state: string;
+  area: string;
+  address: string;
+  preferredDeliveryOption: string;
+  selectedPlan: string;
+  meals: number;
+  days: number;
+  snacks: number;
+  startDate: string;
+  status: "Active" | "Paused" | "Lead";
+  orderCount: number;
+  subscriptionCount: number;
+  totalSpent: number;
+  lastOrderDate: string;
+  orders: OrderRecord[];
+  subscriptions: SubscriptionRecord[];
+}
+
+export interface MonthlyClientListResponse {
+  items: MonthlyClientRecord[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+  summary: {
+    totalClients: number;
+    activeClients: number;
+    pausedClients: number;
+    leadClients: number;
+  };
+}
+
 export interface LocationRecord {
   id: string;
   name: string;

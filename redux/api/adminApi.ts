@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { backofficeMockAdapter } from "@/redux/backoffice/mockAdapter";
 import type {
   AdminAuthRecord,
@@ -16,6 +17,8 @@ import type {
   CustomPlanFoodItem,
   LocationRecord,
   MealLibraryItem,
+  MonthlyClientListResponse,
+  MonthlyClientRecord,
   MonthlyPlanDetails,
   MonthlyPlan,
   MonthlyPlanGlobalSettings,
@@ -26,6 +29,7 @@ import type {
 } from "@/redux/monthlyPlans/types";
 
 const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000/api/v1";
+const adminAuthStorageKey = "proteinbar_admin_auth";
 
 type ApiResponse<T> = {
   success: boolean;
@@ -42,6 +46,13 @@ type PlanListFilters = {
 type CustomPlanFoodListFilters = {
   planId: string;
   categoryId?: string;
+};
+
+type MonthlyClientFilters = {
+  search?: string;
+  status?: "active" | "paused" | "lead" | "all";
+  page?: number;
+  limit?: number;
 };
 
 const normalizeSubscriptionRecord = (item: Partial<SubscriptionRecord> & Record<string, unknown>): SubscriptionRecord => ({
@@ -167,29 +178,113 @@ const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknow
     : []
 });
 
+const normalizeMonthlyClientRecord = (item: Partial<MonthlyClientRecord> & Record<string, unknown>): MonthlyClientRecord => ({
+  id: String(item.id ?? ""),
+  key: String(item.key ?? item.id ?? ""),
+  fullName: String(item.fullName ?? "Customer"),
+  firstName: String(item.firstName ?? ""),
+  lastName: String(item.lastName ?? ""),
+  phone: String(item.phone ?? "-"),
+  email: String(item.email ?? "-"),
+  state: String(item.state ?? "-"),
+  area: String(item.area ?? "-"),
+  address: String(item.address ?? "-"),
+  preferredDeliveryOption: String(item.preferredDeliveryOption ?? "-"),
+  selectedPlan: String(item.selectedPlan ?? "-"),
+  meals: Number(item.meals ?? 0),
+  days: Number(item.days ?? 0),
+  snacks: Number(item.snacks ?? 0),
+  startDate: String(item.startDate ?? ""),
+  status: item.status === "Paused" || item.status === "Lead" ? item.status : "Active",
+  orderCount: Number(item.orderCount ?? 0),
+  subscriptionCount: Number(item.subscriptionCount ?? 0),
+  totalSpent: Number(item.totalSpent ?? 0),
+  lastOrderDate: String(item.lastOrderDate ?? ""),
+  orders: Array.isArray(item.orders)
+    ? item.orders.map((order) => normalizeOrderRecord(order as Partial<OrderRecord> & Record<string, unknown>))
+    : [],
+  subscriptions: Array.isArray(item.subscriptions)
+    ? item.subscriptions.map((subscription) =>
+        normalizeSubscriptionRecord(subscription as Partial<SubscriptionRecord> & Record<string, unknown>)
+      )
+    : []
+});
+
+const normalizeMonthlyClientListResponse = (
+  item: Partial<MonthlyClientListResponse> & Record<string, unknown>
+): MonthlyClientListResponse => {
+  const pagination = item.pagination && typeof item.pagination === "object"
+    ? (item.pagination as MonthlyClientListResponse["pagination"])
+    : undefined;
+  const summary = item.summary && typeof item.summary === "object"
+    ? (item.summary as MonthlyClientListResponse["summary"])
+    : undefined;
+
+  return {
+    items: Array.isArray(item.items)
+      ? item.items.map((client) => normalizeMonthlyClientRecord(client as Partial<MonthlyClientRecord> & Record<string, unknown>))
+      : [],
+    pagination: {
+      page: Number(pagination?.page ?? 1),
+      limit: Number(pagination?.limit ?? 10),
+      total: Number(pagination?.total ?? 0),
+      totalPages: Number(pagination?.totalPages ?? 1),
+      hasNextPage: Boolean(pagination?.hasNextPage),
+      hasPreviousPage: Boolean(pagination?.hasPreviousPage)
+    },
+    summary: {
+      totalClients: Number(summary?.totalClients ?? 0),
+      activeClients: Number(summary?.activeClients ?? 0),
+      pausedClients: Number(summary?.pausedClients ?? 0),
+      leadClients: Number(summary?.leadClients ?? 0)
+    }
+  };
+};
+
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl,
+  prepareHeaders: (headers) => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.sessionStorage.getItem(adminAuthStorageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Partial<AdminAuthRecord>;
+          const token = parsed.token || parsed.session?.token;
+          if (token) {
+            headers.set("Authorization", `Bearer ${token}`);
+          }
+        }
+      } catch {
+        window.sessionStorage.removeItem(adminAuthStorageKey);
+      }
+    }
+
+    return headers;
+  }
+});
+
+const baseQueryWithAdminAuth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = async (
+  args,
+  api,
+  extraOptions
+) => {
+  const result = await rawBaseQuery(args, api, extraOptions);
+
+  if (result.error?.status === 401 && typeof window !== "undefined") {
+    window.sessionStorage.removeItem(adminAuthStorageKey);
+    window.sessionStorage.removeItem("proteinbar_admin_reset_email");
+
+    if (window.location.pathname !== "/admin/sign-in") {
+      window.location.replace("/admin/sign-in");
+    }
+  }
+
+  return result;
+};
+
 export const adminApi = createApi({
   reducerPath: "adminApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl,
-    prepareHeaders: (headers) => {
-      if (typeof window !== "undefined") {
-        try {
-          const raw = window.sessionStorage.getItem("proteinbar_admin_auth");
-          if (raw) {
-            const parsed = JSON.parse(raw) as Partial<AdminAuthRecord>;
-            const token = parsed.token || parsed.session?.token;
-            if (token) {
-              headers.set("Authorization", `Bearer ${token}`);
-            }
-          }
-        } catch {
-          // ignore malformed client storage
-        }
-      }
-
-      return headers;
-    }
-  }),
+  baseQuery: baseQueryWithAdminAuth,
   tagTypes: [
     "Dashboard",
     "Products",
@@ -212,6 +307,7 @@ export const adminApi = createApi({
     "LocationAdmin",
     "MonthlySubscriptionAdmin",
     "MonthlyOrderAdmin",
+    "MonthlyClientAdmin",
     "MonthlySettingsAdmin",
     "WebsitePagesAdmin",
     "WebsiteMenuCategoriesAdmin",
@@ -617,6 +713,25 @@ export const adminApi = createApi({
       }),
       providesTags: ["MonthlyOrderAdmin"]
     }),
+    getMonthlyClientsAdmin: builder.query<ApiResponse<MonthlyClientListResponse>, MonthlyClientFilters | void>({
+      query: (params) => ({
+        url: "/admin/monthly-plan/clients",
+        params: params ?? {}
+      }),
+      transformResponse: (response: ApiResponse<Record<string, unknown>>) => ({
+        ...response,
+        data: normalizeMonthlyClientListResponse(response.data ?? {})
+      }),
+      providesTags: ["MonthlyClientAdmin"]
+    }),
+    getMonthlyClientDetailsAdmin: builder.query<ApiResponse<MonthlyClientRecord>, string>({
+      query: (clientKey) => `/admin/monthly-plan/clients/${encodeURIComponent(clientKey)}`,
+      transformResponse: (response: ApiResponse<Record<string, unknown>>) => ({
+        ...response,
+        data: normalizeMonthlyClientRecord(response.data ?? {})
+      }),
+      providesTags: (_result, _error, clientKey) => [{ type: "MonthlyClientAdmin", id: clientKey }]
+    }),
     updateMonthlyOrderAdmin: builder.mutation<ApiResponse<OrderRecord | null>, { id: string; patch: Partial<OrderRecord> }>({
       query: ({ id, patch }) => ({
         url: `/admin/monthly-plan/orders/${id}`,
@@ -846,6 +961,8 @@ export const {
   useGetMonthlySubscriptionsAdminQuery,
   useUpdateMonthlySubscriptionAdminMutation,
   useGetMonthlyOrdersAdminQuery,
+  useGetMonthlyClientsAdminQuery,
+  useGetMonthlyClientDetailsAdminQuery,
   useUpdateMonthlyOrderAdminMutation,
   useGetMonthlyLocationsAdminQuery,
   useUpsertMonthlyLocationAdminMutation,

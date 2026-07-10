@@ -7,6 +7,7 @@ import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminTopbar from "@/components/admin/AdminTopbar";
 import { getAdminAuth } from "@/lib/adminAuth";
 import { canAccessAdminPage } from "@/lib/adminPermissions";
+import { useGetAdminMeQuery } from "@/redux/api/adminApi";
 
 const authRoutes = new Set([
   "/admin/login",
@@ -22,7 +23,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const isAuthRoute = authRoutes.has(pathname);
   const auth = useMemo(() => (isAuthRoute ? null : getAdminAuth()), [isAuthRoute]);
-  const hasAccess = isAuthRoute ? true : canAccessAdminPage(pathname, auth?.user);
+  const {
+    data: adminMeData,
+    isLoading: isCheckingSession,
+    isFetching: isFetchingSession
+  } = useGetAdminMeQuery(undefined, {
+    skip: isAuthRoute || !auth?.user,
+    refetchOnMountOrArgChange: true
+  });
+  const verifiedUser = adminMeData?.data?.user ?? auth?.user;
+  const hasAccess = isAuthRoute ? true : canAccessAdminPage(pathname, verifiedUser);
 
   useEffect(() => {
     if (!isAuthRoute && !auth?.user) {
@@ -30,16 +40,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (!isAuthRoute && auth?.user && !hasAccess) {
+    if (!isAuthRoute && auth?.user && !isCheckingSession && !isFetchingSession && !hasAccess) {
       router.replace("/admin");
     }
-  }, [auth, hasAccess, isAuthRoute, router]);
+  }, [auth, hasAccess, isAuthRoute, isCheckingSession, isFetchingSession, router]);
 
   if (isAuthRoute) {
     return <div className="admin-bg min-h-screen text-zinc-100">{children}</div>;
   }
 
-  if (!hasAccess) {
+  if (isCheckingSession || isFetchingSession || !hasAccess) {
     return <div className="admin-bg min-h-screen text-zinc-100" />;
   }
 
