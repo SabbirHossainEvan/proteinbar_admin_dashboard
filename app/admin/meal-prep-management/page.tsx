@@ -5,7 +5,7 @@ export default function MealPrepManagementPage() {
     <AdminOverviewPage
       eyebrow="Operations"
       title="Meal Prep Management"
-      description="Day-to-day operations hub for kitchen prep, subscriptions, daily orders, labels, and pickup or delivery coordination."
+      description="Day-to-day operations hub for kitchen prep, paid active subscriptions, daily orders, labels, and pickup or delivery coordination."
       stats={[
         { label: "Today Orders", value: "84" },
         { label: "Labels Pending", value: "31" },
@@ -15,7 +15,7 @@ export default function MealPrepManagementPage() {
       cards={[
         { href: "/admin/orders", title: "Orders", description: "Review status, delivery method, payment state, and customer meal lines." },
         { href: "/admin/archived-orders", title: "Archived Orders", description: "Review archived test or cleanup orders without restoring deleted data." },
-        { href: "/admin/subscriptions", title: "Subscriptions", description: "Pause, resume, and track progression of each active plan." },
+        { href: "/admin/subscriptions", title: "Active Subscriptions", description: "Only paid CMI-confirmed plans appear here. Pending or unpaid checkouts stay in Orders." },
         { href: "/admin/orders-of-day", title: "Orders of the Day", description: "Generate the kitchen and logistics sheet for the current day." },
         { href: "/admin/printing", title: "Printing", description: "Print labels, packing slips, and order identifiers." },
         { href: "/admin/locations", title: "Locations", description: "Coordinate pickup hubs, delivery zones, fees, and timing." },

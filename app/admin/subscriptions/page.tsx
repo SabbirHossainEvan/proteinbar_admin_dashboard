@@ -93,12 +93,21 @@ export default function SubscriptionsPage() {
   return (
     <section className="space-y-7">
       <div>
-        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Monthly Subscription Records</p>
-        <h2 className="mt-1 text-3xl font-semibold text-white">Subscriptions</h2>
-        <p className="mt-2 text-sm text-zinc-300">Track progress, inspect subscription details, and control status across custom and pre-made flows.</p>
+        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Paid Plan Lifecycle Records</p>
+        <h2 className="mt-1 text-3xl font-semibold text-white">Active Subscriptions</h2>
+        <p className="mt-2 text-sm text-zinc-300">
+          Manage paid, CMI-confirmed meal-plan subscriptions only. Pending, unpaid, failed, and test checkout attempts stay in Orders until payment is confirmed.
+        </p>
       </div>
 
       <section className="admin-panel rounded-2xl p-5">
+        <div className="mb-5 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4 text-sm text-amber-50">
+          <p className="font-semibold">Why this count can be lower than Orders</p>
+          <p className="mt-1 text-amber-50/85">
+            Orders is the full checkout/payment queue. Active Subscriptions is created only after CMI confirms payment, so unpaid orders can appear in Orders but not here.
+          </p>
+        </div>
+
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
           <input
             value={search}
@@ -106,7 +115,7 @@ export default function SubscriptionsPage() {
               setSearch(event.target.value);
               setBulkFeedback("");
             }}
-            placeholder="Search by subscription/customer/plan"
+            placeholder="Search paid subscriptions by customer, plan, phone, or email"
             className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
           />
 
@@ -154,8 +163,8 @@ export default function SubscriptionsPage() {
         {bulkFeedback ? <p className="mt-3 text-sm text-zinc-300">{bulkFeedback}</p> : null}
       </section>
 
-      {isLoading ? <LoadingState label="Loading subscriptions..." /> : null}
-      {isError ? <ErrorState label="Failed to load subscriptions." /> : null}
+      {isLoading ? <LoadingState label="Loading active subscriptions..." /> : null}
+      {isError ? <ErrorState label="Failed to load active subscriptions." /> : null}
 
       {!isLoading ? (
         <section className="admin-panel overflow-x-auto rounded-2xl p-4 md:p-5">
@@ -277,7 +286,7 @@ export default function SubscriptionsPage() {
               {!filtered.length ? (
                 <tr>
                   <td className="py-3.5 text-zinc-400" colSpan={10}>
-                    No subscriptions found.
+                    No active subscriptions found. Paid CMI-confirmed plans will appear here; unpaid orders remain in Orders.
                   </td>
                 </tr>
               ) : null}

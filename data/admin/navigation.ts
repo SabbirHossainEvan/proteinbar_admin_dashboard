@@ -38,7 +38,7 @@ export const adminNavSections: AdminNavSection[] = [
       { href: "/admin/meal-prep-management", label: "Meal Prep Management", description: "Operational hub for day-to-day work." },
       { href: "/admin/orders", label: "Orders", description: "Daily and subscription order management." },
       { href: "/admin/archived-orders", label: "Archived Orders", description: "Archived meal prep orders kept for history and cleanup review." },
-      { href: "/admin/subscriptions", label: "Subscriptions", description: "Track remaining time and pause, resume, or cancel plans." },
+      { href: "/admin/subscriptions", label: "Active Subscriptions", description: "Paid CMI-confirmed plan lifecycles only." },
       { href: "/admin/orders-day-printing", label: "Orders of the Day & Printing", description: "Kitchen sheets, labels, and dispatch printing." },
       { href: "/admin/locations", label: "Pickup & Delivery Areas", description: "Add and manage which areas support pickup, delivery, or both." },
       { href: "/admin/promo-codes", label: "Promo Codes", description: "Offers, expiry, and eligibility." },
