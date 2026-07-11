@@ -272,6 +272,29 @@ export interface OrderRecord {
     code: string;
     discountAmount: number;
   };
+  isArchived?: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+  archiveReason?: string;
+}
+
+export interface ArchivedOrderListResponse {
+  items: OrderRecord[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+  summary: {
+    totalArchivedOrders: number;
+    filteredArchivedOrders: number;
+    paidOrders: number;
+    unpaidOrders: number;
+    codOrders: number;
+  };
 }
 
 export interface MonthlyClientRecord {

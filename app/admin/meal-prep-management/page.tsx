@@ -14,6 +14,7 @@ export default function MealPrepManagementPage() {
       ]}
       cards={[
         { href: "/admin/orders", title: "Orders", description: "Review status, delivery method, payment state, and customer meal lines." },
+        { href: "/admin/archived-orders", title: "Archived Orders", description: "Review archived test or cleanup orders without restoring deleted data." },
         { href: "/admin/subscriptions", title: "Subscriptions", description: "Pause, resume, and track progression of each active plan." },
         { href: "/admin/orders-of-day", title: "Orders of the Day", description: "Generate the kitchen and logistics sheet for the current day." },
         { href: "/admin/printing", title: "Printing", description: "Print labels, packing slips, and order identifiers." },

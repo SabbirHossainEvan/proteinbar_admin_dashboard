@@ -3,14 +3,20 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { clearAdminAuth } from "@/lib/adminAuth";
+import { useAdminLogoutMutation } from "@/redux/api/adminApi";
 
 export default function AdminSignOutPage() {
+  const [adminLogout] = useAdminLogoutMutation();
+
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      clearAdminAuth();
-      window.sessionStorage.removeItem("proteinbar_admin_reset_email");
-    }
-  }, []);
+    void adminLogout()
+      .unwrap()
+      .catch(() => undefined)
+      .finally(() => {
+        clearAdminAuth();
+        window.sessionStorage.removeItem("proteinbar_admin_reset_email");
+      });
+  }, [adminLogout]);
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">

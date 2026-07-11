@@ -1,15 +1,34 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
-import { useGetMonthlyOrdersAdminQuery, useUpdateMonthlyOrderAdminMutation } from "@/redux/api/adminApi";
+import { useBulkArchiveMonthlyOrdersAdminMutation, useGetMonthlyOrdersAdminQuery, useUpdateMonthlyOrderAdminMutation } from "@/redux/api/adminApi";
 import type { OrderRecord } from "@/redux/monthlyPlans/types";
+
+function paymentBadgeClass(status: OrderRecord["paymentStatus"]) {
+  if (status === "paid") return "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/25";
+  if (status === "unpaid") return "bg-rose-500/20 text-rose-300 ring-1 ring-rose-400/25";
+  return "bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/25";
+}
+
+function orderStatusBadgeClass(status: OrderRecord["status"]) {
+  if (status === "completed") return "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/25";
+  if (status === "confirmed") return "bg-blue-500/20 text-blue-300 ring-1 ring-blue-400/25";
+  if (status === "preparing") return "bg-purple-500/20 text-purple-300 ring-1 ring-purple-400/25";
+  if (status === "out-for-delivery") return "bg-orange-500/20 text-orange-300 ring-1 ring-orange-400/25";
+  return "bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/25";
+}
 
 export default function OrdersPage() {
   const [filters, setFilters] = useState({ search: "", planKind: "all", status: "all", deliveryOption: "all" });
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [bulkMessage, setBulkMessage] = useState("");
+  const [bulkError, setBulkError] = useState("");
   const { data, isLoading, isError } = useGetMonthlyOrdersAdminQuery();
   const [updateOrder, { isLoading: isUpdating }] = useUpdateMonthlyOrderAdminMutation();
+  const [bulkArchiveOrders, { isLoading: isArchiving }] = useBulkArchiveMonthlyOrdersAdminMutation();
 
   const filtered = useMemo(() => {
     const orders = data?.data ?? [];
@@ -25,8 +44,61 @@ export default function OrdersPage() {
     });
   }, [data, filters]);
 
+  const filteredIds = useMemo(() => filtered.map((item) => item.id), [filtered]);
+  const selectedVisibleIds = useMemo(
+    () => selectedOrderIds.filter((id) => filteredIds.includes(id)),
+    [filteredIds, selectedOrderIds]
+  );
+  const allVisibleSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedOrderIds.includes(id));
+
+  useEffect(() => {
+    const currentIds = new Set((data?.data ?? []).map((item) => item.id));
+    setSelectedOrderIds((prev) => prev.filter((id) => currentIds.has(id)));
+  }, [data]);
+
   const setStatus = async (id: string, status: OrderRecord["status"]) => {
     await updateOrder({ id, patch: { status } }).unwrap();
+  };
+
+  const toggleOrderSelection = (id: string) => {
+    setBulkError("");
+    setBulkMessage("");
+    setSelectedOrderIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  };
+
+  const toggleAllVisible = () => {
+    setBulkError("");
+    setBulkMessage("");
+    setSelectedOrderIds((prev) => {
+      if (allVisibleSelected) {
+        return prev.filter((id) => !filteredIds.includes(id));
+      }
+      return Array.from(new Set([...prev, ...filteredIds]));
+    });
+  };
+
+  const archiveSelectedOrders = async () => {
+    if (!selectedVisibleIds.length) return;
+    const confirmed = window.confirm(
+      `Archive ${selectedVisibleIds.length} selected order${selectedVisibleIds.length === 1 ? "" : "s"}? They will be hidden from this list but not deleted from the database.`
+    );
+    if (!confirmed) return;
+
+    setBulkError("");
+    setBulkMessage("");
+    try {
+      const response = await bulkArchiveOrders({
+        ids: selectedVisibleIds,
+        reason: "Bulk archived from Meal Prep Management orders cleanup"
+      }).unwrap();
+      setBulkMessage(response.data?.message ?? response.message ?? "Selected orders archived.");
+      setSelectedOrderIds((prev) => prev.filter((id) => !selectedVisibleIds.includes(id)));
+      if (selectedOrder && selectedVisibleIds.includes(selectedOrder.id)) {
+        setSelectedOrder(null);
+      }
+    } catch (error) {
+      setBulkError(error instanceof Error ? error.message : "Failed to archive selected orders.");
+    }
   };
 
   const exportCsv = () => {
@@ -109,6 +181,23 @@ export default function OrdersPage() {
           </select>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="rounded-xl border border-zinc-700 bg-zinc-950/70 px-3 py-2 text-sm text-zinc-300">
+            {selectedVisibleIds.length ? `${selectedVisibleIds.length} selected` : "Select orders to archive test data"}
+          </span>
+          <button
+            type="button"
+            onClick={() => void archiveSelectedOrders()}
+            disabled={!selectedVisibleIds.length || isArchiving}
+            className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-4 py-2 text-sm font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isArchiving ? "Archiving..." : "Archive selected"}
+          </button>
+          <Link
+            href="/admin/archived-orders"
+            className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-4 py-2 text-sm font-medium text-zinc-100 transition hover:border-zinc-500"
+          >
+            View archived orders
+          </Link>
           <button
             type="button"
             onClick={exportCsv}
@@ -124,6 +213,8 @@ export default function OrdersPage() {
             Print
           </button>
         </div>
+        {bulkMessage ? <p className="mt-3 text-sm text-emerald-300">{bulkMessage}</p> : null}
+        {bulkError ? <p className="mt-3 text-sm text-rose-300">{bulkError}</p> : null}
       </section>
 
       {isLoading ? <LoadingState label="Loading monthly orders..." /> : null}
@@ -134,6 +225,16 @@ export default function OrdersPage() {
           <table className="admin-table min-w-full text-left text-sm">
             <thead>
               <tr>
+                <th className="pb-2 pr-4 font-medium">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    disabled={!filteredIds.length}
+                    aria-label="Select all visible orders"
+                    onChange={toggleAllVisible}
+                    className="h-4 w-4 rounded border-zinc-600 bg-zinc-900"
+                  />
+                </th>
                 <th className="pb-2 pr-4 font-medium">Order</th>
                 <th className="pb-2 pr-4 font-medium">Customer</th>
                 <th className="pb-2 pr-4 font-medium">Plan</th>
@@ -147,6 +248,15 @@ export default function OrdersPage() {
             <tbody>
               {filtered.map((item) => (
                 <tr key={item.id}>
+                  <td className="py-3.5 pr-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedOrderIds.includes(item.id)}
+                      aria-label={`Select order ${item.orderId}`}
+                      onChange={() => toggleOrderSelection(item.id)}
+                      className="h-4 w-4 rounded border-zinc-600 bg-zinc-900"
+                    />
+                  </td>
                   <td className="py-3.5 pr-4 text-zinc-200">
                     <button
                       type="button"
@@ -168,10 +278,16 @@ export default function OrdersPage() {
                   </td>
                   <td className="py-3.5 pr-4 text-zinc-300">{item.items.length} items</td>
                   <td className="py-3.5 pr-4 text-zinc-300">
-                    {item.paymentStatus}
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${paymentBadgeClass(item.paymentStatus)}`}>
+                      {item.paymentStatus}
+                    </span>
                     <p className="text-xs text-zinc-400">${item.amount.toFixed(2)}</p>
                   </td>
-                  <td className="py-3.5 pr-4 text-zinc-200">{item.status}</td>
+                  <td className="py-3.5 pr-4 text-zinc-200">
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${orderStatusBadgeClass(item.status)}`}>
+                      {item.status}
+                    </span>
+                  </td>
                   <td className="py-3.5">
                     <div className="flex items-center gap-2">
                       <button
@@ -199,7 +315,7 @@ export default function OrdersPage() {
               ))}
               {!filtered.length ? (
                 <tr>
-                  <td className="py-3.5 text-zinc-400" colSpan={8}>
+                  <td className="py-3.5 text-zinc-400" colSpan={9}>
                     No monthly orders found.
                   </td>
                 </tr>
