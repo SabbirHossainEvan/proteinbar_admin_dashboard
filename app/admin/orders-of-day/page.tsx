@@ -21,6 +21,19 @@ type OrdersOfDayApiItem = {
   items?: Array<{ qty?: number | string }>;
 };
 
+function normalizeMode(value: string) {
+  return value.trim().toLowerCase() === "pickup" ? "Pickup" : "Delivery";
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function openPrintDocument(title: string, body: string) {
   const printWindow = window.open("", "_blank", "width=980,height=760");
   if (!printWindow) return;
@@ -54,7 +67,7 @@ export default function OrdersOfDayPage() {
     return (data?.data ?? []).map((order: OrdersOfDayApiItem) => ({
       id: order.orderId ?? "",
       client: order.client ?? "",
-      mode: order.orderType ?? "Delivery",
+      mode: normalizeMode(order.orderType ?? "Delivery"),
       slot: order.schedule ?? "-",
       location: order.location ?? "-",
       meals: Array.isArray(order.items)
@@ -72,7 +85,7 @@ export default function OrdersOfDayPage() {
     const rows = todaysOrders
       .map(
         (order) =>
-          `<tr><td>${order.id}</td><td>${order.client}</td><td>${order.mode}</td><td>${order.slot}</td><td>${order.location}</td><td>${order.meals}</td></tr>`
+          `<tr><td>${escapeHtml(order.id)}</td><td>${escapeHtml(order.client)}</td><td>${escapeHtml(order.mode)}</td><td>${escapeHtml(order.slot)}</td><td>${escapeHtml(order.location)}</td><td>${order.meals}</td></tr>`
       )
       .join("");
 
@@ -83,13 +96,17 @@ export default function OrdersOfDayPage() {
         month: "short",
         day: "2-digit",
         year: "numeric"
-      })}</p><table><thead><tr><th>Order ID</th><th>Client</th><th>Mode</th><th>Time Slot</th><th>Location</th><th>Meals</th></tr></thead><tbody>${rows}</tbody></table>`
+      })}</p><table><thead><tr><th>Order ID</th><th>Client</th><th>Mode</th><th>Time Slot</th><th>Location</th><th>Meals</th></tr></thead><tbody>${rows || `<tr><td colspan="6">No orders found for today.</td></tr>`}</tbody></table>`
     );
   };
 
   const handleExportCsv = () => {
     const headers = ["Order ID", "Client", "Mode", "Time Slot", "Location", "Meals"];
-    const lines = todaysOrders.map((order) => [order.id, order.client, order.mode, order.slot, order.location, order.meals].join(","));
+    const lines = todaysOrders.map((order) =>
+      [order.id, order.client, order.mode, order.slot, order.location, order.meals]
+        .map((value) => `"${String(value).replace(/"/g, '""')}"`)
+        .join(",")
+    );
     const csv = [headers.join(","), ...lines].join("\n");
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

@@ -338,6 +338,9 @@ export interface MonthlyClientListResponse {
     activeClients: number;
     pausedClients: number;
     leadClients: number;
+    clientsWithOrders?: number;
+    activeSubscriptions?: number;
+    totalRevenue?: number;
   };
 }
 

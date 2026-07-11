@@ -20,6 +20,10 @@ function orderStatusBadgeClass(status: OrderRecord["status"]) {
   return "bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/25";
 }
 
+function formatMoney(value: number) {
+  return `$${value.toFixed(2)}`;
+}
+
 export default function OrdersPage() {
   const [filters, setFilters] = useState({ search: "", planKind: "all", status: "all", deliveryOption: "all" });
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
@@ -131,6 +135,154 @@ export default function OrdersPage() {
     URL.revokeObjectURL(url);
   };
 
+  const exportPdf = async () => {
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable")
+    ]);
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const generatedAt = new Date().toLocaleString();
+    const totalAmount = filtered.reduce((sum, item) => sum + item.amount, 0);
+    const filterSummary = [
+      filters.search.trim() ? `Search: ${filters.search.trim()}` : "Search: All",
+      `Plan: ${filters.planKind}`,
+      `Status: ${filters.status}`,
+      `Delivery: ${filters.deliveryOption}`
+    ];
+
+    doc.setFillColor(17, 17, 17);
+    doc.roundedRect(32, 28, pageWidth - 64, 106, 18, 18, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("PROTEIN", 56, 62);
+    doc.setTextColor(217, 181, 111);
+    doc.setFont("helvetica", "normal");
+    doc.text("BAR", 140, 62);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(30);
+    doc.text("Orders Report", 56, 102);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(214, 211, 206);
+    doc.text(`Generated ${generatedAt}`, 56, 120);
+    doc.text("Meal Prep Management", pageWidth - 180, 62);
+    doc.text(new Date().toISOString().slice(0, 10), pageWidth - 180, 80);
+
+    const cards = [
+      { label: "TOTAL ORDERS", value: String(filtered.length) },
+      { label: "TOTAL AMOUNT", value: formatMoney(totalAmount) },
+      { label: "PENDING", value: String(filtered.filter((item) => item.status === "pending").length) }
+    ];
+    cards.forEach((card, index) => {
+      const x = 32 + index * ((pageWidth - 80) / 3 + 8);
+      const width = (pageWidth - 96) / 3;
+      doc.setFillColor(255, 253, 248);
+      doc.setDrawColor(216, 201, 173);
+      doc.roundedRect(x, 154, width, 58, 12, 12, "FD");
+      doc.setTextColor(113, 101, 84);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text(card.label, x + 14, 176);
+      doc.setTextColor(17, 17, 17);
+      doc.setFontSize(18);
+      doc.text(card.value, x + 14, 198);
+    });
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(95, 86, 73);
+    doc.setFontSize(9);
+    doc.text(filterSummary.join(" | "), 32, 238, { maxWidth: pageWidth - 64 });
+
+    autoTable(doc, {
+      startY: 256,
+      head: [["Order", "Customer", "Plan", "Delivery", "Payment", "Status", "Amount"]],
+      body: filtered.length
+        ? filtered.map((item) => [
+            `${item.orderId}\n${item.orderDate || "N/A"}`,
+            `${item.customerName || "Customer"}\n${item.customerEmail || item.customerPhone || "No contact"}`,
+            `${item.planTitle || "N/A"}\n${item.planKind}`,
+            `${item.deliveryOption}\n${item.locationName || item.deliveryAddress || "N/A"}`,
+            item.paymentStatus,
+            item.status,
+            formatMoney(item.amount)
+          ])
+        : [["No orders found for the current filters.", "", "", "", "", "", ""]],
+      theme: "grid",
+      styles: {
+        font: "helvetica",
+        fontSize: 8,
+        cellPadding: 7,
+        lineColor: [238, 229, 215],
+        lineWidth: 0.5,
+        valign: "middle"
+      },
+      headStyles: {
+        fillColor: [211, 170, 87],
+        textColor: [17, 17, 17],
+        fontStyle: "bold",
+        fontSize: 8
+      },
+      alternateRowStyles: {
+        fillColor: [255, 253, 248]
+      },
+      columnStyles: {
+        0: { cellWidth: 92 },
+        1: { cellWidth: 128 },
+        2: { cellWidth: 128 },
+        3: { cellWidth: 112 },
+        4: { cellWidth: 70, halign: "center", fontStyle: "bold" },
+        5: { cellWidth: 82, halign: "center", fontStyle: "bold" },
+        6: { cellWidth: 66, halign: "right", fontStyle: "bold" }
+      },
+      didParseCell: (data) => {
+        if (data.section !== "body") return;
+        const value = String(data.cell.raw ?? "");
+        if (data.column.index === 4) {
+          if (value === "paid") {
+            data.cell.styles.fillColor = [220, 252, 231];
+            data.cell.styles.textColor = [22, 101, 52];
+          } else if (value === "unpaid") {
+            data.cell.styles.fillColor = [255, 228, 230];
+            data.cell.styles.textColor = [190, 18, 60];
+          } else {
+            data.cell.styles.fillColor = [254, 243, 199];
+            data.cell.styles.textColor = [146, 64, 14];
+          }
+        }
+        if (data.column.index === 5) {
+          if (value === "completed") {
+            data.cell.styles.fillColor = [220, 252, 231];
+            data.cell.styles.textColor = [22, 101, 52];
+          } else if (value === "confirmed") {
+            data.cell.styles.fillColor = [219, 234, 254];
+            data.cell.styles.textColor = [29, 78, 216];
+          } else if (value === "preparing") {
+            data.cell.styles.fillColor = [243, 232, 255];
+            data.cell.styles.textColor = [126, 34, 206];
+          } else if (value === "out-for-delivery") {
+            data.cell.styles.fillColor = [255, 237, 213];
+            data.cell.styles.textColor = [194, 65, 12];
+          } else {
+            data.cell.styles.fillColor = [254, 243, 199];
+            data.cell.styles.textColor = [146, 64, 14];
+          }
+        }
+      },
+      didDrawPage: () => {
+        const pageHeight = doc.internal.pageSize.getHeight();
+        doc.setFontSize(8);
+        doc.setTextColor(129, 118, 103);
+        doc.text("Proteinbar admin report", 32, pageHeight - 24);
+        doc.text(`Page ${doc.getNumberOfPages()}`, pageWidth - 72, pageHeight - 24);
+      }
+    });
+
+    doc.save(`proteinbar-orders-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   return (
     <section className="space-y-7">
       <div>
@@ -204,6 +356,13 @@ export default function OrdersPage() {
             className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-4 py-2 text-sm font-medium text-zinc-100 transition hover:border-zinc-500"
           >
             Export CSV
+          </button>
+          <button
+            type="button"
+            onClick={exportPdf}
+            className="rounded-xl border border-amber-300/50 bg-amber-300/10 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-300/20"
+          >
+            Export PDF
           </button>
           <button
             type="button"

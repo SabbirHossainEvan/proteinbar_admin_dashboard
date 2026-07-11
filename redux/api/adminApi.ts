@@ -308,7 +308,10 @@ const normalizeMonthlyClientListResponse = (
       totalClients: Number(summary?.totalClients ?? 0),
       activeClients: Number(summary?.activeClients ?? 0),
       pausedClients: Number(summary?.pausedClients ?? 0),
-      leadClients: Number(summary?.leadClients ?? 0)
+      leadClients: Number(summary?.leadClients ?? 0),
+      clientsWithOrders: Number(summary?.clientsWithOrders ?? 0),
+      activeSubscriptions: Number(summary?.activeSubscriptions ?? 0),
+      totalRevenue: Number(summary?.totalRevenue ?? 0)
     }
   };
 };
@@ -862,6 +865,26 @@ export const adminApi = createApi({
       }),
       providesTags: (_result, _error, clientKey) => [{ type: "MonthlyClientAdmin", id: clientKey }]
     }),
+    updateMonthlyClientAdmin: builder.mutation<
+      ApiResponse<MonthlyClientRecord>,
+      { clientKey: string; patch: { email?: string; phone?: string; address?: string } }
+    >({
+      query: ({ clientKey, patch }) => ({
+        url: `/admin/monthly-plan/clients/${encodeURIComponent(clientKey)}`,
+        method: "PATCH",
+        body: patch
+      }),
+      transformResponse: (response: ApiResponse<Record<string, unknown>>) => ({
+        ...response,
+        data: normalizeMonthlyClientRecord(response.data ?? {})
+      }),
+      invalidatesTags: (_result, _error, payload) => [
+        "MonthlyClientAdmin",
+        { type: "MonthlyClientAdmin", id: payload.clientKey },
+        "MonthlyOrderAdmin",
+        "MonthlySubscriptionAdmin"
+      ]
+    }),
     bulkArchiveMonthlyOrdersAdmin: builder.mutation<
       ApiResponse<{ requestedCount: number; archivedCount: number; skippedCount: number; invalidCount: number; message: string }>,
       { ids: string[]; reason?: string }
@@ -1106,6 +1129,7 @@ export const {
   useBulkArchiveMonthlyOrdersAdminMutation,
   useGetMonthlyClientsAdminQuery,
   useGetMonthlyClientDetailsAdminQuery,
+  useUpdateMonthlyClientAdminMutation,
   useUpdateMonthlyOrderAdminMutation,
   useGetMonthlyLocationsAdminQuery,
   useUpsertMonthlyLocationAdminMutation,
