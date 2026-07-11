@@ -13,6 +13,7 @@ import type {
 } from "@/redux/backoffice/types";
 import { monthlyPlanMockAdapter, type MonthlyPlanDetailsPayload } from "@/redux/monthlyPlans/mockAdapter";
 import type {
+  ArchivedOrderListResponse,
   CustomPlanCategory,
   CustomPlanFoodItem,
   LocationRecord,
@@ -53,6 +54,48 @@ type MonthlyClientFilters = {
   status?: "active" | "paused" | "lead" | "all";
   page?: number;
   limit?: number;
+};
+
+type ArchivedOrderFilters = {
+  search?: string;
+  planKind?: PlanKind | "all";
+  status?: OrderRecord["status"] | "all";
+  deliveryOption?: OrderRecord["deliveryOption"] | "all";
+  paymentStatus?: OrderRecord["paymentStatus"] | "all";
+  page?: number;
+  limit?: number;
+};
+
+const getStoredAdminAuth = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(adminAuthStorageKey);
+    return raw ? (JSON.parse(raw) as Partial<AdminAuthRecord>) : null;
+  } catch {
+    window.sessionStorage.removeItem(adminAuthStorageKey);
+    return null;
+  }
+};
+
+const getAdminAccessToken = (auth: Partial<AdminAuthRecord> | null) =>
+  auth?.accessToken || auth?.token || auth?.session?.accessToken || auth?.session?.token || "";
+
+const getAdminRefreshToken = (auth: Partial<AdminAuthRecord> | null) =>
+  auth?.refreshToken || auth?.session?.refreshToken || "";
+
+const getAdminAccessTokenExpiry = (auth: Partial<AdminAuthRecord> | null) =>
+  auth?.session?.expiresAt ? new Date(auth.session.expiresAt).getTime() : 0;
+
+const shouldRefreshAdminAccessToken = (auth: Partial<AdminAuthRecord> | null) => {
+  if (!getAdminRefreshToken(auth)) return false;
+  const expiresAt = getAdminAccessTokenExpiry(auth);
+  if (!expiresAt) return false;
+  return expiresAt - Date.now() < 60 * 1000;
+};
+
+const isAuthEndpoint = (args: string | FetchArgs) => {
+  const url = typeof args === "string" ? args : args.url;
+  return url.includes("/auth/admin-login") || url.includes("/auth/admin-refresh");
 };
 
 const normalizeSubscriptionRecord = (item: Partial<SubscriptionRecord> & Record<string, unknown>): SubscriptionRecord => ({
@@ -159,6 +202,10 @@ const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknow
     code: String((item.promoCode as Record<string, unknown>).code ?? ""),
     discountAmount: Number((item.promoCode as Record<string, unknown>).discountAmount ?? 0),
   } : undefined,
+  isArchived: Boolean(item.isArchived ?? false),
+  archivedAt: item.archivedAt ? String(item.archivedAt) : undefined,
+  archivedBy: item.archivedBy ? String(item.archivedBy) : undefined,
+  archiveReason: item.archiveReason ? String(item.archiveReason) : undefined,
   items: Array.isArray(item.items)
     ? item.items.map((line) => ({
         instanceId: String((line as Record<string, unknown>).instanceId ?? ""),
@@ -177,6 +224,31 @@ const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknow
       }))
     : []
 });
+
+const normalizeArchivedOrderListResponse = (item: Record<string, unknown>): ArchivedOrderListResponse => {
+  const pagination = (item.pagination ?? {}) as Record<string, unknown>;
+  const summary = (item.summary ?? {}) as Record<string, unknown>;
+  return {
+    items: Array.isArray(item.items)
+      ? item.items.map((order) => normalizeOrderRecord(order as Partial<OrderRecord> & Record<string, unknown>))
+      : [],
+    pagination: {
+      page: Number(pagination.page ?? 1),
+      limit: Number(pagination.limit ?? 10),
+      total: Number(pagination.total ?? 0),
+      totalPages: Number(pagination.totalPages ?? 1),
+      hasNextPage: Boolean(pagination.hasNextPage ?? false),
+      hasPreviousPage: Boolean(pagination.hasPreviousPage ?? false)
+    },
+    summary: {
+      totalArchivedOrders: Number(summary.totalArchivedOrders ?? 0),
+      filteredArchivedOrders: Number(summary.filteredArchivedOrders ?? 0),
+      paidOrders: Number(summary.paidOrders ?? 0),
+      unpaidOrders: Number(summary.unpaidOrders ?? 0),
+      codOrders: Number(summary.codOrders ?? 0)
+    }
+  };
+};
 
 const normalizeMonthlyClientRecord = (item: Partial<MonthlyClientRecord> & Record<string, unknown>): MonthlyClientRecord => ({
   id: String(item.id ?? ""),
@@ -245,17 +317,9 @@ const rawBaseQuery = fetchBaseQuery({
   baseUrl,
   prepareHeaders: (headers) => {
     if (typeof window !== "undefined") {
-      try {
-        const raw = window.sessionStorage.getItem(adminAuthStorageKey);
-        if (raw) {
-          const parsed = JSON.parse(raw) as Partial<AdminAuthRecord>;
-          const token = parsed.token || parsed.session?.token;
-          if (token) {
-            headers.set("Authorization", `Bearer ${token}`);
-          }
-        }
-      } catch {
-        window.sessionStorage.removeItem(adminAuthStorageKey);
+      const token = getAdminAccessToken(getStoredAdminAuth());
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
       }
     }
 
@@ -263,12 +327,63 @@ const rawBaseQuery = fetchBaseQuery({
   }
 });
 
+let adminRefreshPromise: Promise<AdminAuthRecord | null> | null = null;
+
+const refreshStoredAdminAuth = async (
+  api: Parameters<BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError>>[1],
+  extraOptions: Parameters<BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError>>[2]
+) => {
+  if (typeof window === "undefined") return null;
+
+  const refreshToken = getAdminRefreshToken(getStoredAdminAuth());
+  if (!refreshToken) return null;
+
+  if (!adminRefreshPromise) {
+    adminRefreshPromise = (async () => {
+      const refreshResult = await rawBaseQuery(
+        {
+          url: "/auth/admin-refresh",
+          method: "POST",
+          body: { refreshToken }
+        },
+        api,
+        extraOptions
+      );
+
+      if (refreshResult.data && !(refreshResult as { error?: unknown }).error) {
+        const response = refreshResult.data as ApiResponse<AdminAuthRecord>;
+        if (response.data) {
+          window.sessionStorage.setItem(adminAuthStorageKey, JSON.stringify(response.data));
+          return response.data;
+        }
+      }
+
+      return null;
+    })().finally(() => {
+      adminRefreshPromise = null;
+    });
+  }
+
+  return adminRefreshPromise;
+};
+
 const baseQueryWithAdminAuth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = async (
   args,
   api,
   extraOptions
 ) => {
-  const result = await rawBaseQuery(args, api, extraOptions);
+  if (typeof window !== "undefined" && !isAuthEndpoint(args) && shouldRefreshAdminAccessToken(getStoredAdminAuth())) {
+    await refreshStoredAdminAuth(api, extraOptions);
+  }
+
+  let result = await rawBaseQuery(args, api, extraOptions);
+
+  if (result.error?.status === 401 && typeof window !== "undefined" && !isAuthEndpoint(args)) {
+    const refreshedAuth = await refreshStoredAdminAuth(api, extraOptions);
+    if (refreshedAuth) {
+      result = await rawBaseQuery(args, api, extraOptions);
+    }
+  }
 
   if (result.error?.status === 401 && typeof window !== "undefined") {
     window.sessionStorage.removeItem(adminAuthStorageKey);
@@ -495,7 +610,11 @@ export const adminApi = createApi({
       providesTags: ["AdminAuth"]
     }),
     adminLogout: builder.mutation<ApiResponse<{ loggedOut: boolean }>, void>({
-      query: () => ({ url: "/auth/admin-logout", method: "POST" }),
+      query: () => ({
+        url: "/auth/admin-logout",
+        method: "POST",
+        body: { refreshToken: getAdminRefreshToken(getStoredAdminAuth()) }
+      }),
       invalidatesTags: ["AdminAuth"]
     }),
     sendCode: builder.mutation<ApiResponse<any>, { email: string }>({
@@ -713,6 +832,17 @@ export const adminApi = createApi({
       }),
       providesTags: ["MonthlyOrderAdmin"]
     }),
+    getArchivedMonthlyOrdersAdmin: builder.query<ApiResponse<ArchivedOrderListResponse>, ArchivedOrderFilters | void>({
+      query: (params) => ({
+        url: "/admin/monthly-plan/orders/archived",
+        params: params ?? {}
+      }),
+      transformResponse: (response: ApiResponse<Record<string, unknown>>) => ({
+        ...response,
+        data: normalizeArchivedOrderListResponse(response.data ?? {})
+      }),
+      providesTags: ["MonthlyOrderAdmin"]
+    }),
     getMonthlyClientsAdmin: builder.query<ApiResponse<MonthlyClientListResponse>, MonthlyClientFilters | void>({
       query: (params) => ({
         url: "/admin/monthly-plan/clients",
@@ -731,6 +861,17 @@ export const adminApi = createApi({
         data: normalizeMonthlyClientRecord(response.data ?? {})
       }),
       providesTags: (_result, _error, clientKey) => [{ type: "MonthlyClientAdmin", id: clientKey }]
+    }),
+    bulkArchiveMonthlyOrdersAdmin: builder.mutation<
+      ApiResponse<{ requestedCount: number; archivedCount: number; skippedCount: number; invalidCount: number; message: string }>,
+      { ids: string[]; reason?: string }
+    >({
+      query: (body) => ({
+        url: "/admin/monthly-plan/orders/bulk-archive",
+        method: "PATCH",
+        body
+      }),
+      invalidatesTags: ["MonthlyOrderAdmin", "MonthlyClientAdmin", "MonthlyPlanAdmin"]
     }),
     updateMonthlyOrderAdmin: builder.mutation<ApiResponse<OrderRecord | null>, { id: string; patch: Partial<OrderRecord> }>({
       query: ({ id, patch }) => ({
@@ -961,6 +1102,8 @@ export const {
   useGetMonthlySubscriptionsAdminQuery,
   useUpdateMonthlySubscriptionAdminMutation,
   useGetMonthlyOrdersAdminQuery,
+  useGetArchivedMonthlyOrdersAdminQuery,
+  useBulkArchiveMonthlyOrdersAdminMutation,
   useGetMonthlyClientsAdminQuery,
   useGetMonthlyClientDetailsAdminQuery,
   useUpdateMonthlyOrderAdminMutation,

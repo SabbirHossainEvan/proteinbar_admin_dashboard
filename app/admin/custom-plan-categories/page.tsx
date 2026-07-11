@@ -52,7 +52,7 @@ export default function CustomPlanCategoriesPage() {
   const onSave = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedPlanId) {
-      setError("Select a custom plan first.");
+      setError("Create or activate a custom plan before adding categories.");
       return;
     }
     if (!form.name.trim()) {
@@ -116,32 +116,18 @@ export default function CustomPlanCategoriesPage() {
       <div>
         <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Custom Plan Builder</p>
         <h2 className="mt-1 text-3xl font-semibold text-white">Make Your Plan Categories</h2>
-        <p className="mt-2 text-sm text-zinc-300">Manage dynamic modal categories like Proteins, Carbs, Fat, and Sauces from the admin dashboard.</p>
+        <p className="mt-2 text-sm text-zinc-300">
+          Manage dynamic modal categories like Proteins, Carbs, Fat, and Sauces for the custom plan flow.
+        </p>
       </div>
 
       <section className="admin-panel rounded-2xl p-5">
-        <label className="space-y-1">
-          <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Custom Plan</span>
-          <select
-            value={selectedPlanId}
-            onChange={(event) => {
-              setSelectedPlanId(event.target.value);
-              resetForm();
-            }}
-            className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-          >
-            <option value="">Select custom plan</option>
-            {customPlans.map((plan) => (
-              <option key={plan.id} value={plan.id}>
-                {plan.title}
-              </option>
-            ))}
-          </select>
-        </label>
-      </section>
-
-      <section className="admin-panel rounded-2xl p-5">
-        <h3 className="text-lg font-semibold text-white">{form.id ? "Edit Category" : "Add Category"}</h3>
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-lg font-semibold text-white">{form.id ? "Edit Category" : "Add Category"}</h3>
+          <p className="text-xs text-zinc-400">
+            {selectedPlanId ? `Applied to: ${customPlans.find((plan) => plan.id === selectedPlanId)?.title ?? "Custom Plan"}` : "No custom plan found"}
+          </p>
+        </div>
         <form onSubmit={onSave} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="space-y-1 xl:col-span-2">
             <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Category Name</span>

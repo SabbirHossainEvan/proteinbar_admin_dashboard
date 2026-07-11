@@ -138,9 +138,14 @@ export type AdminAuthUser = Omit<AdminUserRecord, "isActive" | "createdAt" | "up
 export interface AdminAuthRecord {
   user: AdminAuthUser;
   token: string;
+  accessToken?: string;
+  refreshToken?: string;
   session?: {
     token: string;
+    accessToken?: string;
+    refreshToken?: string;
     expiresAt: string;
+    refreshExpiresAt?: string;
   };
 }
 
