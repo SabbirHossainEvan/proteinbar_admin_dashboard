@@ -175,7 +175,9 @@ const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknow
       ? item.status
       : "pending",
   paymentStatus:
-    item.paymentStatus === "cod" || item.paymentStatus === "unpaid" ? item.paymentStatus : "paid",
+    item.paymentStatus === "cod" || item.paymentStatus === "unpaid" || item.paymentStatus === "failed" ? item.paymentStatus : "paid",
+  paymentFailureReason: item.paymentFailureReason ? String(item.paymentFailureReason) : undefined,
+  isRecoveryOnly: Boolean(item.isRecoveryOnly ?? false),
   amount: Number(item.amount ?? 0),
   orderDate: String(item.orderDate ?? ""),
   deliveryOption: ((item.deliveryOption ?? "daily-delivery") as OrderRecord["deliveryOption"]),
@@ -245,6 +247,7 @@ const normalizeArchivedOrderListResponse = (item: Record<string, unknown>): Arch
       filteredArchivedOrders: Number(summary.filteredArchivedOrders ?? 0),
       paidOrders: Number(summary.paidOrders ?? 0),
       unpaidOrders: Number(summary.unpaidOrders ?? 0),
+      failedOrders: Number(summary.failedOrders ?? 0),
       codOrders: Number(summary.codOrders ?? 0)
     }
   };

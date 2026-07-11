@@ -118,6 +118,7 @@ export interface MealLibraryItem {
   id: string;
   name: string;
   mealType: MealType;
+  mealTypes?: MealType[];
   calories: number;
   protein: number;
   carbs: number;
@@ -230,7 +231,9 @@ export interface OrderRecord {
   planTitle: string;
   planKind: PlanKind;
   status: "pending" | "confirmed" | "preparing" | "out-for-delivery" | "completed";
-  paymentStatus: "paid" | "unpaid" | "cod";
+  paymentStatus: "paid" | "unpaid" | "failed" | "cod";
+  paymentFailureReason?: string;
+  isRecoveryOnly?: boolean;
   amount: number;
   orderDate: string;
   deliveryOption: DeliveryOption;
@@ -293,6 +296,7 @@ export interface ArchivedOrderListResponse {
     filteredArchivedOrders: number;
     paidOrders: number;
     unpaidOrders: number;
+    failedOrders?: number;
     codOrders: number;
   };
 }

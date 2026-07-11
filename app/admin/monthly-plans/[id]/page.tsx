@@ -501,6 +501,15 @@ export default function MonthlyPlanDetailEditorPage() {
     () => mealLibraryData?.data ?? draft?.mealLibrary ?? [],
     [draft?.mealLibrary, mealLibraryData],
   );
+  const selectedAssignmentMeal = useMemo(
+    () => meals.find((meal) => meal.id === assignmentForm.mealId),
+    [assignmentForm.mealId, meals],
+  );
+  const assignmentMealTypes = selectedAssignmentMeal?.mealTypes?.length
+    ? selectedAssignmentMeal.mealTypes
+    : selectedAssignmentMeal
+      ? [selectedAssignmentMeal.mealType]
+      : mealTypes;
   const selectedMealsOnDate =
     selectedWeek && selectedDate
       ? (selectedWeek.mealsByDate[selectedDate] ?? [])
@@ -595,8 +604,15 @@ export default function MonthlyPlanDetailEditorPage() {
     const selectedMeal = meals.find(
       (meal) => meal.id === assignmentForm.mealId,
     );
+    const selectedMealTypes = selectedMeal?.mealTypes?.length
+      ? selectedMeal.mealTypes
+      : selectedMeal
+        ? [selectedMeal.mealType]
+        : [];
     const mealType =
-      assignmentForm.mealType || selectedMeal?.mealType || "Lunch";
+      selectedMealTypes.includes(assignmentForm.mealType)
+        ? assignmentForm.mealType
+        : selectedMealTypes[0] || selectedMeal?.mealType || "Lunch";
     const mealName = assignmentForm.mealName.trim() || selectedMeal?.name || "";
     if (!mealName) {
       setSaveErrors(["Assigned meal name is required."]);
@@ -1508,13 +1524,18 @@ export default function MonthlyPlanDetailEditorPage() {
                                 const selectedMeal = meals.find(
                                   (meal) => meal.id === event.target.value,
                                 );
+                                const selectedMealTypes = selectedMeal?.mealTypes?.length
+                                  ? selectedMeal.mealTypes
+                                  : selectedMeal
+                                    ? [selectedMeal.mealType]
+                                    : [];
                                 setAssignmentForm((prev) => ({
                                   ...prev,
                                   mealId: event.target.value,
                                   mealName:
                                     prev.mealName || selectedMeal?.name || "",
                                   mealType:
-                                    selectedMeal?.mealType ?? prev.mealType,
+                                    selectedMealTypes[0] ?? prev.mealType,
                                 }));
                               }}
                               className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
@@ -1522,7 +1543,7 @@ export default function MonthlyPlanDetailEditorPage() {
                               <option value="">Select meal</option>
                               {meals.map((meal) => (
                                 <option key={meal.id} value={meal.id}>
-                                  {meal.name}
+                                  {meal.name} ({(meal.mealTypes?.length ? meal.mealTypes : [meal.mealType]).join(", ")})
                                 </option>
                               ))}
                             </select>
@@ -1541,7 +1562,7 @@ export default function MonthlyPlanDetailEditorPage() {
                               }
                               className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
                             >
-                              {mealTypes.map((type) => (
+                              {assignmentMealTypes.map((type) => (
                                 <option key={type} value={type}>
                                   {type}
                                 </option>

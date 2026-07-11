@@ -8,6 +8,7 @@ import type { OrderRecord } from "@/redux/monthlyPlans/types";
 
 function paymentBadgeClass(status: OrderRecord["paymentStatus"]) {
   if (status === "paid") return "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/25";
+  if (status === "failed") return "bg-red-500/20 text-red-300 ring-1 ring-red-400/25";
   if (status === "unpaid") return "bg-rose-500/20 text-rose-300 ring-1 ring-rose-400/25";
   return "bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/25";
 }
@@ -25,7 +26,7 @@ function formatMoney(value: number) {
 }
 
 export default function OrdersPage() {
-  const [filters, setFilters] = useState({ search: "", planKind: "all", status: "all", deliveryOption: "all" });
+  const [filters, setFilters] = useState({ search: "", planKind: "all", status: "all", deliveryOption: "all", paymentStatus: "all" });
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [bulkMessage, setBulkMessage] = useState("");
@@ -44,7 +45,8 @@ export default function OrdersPage() {
       const byKind = filters.planKind === "all" || item.planKind === filters.planKind;
       const byStatus = filters.status === "all" || item.status === filters.status;
       const byOption = filters.deliveryOption === "all" || item.deliveryOption === filters.deliveryOption;
-      return bySearch && byKind && byStatus && byOption;
+      const byPayment = filters.paymentStatus === "all" || item.paymentStatus === filters.paymentStatus;
+      return bySearch && byKind && byStatus && byOption && byPayment;
     });
   }, [data, filters]);
 
@@ -52,6 +54,10 @@ export default function OrdersPage() {
   const selectedVisibleIds = useMemo(
     () => selectedOrderIds.filter((id) => filteredIds.includes(id)),
     [filteredIds, selectedOrderIds]
+  );
+  const selectedArchiveableIds = useMemo(
+    () => filtered.filter((item) => selectedOrderIds.includes(item.id) && !item.isRecoveryOnly).map((item) => item.id),
+    [filtered, selectedOrderIds]
   );
   const allVisibleSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedOrderIds.includes(id));
 
@@ -82,9 +88,9 @@ export default function OrdersPage() {
   };
 
   const archiveSelectedOrders = async () => {
-    if (!selectedVisibleIds.length) return;
+    if (!selectedArchiveableIds.length) return;
     const confirmed = window.confirm(
-      `Archive ${selectedVisibleIds.length} selected order${selectedVisibleIds.length === 1 ? "" : "s"}? They will be hidden from this list but not deleted from the database.`
+      `Archive ${selectedArchiveableIds.length} selected order${selectedArchiveableIds.length === 1 ? "" : "s"}? They will be hidden from this list but not deleted from the database. Failed payment recovery-only attempts stay visible for follow-up.`
     );
     if (!confirmed) return;
 
@@ -92,12 +98,12 @@ export default function OrdersPage() {
     setBulkMessage("");
     try {
       const response = await bulkArchiveOrders({
-        ids: selectedVisibleIds,
+        ids: selectedArchiveableIds,
         reason: "Bulk archived from Meal Prep Management orders cleanup"
       }).unwrap();
       setBulkMessage(response.data?.message ?? response.message ?? "Selected orders archived.");
-      setSelectedOrderIds((prev) => prev.filter((id) => !selectedVisibleIds.includes(id)));
-      if (selectedOrder && selectedVisibleIds.includes(selectedOrder.id)) {
+      setSelectedOrderIds((prev) => prev.filter((id) => !selectedArchiveableIds.includes(id)));
+      if (selectedOrder && selectedArchiveableIds.includes(selectedOrder.id)) {
         setSelectedOrder(null);
       }
     } catch (error) {
@@ -247,6 +253,9 @@ export default function OrdersPage() {
           } else if (value === "unpaid") {
             data.cell.styles.fillColor = [255, 228, 230];
             data.cell.styles.textColor = [190, 18, 60];
+          } else if (value === "failed") {
+            data.cell.styles.fillColor = [254, 226, 226];
+            data.cell.styles.textColor = [185, 28, 28];
           } else {
             data.cell.styles.fillColor = [254, 243, 199];
             data.cell.styles.textColor = [146, 64, 14];
@@ -288,11 +297,13 @@ export default function OrdersPage() {
       <div>
         <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Monthly Order Management</p>
         <h2 className="mt-1 text-3xl font-semibold text-white">Orders</h2>
-        <p className="mt-2 text-sm text-zinc-300">Manage checkout outputs from custom/normal flow and control order status updates.</p>
+        <p className="mt-2 text-sm text-zinc-300">
+          Manage checkout outputs from custom/normal flow, including failed CMI payment attempts that need sales follow-up.
+        </p>
       </div>
 
       <section className="admin-panel rounded-2xl p-5">
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-5">
           <input
             value={filters.search}
             onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
@@ -331,15 +342,26 @@ export default function OrdersPage() {
             <option value="weekly-delivery">weekly-delivery</option>
             <option value="weekly-pickup">weekly-pickup</option>
           </select>
+          <select
+            value={filters.paymentStatus}
+            onChange={(event) => setFilters((prev) => ({ ...prev, paymentStatus: event.target.value }))}
+            className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
+          >
+            <option value="all">All payment</option>
+            <option value="paid">paid</option>
+            <option value="unpaid">unpaid</option>
+            <option value="failed">failed</option>
+            <option value="cod">cod</option>
+          </select>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="rounded-xl border border-zinc-700 bg-zinc-950/70 px-3 py-2 text-sm text-zinc-300">
-            {selectedVisibleIds.length ? `${selectedVisibleIds.length} selected` : "Select orders to archive test data"}
+            {selectedVisibleIds.length ? `${selectedVisibleIds.length} selected (${selectedArchiveableIds.length} archiveable)` : "Select orders to archive test data"}
           </span>
           <button
             type="button"
             onClick={() => void archiveSelectedOrders()}
-            disabled={!selectedVisibleIds.length || isArchiving}
+            disabled={!selectedArchiveableIds.length || isArchiving}
             className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-4 py-2 text-sm font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isArchiving ? "Archiving..." : "Archive selected"}
@@ -406,7 +428,7 @@ export default function OrdersPage() {
             </thead>
             <tbody>
               {filtered.map((item) => (
-                <tr key={item.id}>
+                <tr key={item.id} className={item.paymentStatus === "failed" ? "bg-red-500/[0.04]" : undefined}>
                   <td className="py-3.5 pr-4">
                     <input
                       type="checkbox"
@@ -441,6 +463,9 @@ export default function OrdersPage() {
                       {item.paymentStatus}
                     </span>
                     <p className="text-xs text-zinc-400">${item.amount.toFixed(2)}</p>
+                    {item.paymentStatus === "failed" ? (
+                      <p className="mt-1 text-xs font-medium text-red-300">Follow up</p>
+                    ) : null}
                   </td>
                   <td className="py-3.5 pr-4 text-zinc-200">
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${orderStatusBadgeClass(item.status)}`}>
@@ -458,7 +483,8 @@ export default function OrdersPage() {
                       </button>
                       <select
                         value={item.status}
-                        disabled={isUpdating}
+                        disabled={isUpdating || item.isRecoveryOnly}
+                        title={item.isRecoveryOnly ? "This is a failed payment attempt without a confirmed order lifecycle yet." : undefined}
                         onChange={(event) => void setStatus(item.id, event.target.value as OrderRecord["status"])}
                         className="rounded-lg border border-zinc-600 bg-zinc-900/80 px-3 py-1.5 text-xs text-zinc-100 outline-none focus:border-amber-300"
                       >
@@ -581,9 +607,36 @@ export default function OrdersPage() {
 
               <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
                 <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Payment &amp; Totals</p>
+                {selectedOrder.paymentStatus === "failed" ? (
+                  <div className="mt-3 rounded-2xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-100">
+                    <p className="font-semibold">Failed payment attempt - follow up to recover the sale</p>
+                    <p className="mt-1 text-red-100/80">
+                      {selectedOrder.paymentFailureReason || "CMI marked this payment as failed or declined."}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {selectedOrder.customerPhone ? (
+                        <a
+                          href={`tel:${selectedOrder.customerPhone}`}
+                          className="rounded-lg border border-red-300/30 bg-red-300/10 px-3 py-1.5 text-xs font-semibold text-red-50 transition hover:bg-red-300/20"
+                        >
+                          Call customer
+                        </a>
+                      ) : null}
+                      {selectedOrder.customerEmail ? (
+                        <a
+                          href={`mailto:${selectedOrder.customerEmail}?subject=${encodeURIComponent(`Proteinbar payment follow-up for ${selectedOrder.orderId}`)}`}
+                          className="rounded-lg border border-red-300/30 bg-red-300/10 px-3 py-1.5 text-xs font-semibold text-red-50 transition hover:bg-red-300/20"
+                        >
+                          Email customer
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
                   <p>Payment: <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
                     selectedOrder.paymentStatus === "paid" ? "bg-emerald-500/20 text-emerald-300" :
+                    selectedOrder.paymentStatus === "failed" ? "bg-red-500/20 text-red-300" :
                     selectedOrder.paymentStatus === "cod" ? "bg-amber-500/20 text-amber-300" :
                     "bg-red-500/20 text-red-300"
                   }`}>{selectedOrder.paymentStatus}</span></p>

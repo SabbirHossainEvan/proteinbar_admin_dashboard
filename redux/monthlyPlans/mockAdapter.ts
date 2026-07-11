@@ -854,6 +854,7 @@ const cloneCustomPlanFoodItem = (
 const cloneMeal = (meal: MealLibraryItem): MealLibraryItem => ({
   ...meal,
   tags: [...meal.tags],
+  mealTypes: [...(meal.mealTypes ?? [meal.mealType])],
 });
 
 const cloneWeekAssignment = (assignment: WeekAssignment): WeekAssignment => ({
