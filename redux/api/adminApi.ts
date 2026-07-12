@@ -692,6 +692,22 @@ export const adminApi = createApi({
       }),
       invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin", "MonthlyPlanDetails"]
     }),
+    forceDeleteMealLibraryAdmin: builder.mutation<ApiResponse<{
+      id: string;
+      action: "force-deleted";
+      status: "deleted";
+      referenceCount: number;
+      planCount: number;
+      removedWeekAssignments?: number;
+      removedFoodItems?: number;
+      message: string;
+    }>, string>({
+      query: (id) => ({
+        url: `/admin/monthly-plan/meals/${id}/force`,
+        method: "DELETE"
+      }),
+      invalidatesTags: ["MealLibraryAdmin", "MonthlyPlanAdmin", "MonthlyPlanDetails"]
+    }),
     getCustomPlanCategoriesAdmin: builder.query<ApiResponse<CustomPlanCategory[]>, string>({
       query: (planId) => ({
         url: "/admin/monthly-plan/custom-categories",
@@ -1117,6 +1133,7 @@ export const {
   useGetMealLibraryAdminQuery,
   useUpsertMealLibraryAdminMutation,
   useDeleteMealLibraryAdminMutation,
+  useForceDeleteMealLibraryAdminMutation,
   useGetCustomPlanCategoriesAdminQuery,
   useUpsertCustomPlanCategoryAdminMutation,
   useDeleteCustomPlanCategoryAdminMutation,

@@ -14,6 +14,7 @@ import {
 import type {
   CustomPlanCategory,
   CustomPlanFoodItem,
+  MealLibraryItem,
   MealType,
   MonthlyPlanDetails,
   WeekAssignment,
@@ -26,10 +27,35 @@ type AssignmentFormState = {
   mealId: string;
   mealName: string;
   mealType: MealType;
+  mealTypes: MealType[];
   badges: string;
 };
 
 const mealTypes: MealType[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
+
+const getMealLibraryTypes = (meal: MealLibraryItem): MealType[] =>
+  meal.mealTypes?.length ? meal.mealTypes : [meal.mealType];
+
+const getCategoryMealType = (categoryName: string): MealType | null => {
+  const normalized = categoryName.trim().toLowerCase();
+  return (
+    mealTypes.find((type) => type.toLowerCase() === normalized) ?? null
+  );
+};
+
+const mealSupportsCategory = (meal: MealLibraryItem, categoryName: string) => {
+  const categoryMealType = getCategoryMealType(categoryName);
+  if (!categoryMealType) return true;
+  return getMealLibraryTypes(meal).includes(categoryMealType);
+};
+
+const resolveMealTypeForMeal = (
+  mealType: MealType,
+  meal: MealLibraryItem,
+): MealType => {
+  const allowedTypes = getMealLibraryTypes(meal);
+  return allowedTypes.includes(mealType) ? mealType : allowedTypes[0] ?? "Lunch";
+};
 const weekDayOptions = [
   { value: 0, label: "Sunday" },
   { value: 1, label: "Monday" },
@@ -49,6 +75,7 @@ const createAssignmentForm = (): AssignmentFormState => ({
   mealId: "",
   mealName: "",
   mealType: "Lunch",
+  mealTypes: [],
   badges: "",
 });
 
@@ -57,6 +84,10 @@ const parseNumberList = (value: string, minValue = 0) =>
     .split(",")
     .map((item) => Number(item.trim()))
     .filter((item) => Number.isFinite(item) && item >= minValue);
+
+const normalizePositiveOptions = (values: number[]) =>
+  [...new Set(values.filter((value) => Number.isFinite(value) && value >= 1))]
+    .sort((a, b) => a - b);
 
 const sanitizeNumberListInput = (value: string) =>
   value
@@ -150,6 +181,42 @@ const createWeekDraft = (
   });
 };
 
+const copyWeekMealPattern = (
+  sourceWeek: WeekAssignment,
+  targetWeek: WeekAssignment,
+): WeekAssignment => {
+  const normalizedSourceWeek = syncWeekDates(sourceWeek);
+  const normalizedTargetWeek = syncWeekDates(targetWeek);
+  const sourceDates = Object.keys(normalizedSourceWeek.mealsByDate).sort(
+    (a, b) => a.localeCompare(b),
+  );
+  const targetDates = Object.keys(normalizedTargetWeek.mealsByDate).sort(
+    (a, b) => a.localeCompare(b),
+  );
+  const copiedMealsByDate = Object.fromEntries(
+    targetDates.map((targetDate, dateIndex) => {
+      const sourceDate = sourceDates[dateIndex];
+      const sourceMeals = sourceDate
+        ? normalizedSourceWeek.mealsByDate[sourceDate] ?? []
+        : [];
+
+      return [
+        targetDate,
+        sourceMeals.map((meal, mealIndex) => ({
+          ...meal,
+          id: `assigned-${Date.now()}-${targetWeek.weekIndex}-${dateIndex}-${mealIndex}`,
+          date: targetDate,
+        })),
+      ];
+    }),
+  );
+
+  return {
+    ...normalizedTargetWeek,
+    mealsByDate: copiedMealsByDate,
+  };
+};
+
 const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
   ...details,
   plan: {
@@ -232,6 +299,7 @@ const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
   mealLibrary: (details.mealLibrary ?? []).map((meal) => ({
     ...meal,
     tags: [...meal.tags],
+    mealTypes: getMealLibraryTypes(meal),
   })),
 });
 
@@ -267,12 +335,56 @@ const reconcileAssignedMeals = (
               ...meal,
               mealId: linkedMeal.id,
               mealName: linkedMeal.name,
-              mealType: meal.mealType || linkedMeal.mealType || "Lunch",
+              mealType: resolveMealTypeForMeal(meal.mealType, linkedMeal),
             };
           }),
         ]),
       ),
     })),
+  };
+};
+
+const normalizeRuleDefaultsForSave = (
+  details: MonthlyPlanDetails,
+): MonthlyPlanDetails => {
+  const rules = details.rules;
+  const defaultMeals = rules.allowedMealsPerDay.includes(rules.defaults.meals)
+    ? rules.defaults.meals
+    : rules.allowedMealsPerDay[0] ?? rules.defaults.meals;
+  const defaultDays = rules.allowedDays.includes(rules.defaults.days)
+    ? rules.defaults.days
+    : rules.allowedDays[0] ?? rules.defaults.days;
+  const defaultSnacks = rules.allowedSnacks.includes(rules.defaults.snacks)
+    ? rules.defaults.snacks
+    : rules.allowedSnacks[0] ?? rules.defaults.snacks;
+  const defaultPlanType =
+    rules.defaults.planType &&
+    rules.planTypeOptions.includes(rules.defaults.planType)
+      ? rules.defaults.planType
+      : rules.planTypeOptions[0];
+  const defaultDeliveryDays = rules.defaults.deliveryDays.filter((day) =>
+    rules.deliveryDaysRule.allowedWeekDays.includes(day),
+  );
+
+  return {
+    ...details,
+    rules: {
+      ...rules,
+      defaults: {
+        ...rules.defaults,
+        meals: defaultMeals,
+        days: defaultDays,
+        snacks: defaultSnacks,
+        planType: defaultPlanType,
+        deliveryDays:
+          defaultDeliveryDays.length > 0
+            ? defaultDeliveryDays
+            : rules.deliveryDaysRule.allowedWeekDays.slice(
+                0,
+                Math.max(1, rules.deliveryDaysRule.min),
+              ),
+      },
+    },
   };
 };
 
@@ -312,12 +424,24 @@ const validateDetails = (
   ) {
     errors.push("Pricing values must be non-negative.");
   }
+  if (!details.rules.allowedMealsPerDay.length)
+    errors.push("Add at least one meal-count option.");
+  if (!details.rules.allowedDays.length)
+    errors.push("Add at least one plan length option.");
+  if (!details.rules.allowedSnacks.length)
+    errors.push("Add at least one snack option.");
   if (!details.rules.allowedMealsPerDay.includes(details.rules.defaults.meals))
-    errors.push("Default meals must exist inside allowed meals/day.");
+    errors.push(
+      `Default meal count (${details.rules.defaults.meals}) must be one of the meal-count options: ${details.rules.allowedMealsPerDay.join(", ")}.`,
+    );
   if (!details.rules.allowedDays.includes(details.rules.defaults.days))
-    errors.push("Default days must exist inside allowed days.");
+    errors.push(
+      `Default plan length (${details.rules.defaults.days}) must be one of the length options: ${details.rules.allowedDays.join(", ")}.`,
+    );
   if (!details.rules.allowedSnacks.includes(details.rules.defaults.snacks))
-    errors.push("Default snacks must exist inside allowed snacks.");
+    errors.push(
+      `Default snack count (${details.rules.defaults.snacks}) must be one of the snack options: ${details.rules.allowedSnacks.join(", ")}.`,
+    );
   if (
     details.plan.planKind === "custom" &&
     !details.rules.planTypeOptions.length
@@ -327,7 +451,9 @@ const validateDetails = (
     details.rules.defaults.planType &&
     !details.rules.planTypeOptions.includes(details.rules.defaults.planType)
   )
-    errors.push("Default plan type must exist inside plan type options.");
+    errors.push(
+      `Default plan type (${details.rules.defaults.planType}) must be one of the plan type options.`,
+    );
   if (
     details.rules.deliveryDaysRule.allowedWeekDays.some(
       (day) => day < 0 || day > 6,
@@ -339,7 +465,9 @@ const validateDetails = (
       (day) => !details.rules.deliveryDaysRule.allowedWeekDays.includes(day),
     )
   )
-    errors.push("Default delivery days must exist inside allowed week days.");
+    errors.push(
+      "Default delivery weekdays must be selected from the allowed delivery weekdays.",
+    );
   if (details.rules.deliveryDaysRule.min > details.rules.deliveryDaysRule.max)
     errors.push("Delivery day rule min must be less than or equal to max.");
 
@@ -378,6 +506,10 @@ const validateDetails = (
         if (!linkedMeal) {
           errors.push(
             `Assigned meal "${meal.mealName}" on ${dateIso} in week ${week.weekIndex} is no longer in Meal Library. Re-add that meal from Meal Library or remove it from this date.`,
+          );
+        } else if (!getMealLibraryTypes(linkedMeal).includes(meal.mealType)) {
+          errors.push(
+            `Assigned meal "${meal.mealName}" on ${dateIso} uses ${meal.mealType}, but this meal is only assigned to ${getMealLibraryTypes(linkedMeal).join(", ")} in Meal Library.`,
           );
         }
       });
@@ -437,7 +569,8 @@ export default function MonthlyPlanDetailEditorPage() {
   const planId = params.id;
   const [activeTab, setActiveTab] = useState<TabKey>("basic");
   const [draft, setDraft] = useState<MonthlyPlanDetails | null>(null);
-  const [allowedMealsInput, setAllowedMealsInput] = useState("");
+  const [mealOptionInput, setMealOptionInput] = useState("");
+  const [lengthOptionInput, setLengthOptionInput] = useState("");
   const [selectedWeekId, setSelectedWeekId] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [assignmentForm, setAssignmentForm] = useState<AssignmentFormState>(
@@ -447,6 +580,8 @@ export default function MonthlyPlanDetailEditorPage() {
   const [saveErrors, setSaveErrors] = useState<string[]>([]);
   const [pickerCategoryId, setPickerCategoryId] = useState<string | null>(null);
   const [pickerMealId, setPickerMealId] = useState("");
+  const [isCopyMealsModalOpen, setIsCopyMealsModalOpen] = useState(false);
+  const [copyTargetWeekIds, setCopyTargetWeekIds] = useState<string[]>([]);
 
   const { data, isLoading, isError } = useGetMonthlyPlanDetailsQuery(planId);
   const { data: mealLibraryData, isLoading: isLoadingMealLibrary } =
@@ -461,7 +596,6 @@ export default function MonthlyPlanDetailEditorPage() {
       mealLibraryData?.data ?? data.data.mealLibrary ?? [],
     );
     setDraft(normalized);
-    setAllowedMealsInput(normalized.rules.allowedMealsPerDay.join(","));
     setAssignmentForm(createAssignmentForm());
   }, [data, mealLibraryData]);
 
@@ -505,15 +639,23 @@ export default function MonthlyPlanDetailEditorPage() {
     () => meals.find((meal) => meal.id === assignmentForm.mealId),
     [assignmentForm.mealId, meals],
   );
-  const assignmentMealTypes = selectedAssignmentMeal?.mealTypes?.length
-    ? selectedAssignmentMeal.mealTypes
-    : selectedAssignmentMeal
-      ? [selectedAssignmentMeal.mealType]
-      : mealTypes;
+  const assignmentMealTypes = selectedAssignmentMeal
+    ? getMealLibraryTypes(selectedAssignmentMeal)
+    : [];
   const selectedMealsOnDate =
     selectedWeek && selectedDate
       ? (selectedWeek.mealsByDate[selectedDate] ?? [])
       : [];
+  const selectedWeekMealCount = useMemo(
+    () =>
+      selectedWeek
+        ? Object.values(selectedWeek.mealsByDate).reduce(
+            (total, meals) => total + meals.length,
+            0,
+          )
+        : 0,
+    [selectedWeek],
+  );
   const isCustomPlan = draft?.plan.planKind === "custom";
   const customCategories = useMemo(
     () => draft?.plan.content?.regularStepTwo?.categories ?? [],
@@ -529,15 +671,6 @@ export default function MonthlyPlanDetailEditorPage() {
   ) => {
     setDraft((prev) =>
       prev ? { ...prev, plan: { ...prev.plan, [field]: value } } : prev,
-    );
-  };
-
-  const setRulesField = <K extends keyof MonthlyPlanDetails["rules"]>(
-    field: K,
-    value: MonthlyPlanDetails["rules"][K],
-  ) => {
-    setDraft((prev) =>
-      prev ? { ...prev, rules: { ...prev.rules, [field]: value } } : prev,
     );
   };
 
@@ -557,16 +690,20 @@ export default function MonthlyPlanDetailEditorPage() {
     );
   };
 
-  const addWeek = () => {
-    if (!draft) return;
-    const lastWeek = [...draft.weekAssignments]
+  const createNextWeek = (source: MonthlyPlanDetails) => {
+    const lastWeek = [...source.weekAssignments]
       .sort((a, b) => a.weekIndex - b.weekIndex)
       .at(-1);
-    const newWeek = createWeekDraft(
-      draft.plan.id,
-      draft.weekAssignments.length + 1,
+    return createWeekDraft(
+      source.plan.id,
+      source.weekAssignments.length + 1,
       lastWeek,
     );
+  };
+
+  const addWeek = () => {
+    if (!draft) return;
+    const newWeek = createNextWeek(draft);
     setDraft((prev) =>
       prev
         ? {
@@ -580,6 +717,97 @@ export default function MonthlyPlanDetailEditorPage() {
         : prev,
     );
     setSelectedWeekId(newWeek.id);
+  };
+
+  const addCopyTargetWeek = () => {
+    if (!draft) return;
+    const newWeek = createNextWeek(draft);
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            weekAssignments: [...prev.weekAssignments, newWeek],
+            plan: {
+              ...prev.plan,
+              weekAssignmentIds: [...prev.plan.weekAssignmentIds, newWeek.id],
+            },
+          }
+        : prev,
+    );
+    setCopyTargetWeekIds((prev) => [...prev, newWeek.id]);
+    setSaveErrors([]);
+  };
+
+  const openCopyMealsModal = () => {
+    if (!draft || !selectedWeek) return;
+    if (selectedWeekMealCount === 0) {
+      setSaveErrors(["This week has no meals to copy."]);
+      setSaveMessage("");
+      return;
+    }
+    const defaultTargets = draft.weekAssignments
+      .filter((week) => week.id !== selectedWeek.id)
+      .map((week) => week.id);
+    setCopyTargetWeekIds(defaultTargets);
+    setIsCopyMealsModalOpen(true);
+    setSaveErrors([]);
+    setSaveMessage("");
+  };
+
+  const closeCopyMealsModal = () => {
+    setIsCopyMealsModalOpen(false);
+    setCopyTargetWeekIds([]);
+  };
+
+  const toggleCopyTargetWeek = (weekId: string) => {
+    setCopyTargetWeekIds((prev) =>
+      prev.includes(weekId)
+        ? prev.filter((id) => id !== weekId)
+        : [...prev, weekId],
+    );
+  };
+
+  const toggleAssignmentMealType = (mealType: MealType) => {
+    setAssignmentForm((prev) => {
+      const nextMealTypes = prev.mealTypes.includes(mealType)
+        ? prev.mealTypes.filter((type) => type !== mealType)
+        : [...prev.mealTypes, mealType];
+
+      return {
+        ...prev,
+        mealType: nextMealTypes[0] ?? mealType,
+        mealTypes: nextMealTypes,
+      };
+    });
+  };
+
+  const copySelectedWeekToTargets = () => {
+    if (!draft || !selectedWeek) return;
+    if (copyTargetWeekIds.length === 0) {
+      setSaveErrors(["Select at least one target week."]);
+      setSaveMessage("");
+      return;
+    }
+    const targetIds = new Set(copyTargetWeekIds);
+    const targetWeekCount = copyTargetWeekIds.length;
+
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            weekAssignments: prev.weekAssignments.map((week) =>
+              targetIds.has(week.id)
+                ? copyWeekMealPattern(selectedWeek, week)
+                : week,
+            ),
+          }
+        : prev,
+    );
+    setSaveErrors([]);
+    setSaveMessage(
+      `Copied Week ${selectedWeek.weekIndex} meals to ${targetWeekCount} selected week${targetWeekCount === 1 ? "" : "s"}. Save changes to publish.`,
+    );
+    closeCopyMealsModal();
   };
 
   const removeWeek = (weekId: string) => {
@@ -604,20 +832,44 @@ export default function MonthlyPlanDetailEditorPage() {
     const selectedMeal = meals.find(
       (meal) => meal.id === assignmentForm.mealId,
     );
-    const selectedMealTypes = selectedMeal?.mealTypes?.length
-      ? selectedMeal.mealTypes
-      : selectedMeal
-        ? [selectedMeal.mealType]
-        : [];
-    const mealType =
-      selectedMealTypes.includes(assignmentForm.mealType)
-        ? assignmentForm.mealType
-        : selectedMealTypes[0] || selectedMeal?.mealType || "Lunch";
+    const selectedMealTypes = selectedMeal ? getMealLibraryTypes(selectedMeal) : [];
+    if (!selectedMeal || selectedMealTypes.length === 0) {
+      setSaveErrors([
+        "Selected meal is not available in Meal Library. Please select another meal.",
+      ]);
+      return;
+    }
+    const requestedMealTypes = (
+      assignmentForm.mealTypes.length
+        ? assignmentForm.mealTypes
+        : [assignmentForm.mealType]
+    ).filter((type, index, source) => source.indexOf(type) === index);
+    const mealTypesToAssign = requestedMealTypes.filter((type) =>
+      selectedMealTypes.includes(type),
+    );
+    if (mealTypesToAssign.length === 0) {
+      setSaveErrors(["Select at least one valid meal type for this meal."]);
+      return;
+    }
     const mealName = assignmentForm.mealName.trim() || selectedMeal?.name || "";
     if (!mealName) {
       setSaveErrors(["Assigned meal name is required."]);
       return;
     }
+    const badges = parseStringList(assignmentForm.badges);
+    const assignmentTimestamp = Date.now();
+    const nextAssignments = mealTypesToAssign.map((mealType, index) => ({
+      id:
+        index === 0 && assignmentForm.id
+          ? assignmentForm.id
+          : `assigned-${assignmentTimestamp}-${mealType.toLowerCase()}-${index}`,
+      mealId: assignmentForm.mealId,
+      mealName,
+      mealType,
+      date: selectedDate,
+      badges,
+    }));
+
     updateWeek(selectedWeek.id, (week) => ({
       ...week,
       mealsByDate: {
@@ -626,14 +878,7 @@ export default function MonthlyPlanDetailEditorPage() {
           ...(week.mealsByDate[selectedDate] ?? []).filter(
             (item) => item.id !== assignmentForm.id,
           ),
-          {
-            id: assignmentForm.id || `assigned-${Date.now()}`,
-            mealId: assignmentForm.mealId,
-            mealName,
-            mealType,
-            date: selectedDate,
-            badges: parseStringList(assignmentForm.badges),
-          },
+          ...nextAssignments,
         ],
       },
     }));
@@ -821,16 +1066,18 @@ export default function MonthlyPlanDetailEditorPage() {
   const saveAll = async () => {
     if (!draft) return;
     const payload = reconcileAssignedMeals(
-      normalizeDetails({
-        ...draft,
-        rules:
-          draft.plan.planKind === "normal"
-            ? {
-                ...draft.rules,
-                allowedMealsPerDay: [draft.rules.defaults.meals],
-              }
-            : draft.rules,
-      }),
+      normalizeRuleDefaultsForSave(
+        normalizeDetails({
+          ...draft,
+          rules:
+            draft.plan.planKind === "normal"
+              ? {
+                  ...draft.rules,
+                  allowedMealsPerDay: [draft.rules.defaults.meals],
+                }
+              : draft.rules,
+        }),
+      ),
       meals,
     );
     const errors = validateDetails(payload, meals);
@@ -846,7 +1093,6 @@ export default function MonthlyPlanDetailEditorPage() {
         meals,
       );
       setDraft(normalized);
-      setAllowedMealsInput(normalized.rules.allowedMealsPerDay.join(","));
       setSaveErrors([]);
       setSaveMessage("Meal plan saved.");
     } catch (error) {
@@ -886,6 +1132,94 @@ export default function MonthlyPlanDetailEditorPage() {
       ? [{ key: "regularMeals" as TabKey, label: "Regular Meal Categories" }]
       : []),
   ];
+  const frequencyLabel =
+    draft.plan.frequency.charAt(0).toUpperCase() + draft.plan.frequency.slice(1);
+  const effectiveDefaultDays = draft.rules.allowedDays.includes(
+    draft.rules.defaults.days,
+  )
+    ? draft.rules.defaults.days
+    : draft.rules.allowedDays[0];
+  const hasDefaultDaysMismatch =
+    Boolean(effectiveDefaultDays) &&
+    effectiveDefaultDays !== draft.rules.defaults.days;
+  const updateMealCountOptions = (nextOptions: number[]) => {
+    const normalizedOptions = normalizePositiveOptions(nextOptions);
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            rules: {
+              ...prev.rules,
+              allowedMealsPerDay: normalizedOptions,
+              defaults: {
+                ...prev.rules.defaults,
+                meals: normalizedOptions.includes(prev.rules.defaults.meals)
+                  ? prev.rules.defaults.meals
+                  : normalizedOptions[0] ?? prev.rules.defaults.meals,
+              },
+            },
+          }
+        : prev,
+    );
+  };
+  const updateLengthOptions = (nextOptions: number[]) => {
+    const normalizedOptions = normalizePositiveOptions(nextOptions);
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            rules: {
+              ...prev.rules,
+              allowedDays: normalizedOptions,
+              defaults: {
+                ...prev.rules.defaults,
+                days: normalizedOptions.includes(prev.rules.defaults.days)
+                  ? prev.rules.defaults.days
+                  : normalizedOptions[0] ?? prev.rules.defaults.days,
+              },
+            },
+          }
+        : prev,
+    );
+  };
+  const addMealCountOptions = () => {
+    const nextValues = parseNumberList(mealOptionInput, 1);
+    if (!nextValues.length) return;
+    updateMealCountOptions([...draft.rules.allowedMealsPerDay, ...nextValues]);
+    setMealOptionInput("");
+  };
+  const addLengthOptions = () => {
+    const nextValues = parseNumberList(lengthOptionInput, 1);
+    if (!nextValues.length) return;
+    updateLengthOptions([...draft.rules.allowedDays, ...nextValues]);
+    setLengthOptionInput("");
+  };
+  const setDefaultMealCount = (value: number) => {
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            rules: {
+              ...prev.rules,
+              defaults: { ...prev.rules.defaults, meals: value },
+            },
+          }
+        : prev,
+    );
+  };
+  const setDefaultLength = (value: number) => {
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            rules: {
+              ...prev.rules,
+              defaults: { ...prev.rules.defaults, days: value },
+            },
+          }
+        : prev,
+    );
+  };
 
   return (
     <section className="space-y-7">
@@ -1114,89 +1448,213 @@ export default function MonthlyPlanDetailEditorPage() {
 
         {activeTab === "rules" ? (
           <div className="space-y-4">
-            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-              <p className="text-sm font-semibold text-white">
-                Website Meal-plan Rules
-              </p>
-              <p className="mt-1 text-xs text-zinc-400">
-                These values control the public plan builder. Pre-made plans
-                keep a fixed meal count; custom plans can expose multiple
-                meal-count options.
-              </p>
+            <div className="rounded-3xl border border-zinc-700/70 bg-zinc-900/70 p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-white">
+                    Builder options
+                  </h3>
+                  <p className="mt-1 text-sm text-zinc-400">
+                    Add the choices customers can select. Click a chip to set
+                    the default.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full border border-zinc-700 bg-zinc-950/60 px-3 py-1.5 text-xs font-semibold text-zinc-200">
+                    {draft.plan.planKind === "normal" ? "Pre-made" : "Custom"}
+                  </span>
+                  <span className="rounded-full border border-zinc-700 bg-zinc-950/60 px-3 py-1.5 text-xs font-semibold text-zinc-200">
+                    {frequencyLabel}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
-                  Number Of Meals Dropdown
-                </span>
-                <input
-                  value={allowedMealsInput}
-                  onChange={(event) => {
-                    const sanitizedValue = sanitizeNumberListInput(
-                      event.target.value,
-                    );
-                    setAllowedMealsInput(sanitizedValue);
-                    setRulesField(
-                      "allowedMealsPerDay",
-                      parseNumberList(sanitizedValue, 1),
-                    );
-                  }}
-                  placeholder={
-                    draft.plan.planKind === "normal"
-                      ? String(draft.rules.defaults.meals)
-                      : "1,2,3"
-                  }
-                  disabled={draft.plan.planKind === "normal"}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
-                />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-3xl border border-zinc-700/70 bg-zinc-900/55 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">
+                      Meals per day
+                    </h4>
+                    <p className="mt-1 text-sm text-zinc-400">
+                      {draft.plan.planKind === "normal"
+                        ? "Fixed for this pre-made plan."
+                        : "Customer can choose one option."}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-amber-300/40 bg-amber-300/10 px-3 py-1 text-xs font-semibold text-amber-100">
+                    Default {draft.rules.defaults.meals}
+                  </span>
+                </div>
                 {draft.plan.planKind === "normal" ? (
-                  <p className="text-xs text-zinc-500">
-                    Pre-made plans use a fixed meal count. Change the default
-                    meals value only if the fixed plan changes.
-                  </p>
-                ) : null}
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {draft.rules.allowedMealsPerDay.map((value) => (
-                    <span
-                      key={`meals-${value}`}
-                      className="rounded-full border border-zinc-600 px-2 py-1 text-xs text-zinc-200"
-                    >
-                      {value}
-                    </span>
-                  ))}
+                  <div className="mt-5 rounded-3xl border border-amber-300/30 bg-amber-300/10 p-5 text-center">
+                    <p className="text-5xl font-semibold text-amber-200">
+                      {draft.rules.defaults.meals}
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-amber-50">
+                      meals per day
+                    </p>
+                    <p className="mt-2 text-xs text-amber-100/70">
+                      Locked because pre-made plans do not show this selector.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-5 space-y-4">
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input
+                        value={mealOptionInput}
+                        onChange={(event) =>
+                          setMealOptionInput(
+                            sanitizeNumberListInput(event.target.value),
+                          )
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            addMealCountOptions();
+                          }
+                        }}
+                        placeholder="Add options, e.g. 1,2,3"
+                        className="min-h-12 flex-1 rounded-2xl border border-zinc-700 bg-zinc-950/60 px-4 text-sm text-zinc-100 outline-none transition focus:border-amber-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={addMealCountOptions}
+                        className="rounded-2xl bg-amber-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {draft.rules.allowedMealsPerDay.map((value) => (
+                        <div
+                          key={`meals-${value}`}
+                          className={`inline-flex items-center overflow-hidden rounded-full border text-xs font-semibold ${
+                            value === draft.rules.defaults.meals
+                              ? "border-amber-300 bg-amber-300 text-zinc-950"
+                              : "border-zinc-700 bg-zinc-950/60 text-zinc-200"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setDefaultMealCount(value)}
+                            className="px-3 py-1.5"
+                            title="Set as default"
+                          >
+                            {value} meal{value === 1 ? "" : "s"}
+                          </button>
+                          {draft.rules.allowedMealsPerDay.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateMealCountOptions(
+                                  draft.rules.allowedMealsPerDay.filter(
+                                    (option) => option !== value,
+                                  ),
+                                )
+                              }
+                              className="border-l border-black/10 px-2 py-1.5 opacity-70 transition hover:opacity-100"
+                              title="Remove option"
+                            >
+                              x
+                            </button>
+                          ) : null}
+                        </div>
+                      ))}
+                  </div>
                 </div>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
-                  {draft.plan.frequency === "monthly"
-                    ? "Monthly Length Options"
-                    : draft.plan.frequency === "weekly"
-                      ? "Weekly Length Options"
-                      : "Daily Length Options"}
-                </span>
-                <input
-                  value={draft.rules.allowedDays.join(",")}
-                  onChange={(event) =>
-                    setRulesField(
-                      "allowedDays",
-                      parseNumberList(event.target.value, 1),
-                    )
-                  }
-                  placeholder="3,4,5,6"
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {draft.rules.allowedDays.map((value) => (
-                    <span
-                      key={`days-${value}`}
-                      className="rounded-full border border-zinc-600 px-2 py-1 text-xs text-zinc-200"
-                    >
-                      {value}
-                    </span>
-                  ))}
+                )}
+              </div>
+
+              <div className="rounded-3xl border border-zinc-700/70 bg-zinc-900/55 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">
+                      Plan length
+                    </h4>
+                    <p className="mt-1 text-sm text-zinc-400">
+                      Add durations like 1,2,3,4. Customer chooses one.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+                    Default {effectiveDefaultDays ?? "-"}
+                  </span>
                 </div>
-              </label>
+                <div className="mt-5 space-y-4">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={lengthOptionInput}
+                      onChange={(event) =>
+                        setLengthOptionInput(
+                          sanitizeNumberListInput(event.target.value),
+                        )
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addLengthOptions();
+                        }
+                      }}
+                      placeholder="Add lengths, e.g. 1,2,3,4"
+                      className="min-h-12 flex-1 rounded-2xl border border-zinc-700 bg-zinc-950/60 px-4 text-sm text-zinc-100 outline-none transition focus:border-emerald-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={addLengthOptions}
+                      className="rounded-2xl bg-emerald-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-200"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {draft.rules.allowedDays.map((value) => (
+                      <div
+                        key={`days-${value}`}
+                        className={`inline-flex items-center overflow-hidden rounded-full border text-xs font-semibold ${
+                          value === effectiveDefaultDays
+                            ? "border-emerald-300 bg-emerald-300 text-zinc-950"
+                            : "border-zinc-700 bg-zinc-950/60 text-zinc-200"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setDefaultLength(value)}
+                          className="px-3 py-1.5"
+                          title="Set as default"
+                        >
+                          {value} day{value === 1 ? "" : "s"}
+                        </button>
+                        {draft.rules.allowedDays.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateLengthOptions(
+                                draft.rules.allowedDays.filter(
+                                  (option) => option !== value,
+                                ),
+                              )
+                            }
+                            className="border-l border-black/10 px-2 py-1.5 opacity-70 transition hover:opacity-100"
+                            title="Remove option"
+                          >
+                            x
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  {hasDefaultDaysMismatch ? (
+                    <p className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
+                      Will use {effectiveDefaultDays} as default after saving.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-zinc-500">
+                      Highlighted chip is the website default.
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         ) : null}
@@ -1459,7 +1917,7 @@ export default function MonthlyPlanDetailEditorPage() {
                       </label>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() =>
@@ -1470,6 +1928,14 @@ export default function MonthlyPlanDetailEditorPage() {
                         className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100"
                       >
                         Sync Days To Range
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openCopyMealsModal}
+                        disabled={selectedWeekMealCount === 0}
+                        className="rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900/40 disabled:text-zinc-500"
+                      >
+                        Copy meals to other weeks
                       </button>
                       {draft.weekAssignments.length > 1 ? (
                         <button
@@ -1489,6 +1955,10 @@ export default function MonthlyPlanDetailEditorPage() {
                       <p className="mt-1 text-sm text-zinc-300">
                         Choose a weekday below instead of using raw calendar
                         dates.
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        Use “Copy meals to other weeks” after building one week
+                        to repeat the same meal pattern across the plan.
                       </p>
                     </div>
 
@@ -1524,11 +1994,9 @@ export default function MonthlyPlanDetailEditorPage() {
                                 const selectedMeal = meals.find(
                                   (meal) => meal.id === event.target.value,
                                 );
-                                const selectedMealTypes = selectedMeal?.mealTypes?.length
-                                  ? selectedMeal.mealTypes
-                                  : selectedMeal
-                                    ? [selectedMeal.mealType]
-                                    : [];
+                                const selectedMealTypes = selectedMeal
+                                  ? getMealLibraryTypes(selectedMeal)
+                                  : [];
                                 setAssignmentForm((prev) => ({
                                   ...prev,
                                   mealId: event.target.value,
@@ -1536,6 +2004,9 @@ export default function MonthlyPlanDetailEditorPage() {
                                     prev.mealName || selectedMeal?.name || "",
                                   mealType:
                                     selectedMealTypes[0] ?? prev.mealType,
+                                  mealTypes: selectedMealTypes.length
+                                    ? [selectedMealTypes[0]]
+                                    : [],
                                 }));
                               }}
                               className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
@@ -1543,32 +2014,51 @@ export default function MonthlyPlanDetailEditorPage() {
                               <option value="">Select meal</option>
                               {meals.map((meal) => (
                                 <option key={meal.id} value={meal.id}>
-                                  {meal.name} ({(meal.mealTypes?.length ? meal.mealTypes : [meal.mealType]).join(", ")})
+                                  {meal.name} ({getMealLibraryTypes(meal).join(", ")})
                                 </option>
                               ))}
                             </select>
                           </label>
-                          <label className="space-y-1">
+                          <div className="space-y-1">
                             <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
-                              Meal Type
+                              Assign As Meal Types
                             </span>
-                            <select
-                              value={assignmentForm.mealType}
-                              onChange={(event) =>
-                                setAssignmentForm((prev) => ({
-                                  ...prev,
-                                  mealType: event.target.value as MealType,
-                                }))
-                              }
-                              className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                            >
-                              {assignmentMealTypes.map((type) => (
-                                <option key={type} value={type}>
-                                  {type}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+                            <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.04] p-2">
+                              {assignmentMealTypes.length ? (
+                                assignmentMealTypes.map((type) => {
+                                  const isSelected =
+                                    assignmentForm.mealTypes.includes(type);
+                                  return (
+                                    <button
+                                      key={type}
+                                      type="button"
+                                      onClick={() =>
+                                        toggleAssignmentMealType(type)
+                                      }
+                                      className={`min-h-8 flex-1 rounded-full border px-3 py-1.5 text-xs font-medium transition sm:flex-none ${
+                                        isSelected
+                                          ? "border-amber-300 bg-amber-300 text-zinc-950"
+                                          : "border-zinc-700 bg-zinc-950/50 text-zinc-300 hover:border-amber-300/60"
+                                      }`}
+                                    >
+                                      {type}
+                                    </button>
+                                  );
+                                })
+                              ) : (
+                                <span className="px-2 text-xs text-zinc-500">
+                                  Select a meal first to see its allowed types.
+                                </span>
+                              )}
+                            </div>
+                            {selectedAssignmentMeal &&
+                            assignmentMealTypes.length > 1 ? (
+                              <p className="text-xs text-zinc-500">
+                                Select one or more slots. Saving will add this
+                                meal once for each selected type.
+                              </p>
+                            ) : null}
+                          </div>
                           <label className="space-y-1 md:col-span-2">
                             <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
                               Meal Name Override
@@ -1604,6 +2094,11 @@ export default function MonthlyPlanDetailEditorPage() {
                           <button
                             type="button"
                             onClick={saveAssignment}
+                            disabled={
+                              !assignmentForm.mealId ||
+                              !selectedAssignmentMeal ||
+                              assignmentForm.mealTypes.length === 0
+                            }
                             className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900"
                           >
                             {assignmentForm.id
@@ -1652,6 +2147,7 @@ export default function MonthlyPlanDetailEditorPage() {
                                       mealId: item.mealId,
                                       mealName: item.mealName,
                                       mealType: item.mealType,
+                                      mealTypes: [item.mealType],
                                       badges: item.badges.join(", "),
                                     })
                                   }
@@ -1758,6 +2254,9 @@ export default function MonthlyPlanDetailEditorPage() {
                       .sort((a, b) => a.displayOrder - b.displayOrder);
                     const availableCategoryMeals = meals
                       .filter((meal) => meal.status === "active")
+                      .filter((meal) =>
+                        mealSupportsCategory(meal, category.name),
+                      )
                       .filter(
                         (meal) =>
                           !categoryItems.some(
@@ -1840,7 +2339,7 @@ export default function MonthlyPlanDetailEditorPage() {
                                 <option value="">— Select a meal —</option>
                                 {availableCategoryMeals.map((m) => (
                                   <option key={m.id} value={m.id}>
-                                    {m.name} ({m.mealType})
+                                    {m.name} ({getMealLibraryTypes(m).join(", ")})
                                   </option>
                                 ))}
                               </select>
@@ -1959,6 +2458,134 @@ export default function MonthlyPlanDetailEditorPage() {
       ) : null}
       {saveMessage ? (
         <p className="text-sm text-emerald-300">{saveMessage}</p>
+      ) : null}
+
+      {isCopyMealsModalOpen && selectedWeek && draft ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-3xl border border-zinc-700 bg-zinc-950 p-5 shadow-2xl shadow-black/50 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-200">
+                  Copy meal pattern
+                </p>
+                <h3 className="mt-2 text-2xl font-semibold text-white">
+                  Copy Week {selectedWeek.weekIndex} meals
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-zinc-400">
+                  Select the weeks where you want to paste this week’s meals.
+                  Target weeks will be replaced with the copied day-by-day
+                  pattern.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeCopyMealsModal}
+                className="self-start rounded-full border border-zinc-700 px-3 py-1 text-sm text-zinc-300 transition hover:border-zinc-500"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    Target weeks
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {copyTargetWeekIds.length} selected
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCopyTargetWeekIds(
+                        draft.weekAssignments
+                          .filter((week) => week.id !== selectedWeek.id)
+                          .map((week) => week.id),
+                      )
+                    }
+                    className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 transition hover:border-amber-300/60"
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCopyTargetWeekIds([])}
+                    className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 transition hover:border-zinc-500"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addCopyTargetWeek}
+                    className="rounded-lg border border-amber-300/50 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-100 transition hover:bg-amber-300/20"
+                  >
+                    + Add new week
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                {draft.weekAssignments
+                  .filter((week) => week.id !== selectedWeek.id)
+                  .sort((a, b) => a.weekIndex - b.weekIndex)
+                  .map((week) => {
+                    const isSelected = copyTargetWeekIds.includes(week.id);
+                    return (
+                      <label
+                        key={week.id}
+                        className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition ${
+                          isSelected
+                            ? "border-amber-300 bg-amber-300/10"
+                            : "border-zinc-800 bg-zinc-950/50 hover:border-zinc-600"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleCopyTargetWeek(week.id)}
+                          className="mt-1 h-4 w-4 accent-amber-300"
+                        />
+                        <span>
+                          <span className="block text-sm font-semibold text-white">
+                            Week {week.weekIndex}
+                          </span>
+                          <span className="mt-1 block text-xs text-zinc-500">
+                            {week.startDate} to {week.endDate}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                {draft.weekAssignments.length <= 1 ? (
+                  <div className="rounded-2xl border border-dashed border-zinc-700 p-4 text-sm text-zinc-400 sm:col-span-2">
+                    No target weeks yet. Click “Add new week” to create one.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeCopyMealsModal}
+                className="rounded-2xl border border-zinc-700 bg-zinc-900 px-5 py-3 text-sm font-medium text-zinc-100 transition hover:border-zinc-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={copySelectedWeekToTargets}
+                disabled={copyTargetWeekIds.length === 0}
+                className="rounded-2xl bg-amber-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Copy to selected weeks
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       <div className="sticky bottom-4 z-10 flex items-center gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/75 px-4 py-3 backdrop-blur">
