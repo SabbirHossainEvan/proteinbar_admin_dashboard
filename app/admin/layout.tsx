@@ -50,17 +50,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }, [adminMeData, auth, hasAccess, isAuthRoute, isCheckingSession, isFetchingSession, router]);
 
   if (isAuthRoute) {
-    return <div className="admin-bg min-h-screen text-zinc-100">{children}</div>;
+    return <div className="admin-bg admin-light min-h-screen text-zinc-900">{children}</div>;
   }
 
   if (isCheckingSession || isFetchingSession || !hasAccess) {
-    return <div className="admin-bg min-h-screen text-zinc-100" />;
+    return <div className="admin-bg min-h-screen text-zinc-900" />;
   }
 
   return (
-    <div className="admin-bg min-h-screen text-zinc-100 md:flex">
+    <div className="admin-bg min-h-screen text-zinc-900 md:flex">
       <AdminSidebar />
-      <main className="min-w-0 flex-1 p-4 md:p-6 lg:p-8">
+      <main className="admin-light min-w-0 flex-1 p-4 md:p-6 lg:p-8">
         <AdminTopbar />
         {children}
       </main>
