@@ -27,6 +27,7 @@ type AssignmentFormState = {
   mealId: string;
   mealName: string;
   mealType: MealType;
+  mealTypes: MealType[];
   badges: string;
 };
 
@@ -74,6 +75,7 @@ const createAssignmentForm = (): AssignmentFormState => ({
   mealId: "",
   mealName: "",
   mealType: "Lunch",
+  mealTypes: [],
   badges: "",
 });
 
@@ -173,6 +175,42 @@ const createWeekDraft = (
     endDate,
     mealsByDate: {},
   });
+};
+
+const copyWeekMealPattern = (
+  sourceWeek: WeekAssignment,
+  targetWeek: WeekAssignment,
+): WeekAssignment => {
+  const normalizedSourceWeek = syncWeekDates(sourceWeek);
+  const normalizedTargetWeek = syncWeekDates(targetWeek);
+  const sourceDates = Object.keys(normalizedSourceWeek.mealsByDate).sort(
+    (a, b) => a.localeCompare(b),
+  );
+  const targetDates = Object.keys(normalizedTargetWeek.mealsByDate).sort(
+    (a, b) => a.localeCompare(b),
+  );
+  const copiedMealsByDate = Object.fromEntries(
+    targetDates.map((targetDate, dateIndex) => {
+      const sourceDate = sourceDates[dateIndex];
+      const sourceMeals = sourceDate
+        ? normalizedSourceWeek.mealsByDate[sourceDate] ?? []
+        : [];
+
+      return [
+        targetDate,
+        sourceMeals.map((meal, mealIndex) => ({
+          ...meal,
+          id: `assigned-${Date.now()}-${targetWeek.weekIndex}-${dateIndex}-${mealIndex}`,
+          date: targetDate,
+        })),
+      ];
+    }),
+  );
+
+  return {
+    ...normalizedTargetWeek,
+    mealsByDate: copiedMealsByDate,
+  };
 };
 
 const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
@@ -477,6 +515,8 @@ export default function MonthlyPlanDetailEditorPage() {
   const [saveErrors, setSaveErrors] = useState<string[]>([]);
   const [pickerCategoryId, setPickerCategoryId] = useState<string | null>(null);
   const [pickerMealId, setPickerMealId] = useState("");
+  const [isCopyMealsModalOpen, setIsCopyMealsModalOpen] = useState(false);
+  const [copyTargetWeekIds, setCopyTargetWeekIds] = useState<string[]>([]);
 
   const { data, isLoading, isError } = useGetMonthlyPlanDetailsQuery(planId);
   const { data: mealLibraryData, isLoading: isLoadingMealLibrary } =
@@ -537,11 +577,21 @@ export default function MonthlyPlanDetailEditorPage() {
   );
   const assignmentMealTypes = selectedAssignmentMeal
     ? getMealLibraryTypes(selectedAssignmentMeal)
-    : mealTypes;
+    : [];
   const selectedMealsOnDate =
     selectedWeek && selectedDate
       ? (selectedWeek.mealsByDate[selectedDate] ?? [])
       : [];
+  const selectedWeekMealCount = useMemo(
+    () =>
+      selectedWeek
+        ? Object.values(selectedWeek.mealsByDate).reduce(
+            (total, meals) => total + meals.length,
+            0,
+          )
+        : 0,
+    [selectedWeek],
+  );
   const isCustomPlan = draft?.plan.planKind === "custom";
   const customCategories = useMemo(
     () => draft?.plan.content?.regularStepTwo?.categories ?? [],
@@ -585,16 +635,20 @@ export default function MonthlyPlanDetailEditorPage() {
     );
   };
 
-  const addWeek = () => {
-    if (!draft) return;
-    const lastWeek = [...draft.weekAssignments]
+  const createNextWeek = (source: MonthlyPlanDetails) => {
+    const lastWeek = [...source.weekAssignments]
       .sort((a, b) => a.weekIndex - b.weekIndex)
       .at(-1);
-    const newWeek = createWeekDraft(
-      draft.plan.id,
-      draft.weekAssignments.length + 1,
+    return createWeekDraft(
+      source.plan.id,
+      source.weekAssignments.length + 1,
       lastWeek,
     );
+  };
+
+  const addWeek = () => {
+    if (!draft) return;
+    const newWeek = createNextWeek(draft);
     setDraft((prev) =>
       prev
         ? {
@@ -608,6 +662,97 @@ export default function MonthlyPlanDetailEditorPage() {
         : prev,
     );
     setSelectedWeekId(newWeek.id);
+  };
+
+  const addCopyTargetWeek = () => {
+    if (!draft) return;
+    const newWeek = createNextWeek(draft);
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            weekAssignments: [...prev.weekAssignments, newWeek],
+            plan: {
+              ...prev.plan,
+              weekAssignmentIds: [...prev.plan.weekAssignmentIds, newWeek.id],
+            },
+          }
+        : prev,
+    );
+    setCopyTargetWeekIds((prev) => [...prev, newWeek.id]);
+    setSaveErrors([]);
+  };
+
+  const openCopyMealsModal = () => {
+    if (!draft || !selectedWeek) return;
+    if (selectedWeekMealCount === 0) {
+      setSaveErrors(["This week has no meals to copy."]);
+      setSaveMessage("");
+      return;
+    }
+    const defaultTargets = draft.weekAssignments
+      .filter((week) => week.id !== selectedWeek.id)
+      .map((week) => week.id);
+    setCopyTargetWeekIds(defaultTargets);
+    setIsCopyMealsModalOpen(true);
+    setSaveErrors([]);
+    setSaveMessage("");
+  };
+
+  const closeCopyMealsModal = () => {
+    setIsCopyMealsModalOpen(false);
+    setCopyTargetWeekIds([]);
+  };
+
+  const toggleCopyTargetWeek = (weekId: string) => {
+    setCopyTargetWeekIds((prev) =>
+      prev.includes(weekId)
+        ? prev.filter((id) => id !== weekId)
+        : [...prev, weekId],
+    );
+  };
+
+  const toggleAssignmentMealType = (mealType: MealType) => {
+    setAssignmentForm((prev) => {
+      const nextMealTypes = prev.mealTypes.includes(mealType)
+        ? prev.mealTypes.filter((type) => type !== mealType)
+        : [...prev.mealTypes, mealType];
+
+      return {
+        ...prev,
+        mealType: nextMealTypes[0] ?? mealType,
+        mealTypes: nextMealTypes,
+      };
+    });
+  };
+
+  const copySelectedWeekToTargets = () => {
+    if (!draft || !selectedWeek) return;
+    if (copyTargetWeekIds.length === 0) {
+      setSaveErrors(["Select at least one target week."]);
+      setSaveMessage("");
+      return;
+    }
+    const targetIds = new Set(copyTargetWeekIds);
+    const targetWeekCount = copyTargetWeekIds.length;
+
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            weekAssignments: prev.weekAssignments.map((week) =>
+              targetIds.has(week.id)
+                ? copyWeekMealPattern(selectedWeek, week)
+                : week,
+            ),
+          }
+        : prev,
+    );
+    setSaveErrors([]);
+    setSaveMessage(
+      `Copied Week ${selectedWeek.weekIndex} meals to ${targetWeekCount} selected week${targetWeekCount === 1 ? "" : "s"}. Save changes to publish.`,
+    );
+    closeCopyMealsModal();
   };
 
   const removeWeek = (weekId: string) => {
@@ -633,15 +778,43 @@ export default function MonthlyPlanDetailEditorPage() {
       (meal) => meal.id === assignmentForm.mealId,
     );
     const selectedMealTypes = selectedMeal ? getMealLibraryTypes(selectedMeal) : [];
-    const mealType =
-      selectedMealTypes.includes(assignmentForm.mealType)
-        ? assignmentForm.mealType
-        : selectedMealTypes[0] || selectedMeal?.mealType || "Lunch";
+    if (!selectedMeal || selectedMealTypes.length === 0) {
+      setSaveErrors([
+        "Selected meal is not available in Meal Library. Please select another meal.",
+      ]);
+      return;
+    }
+    const requestedMealTypes = (
+      assignmentForm.mealTypes.length
+        ? assignmentForm.mealTypes
+        : [assignmentForm.mealType]
+    ).filter((type, index, source) => source.indexOf(type) === index);
+    const mealTypesToAssign = requestedMealTypes.filter((type) =>
+      selectedMealTypes.includes(type),
+    );
+    if (mealTypesToAssign.length === 0) {
+      setSaveErrors(["Select at least one valid meal type for this meal."]);
+      return;
+    }
     const mealName = assignmentForm.mealName.trim() || selectedMeal?.name || "";
     if (!mealName) {
       setSaveErrors(["Assigned meal name is required."]);
       return;
     }
+    const badges = parseStringList(assignmentForm.badges);
+    const assignmentTimestamp = Date.now();
+    const nextAssignments = mealTypesToAssign.map((mealType, index) => ({
+      id:
+        index === 0 && assignmentForm.id
+          ? assignmentForm.id
+          : `assigned-${assignmentTimestamp}-${mealType.toLowerCase()}-${index}`,
+      mealId: assignmentForm.mealId,
+      mealName,
+      mealType,
+      date: selectedDate,
+      badges,
+    }));
+
     updateWeek(selectedWeek.id, (week) => ({
       ...week,
       mealsByDate: {
@@ -650,14 +823,7 @@ export default function MonthlyPlanDetailEditorPage() {
           ...(week.mealsByDate[selectedDate] ?? []).filter(
             (item) => item.id !== assignmentForm.id,
           ),
-          {
-            id: assignmentForm.id || `assigned-${Date.now()}`,
-            mealId: assignmentForm.mealId,
-            mealName,
-            mealType,
-            date: selectedDate,
-            badges: parseStringList(assignmentForm.badges),
-          },
+          ...nextAssignments,
         ],
       },
     }));
@@ -1483,7 +1649,7 @@ export default function MonthlyPlanDetailEditorPage() {
                       </label>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() =>
@@ -1494,6 +1660,14 @@ export default function MonthlyPlanDetailEditorPage() {
                         className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100"
                       >
                         Sync Days To Range
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openCopyMealsModal}
+                        disabled={selectedWeekMealCount === 0}
+                        className="rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900/40 disabled:text-zinc-500"
+                      >
+                        Copy meals to other weeks
                       </button>
                       {draft.weekAssignments.length > 1 ? (
                         <button
@@ -1513,6 +1687,10 @@ export default function MonthlyPlanDetailEditorPage() {
                       <p className="mt-1 text-sm text-zinc-300">
                         Choose a weekday below instead of using raw calendar
                         dates.
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        Use “Copy meals to other weeks” after building one week
+                        to repeat the same meal pattern across the plan.
                       </p>
                     </div>
 
@@ -1558,6 +1736,9 @@ export default function MonthlyPlanDetailEditorPage() {
                                     prev.mealName || selectedMeal?.name || "",
                                   mealType:
                                     selectedMealTypes[0] ?? prev.mealType,
+                                  mealTypes: selectedMealTypes.length
+                                    ? [selectedMealTypes[0]]
+                                    : [],
                                 }));
                               }}
                               className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
@@ -1570,27 +1751,46 @@ export default function MonthlyPlanDetailEditorPage() {
                               ))}
                             </select>
                           </label>
-                          <label className="space-y-1">
+                          <div className="space-y-1">
                             <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
-                              Meal Type
+                              Assign As Meal Types
                             </span>
-                            <select
-                              value={assignmentForm.mealType}
-                              onChange={(event) =>
-                                setAssignmentForm((prev) => ({
-                                  ...prev,
-                                  mealType: event.target.value as MealType,
-                                }))
-                              }
-                              className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                            >
-                              {assignmentMealTypes.map((type) => (
-                                <option key={type} value={type}>
-                                  {type}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+                            <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.04] p-2">
+                              {assignmentMealTypes.length ? (
+                                assignmentMealTypes.map((type) => {
+                                  const isSelected =
+                                    assignmentForm.mealTypes.includes(type);
+                                  return (
+                                    <button
+                                      key={type}
+                                      type="button"
+                                      onClick={() =>
+                                        toggleAssignmentMealType(type)
+                                      }
+                                      className={`min-h-8 flex-1 rounded-full border px-3 py-1.5 text-xs font-medium transition sm:flex-none ${
+                                        isSelected
+                                          ? "border-amber-300 bg-amber-300 text-zinc-950"
+                                          : "border-zinc-700 bg-zinc-950/50 text-zinc-300 hover:border-amber-300/60"
+                                      }`}
+                                    >
+                                      {type}
+                                    </button>
+                                  );
+                                })
+                              ) : (
+                                <span className="px-2 text-xs text-zinc-500">
+                                  Select a meal first to see its allowed types.
+                                </span>
+                              )}
+                            </div>
+                            {selectedAssignmentMeal &&
+                            assignmentMealTypes.length > 1 ? (
+                              <p className="text-xs text-zinc-500">
+                                Select one or more slots. Saving will add this
+                                meal once for each selected type.
+                              </p>
+                            ) : null}
+                          </div>
                           <label className="space-y-1 md:col-span-2">
                             <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
                               Meal Name Override
@@ -1626,6 +1826,11 @@ export default function MonthlyPlanDetailEditorPage() {
                           <button
                             type="button"
                             onClick={saveAssignment}
+                            disabled={
+                              !assignmentForm.mealId ||
+                              !selectedAssignmentMeal ||
+                              assignmentForm.mealTypes.length === 0
+                            }
                             className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900"
                           >
                             {assignmentForm.id
@@ -1674,6 +1879,7 @@ export default function MonthlyPlanDetailEditorPage() {
                                       mealId: item.mealId,
                                       mealName: item.mealName,
                                       mealType: item.mealType,
+                                      mealTypes: [item.mealType],
                                       badges: item.badges.join(", "),
                                     })
                                   }
@@ -1984,6 +2190,134 @@ export default function MonthlyPlanDetailEditorPage() {
       ) : null}
       {saveMessage ? (
         <p className="text-sm text-emerald-300">{saveMessage}</p>
+      ) : null}
+
+      {isCopyMealsModalOpen && selectedWeek && draft ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-3xl border border-zinc-700 bg-zinc-950 p-5 shadow-2xl shadow-black/50 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-200">
+                  Copy meal pattern
+                </p>
+                <h3 className="mt-2 text-2xl font-semibold text-white">
+                  Copy Week {selectedWeek.weekIndex} meals
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-zinc-400">
+                  Select the weeks where you want to paste this week’s meals.
+                  Target weeks will be replaced with the copied day-by-day
+                  pattern.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeCopyMealsModal}
+                className="self-start rounded-full border border-zinc-700 px-3 py-1 text-sm text-zinc-300 transition hover:border-zinc-500"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    Target weeks
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {copyTargetWeekIds.length} selected
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCopyTargetWeekIds(
+                        draft.weekAssignments
+                          .filter((week) => week.id !== selectedWeek.id)
+                          .map((week) => week.id),
+                      )
+                    }
+                    className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 transition hover:border-amber-300/60"
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCopyTargetWeekIds([])}
+                    className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 transition hover:border-zinc-500"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addCopyTargetWeek}
+                    className="rounded-lg border border-amber-300/50 bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-100 transition hover:bg-amber-300/20"
+                  >
+                    + Add new week
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                {draft.weekAssignments
+                  .filter((week) => week.id !== selectedWeek.id)
+                  .sort((a, b) => a.weekIndex - b.weekIndex)
+                  .map((week) => {
+                    const isSelected = copyTargetWeekIds.includes(week.id);
+                    return (
+                      <label
+                        key={week.id}
+                        className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition ${
+                          isSelected
+                            ? "border-amber-300 bg-amber-300/10"
+                            : "border-zinc-800 bg-zinc-950/50 hover:border-zinc-600"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleCopyTargetWeek(week.id)}
+                          className="mt-1 h-4 w-4 accent-amber-300"
+                        />
+                        <span>
+                          <span className="block text-sm font-semibold text-white">
+                            Week {week.weekIndex}
+                          </span>
+                          <span className="mt-1 block text-xs text-zinc-500">
+                            {week.startDate} to {week.endDate}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                {draft.weekAssignments.length <= 1 ? (
+                  <div className="rounded-2xl border border-dashed border-zinc-700 p-4 text-sm text-zinc-400 sm:col-span-2">
+                    No target weeks yet. Click “Add new week” to create one.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeCopyMealsModal}
+                className="rounded-2xl border border-zinc-700 bg-zinc-900 px-5 py-3 text-sm font-medium text-zinc-100 transition hover:border-zinc-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={copySelectedWeekToTargets}
+                disabled={copyTargetWeekIds.length === 0}
+                className="rounded-2xl bg-amber-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Copy to selected weeks
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       <div className="sticky bottom-4 z-10 flex items-center gap-3 rounded-2xl border border-zinc-800/80 bg-zinc-950/75 px-4 py-3 backdrop-blur">
