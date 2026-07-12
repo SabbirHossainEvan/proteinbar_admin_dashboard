@@ -85,6 +85,10 @@ const parseNumberList = (value: string, minValue = 0) =>
     .map((item) => Number(item.trim()))
     .filter((item) => Number.isFinite(item) && item >= minValue);
 
+const normalizePositiveOptions = (values: number[]) =>
+  [...new Set(values.filter((value) => Number.isFinite(value) && value >= 1))]
+    .sort((a, b) => a - b);
+
 const sanitizeNumberListInput = (value: string) =>
   value
     .replace(/[^\d,]/g, "")
@@ -340,6 +344,50 @@ const reconcileAssignedMeals = (
   };
 };
 
+const normalizeRuleDefaultsForSave = (
+  details: MonthlyPlanDetails,
+): MonthlyPlanDetails => {
+  const rules = details.rules;
+  const defaultMeals = rules.allowedMealsPerDay.includes(rules.defaults.meals)
+    ? rules.defaults.meals
+    : rules.allowedMealsPerDay[0] ?? rules.defaults.meals;
+  const defaultDays = rules.allowedDays.includes(rules.defaults.days)
+    ? rules.defaults.days
+    : rules.allowedDays[0] ?? rules.defaults.days;
+  const defaultSnacks = rules.allowedSnacks.includes(rules.defaults.snacks)
+    ? rules.defaults.snacks
+    : rules.allowedSnacks[0] ?? rules.defaults.snacks;
+  const defaultPlanType =
+    rules.defaults.planType &&
+    rules.planTypeOptions.includes(rules.defaults.planType)
+      ? rules.defaults.planType
+      : rules.planTypeOptions[0];
+  const defaultDeliveryDays = rules.defaults.deliveryDays.filter((day) =>
+    rules.deliveryDaysRule.allowedWeekDays.includes(day),
+  );
+
+  return {
+    ...details,
+    rules: {
+      ...rules,
+      defaults: {
+        ...rules.defaults,
+        meals: defaultMeals,
+        days: defaultDays,
+        snacks: defaultSnacks,
+        planType: defaultPlanType,
+        deliveryDays:
+          defaultDeliveryDays.length > 0
+            ? defaultDeliveryDays
+            : rules.deliveryDaysRule.allowedWeekDays.slice(
+                0,
+                Math.max(1, rules.deliveryDaysRule.min),
+              ),
+      },
+    },
+  };
+};
+
 const validateDetails = (
   details: MonthlyPlanDetails,
   availableMeals: MonthlyPlanDetails["mealLibrary"] = [],
@@ -376,12 +424,24 @@ const validateDetails = (
   ) {
     errors.push("Pricing values must be non-negative.");
   }
+  if (!details.rules.allowedMealsPerDay.length)
+    errors.push("Add at least one meal-count option.");
+  if (!details.rules.allowedDays.length)
+    errors.push("Add at least one plan length option.");
+  if (!details.rules.allowedSnacks.length)
+    errors.push("Add at least one snack option.");
   if (!details.rules.allowedMealsPerDay.includes(details.rules.defaults.meals))
-    errors.push("Default meals must exist inside allowed meals/day.");
+    errors.push(
+      `Default meal count (${details.rules.defaults.meals}) must be one of the meal-count options: ${details.rules.allowedMealsPerDay.join(", ")}.`,
+    );
   if (!details.rules.allowedDays.includes(details.rules.defaults.days))
-    errors.push("Default days must exist inside allowed days.");
+    errors.push(
+      `Default plan length (${details.rules.defaults.days}) must be one of the length options: ${details.rules.allowedDays.join(", ")}.`,
+    );
   if (!details.rules.allowedSnacks.includes(details.rules.defaults.snacks))
-    errors.push("Default snacks must exist inside allowed snacks.");
+    errors.push(
+      `Default snack count (${details.rules.defaults.snacks}) must be one of the snack options: ${details.rules.allowedSnacks.join(", ")}.`,
+    );
   if (
     details.plan.planKind === "custom" &&
     !details.rules.planTypeOptions.length
@@ -391,7 +451,9 @@ const validateDetails = (
     details.rules.defaults.planType &&
     !details.rules.planTypeOptions.includes(details.rules.defaults.planType)
   )
-    errors.push("Default plan type must exist inside plan type options.");
+    errors.push(
+      `Default plan type (${details.rules.defaults.planType}) must be one of the plan type options.`,
+    );
   if (
     details.rules.deliveryDaysRule.allowedWeekDays.some(
       (day) => day < 0 || day > 6,
@@ -403,7 +465,9 @@ const validateDetails = (
       (day) => !details.rules.deliveryDaysRule.allowedWeekDays.includes(day),
     )
   )
-    errors.push("Default delivery days must exist inside allowed week days.");
+    errors.push(
+      "Default delivery weekdays must be selected from the allowed delivery weekdays.",
+    );
   if (details.rules.deliveryDaysRule.min > details.rules.deliveryDaysRule.max)
     errors.push("Delivery day rule min must be less than or equal to max.");
 
@@ -505,7 +569,8 @@ export default function MonthlyPlanDetailEditorPage() {
   const planId = params.id;
   const [activeTab, setActiveTab] = useState<TabKey>("basic");
   const [draft, setDraft] = useState<MonthlyPlanDetails | null>(null);
-  const [allowedMealsInput, setAllowedMealsInput] = useState("");
+  const [mealOptionInput, setMealOptionInput] = useState("");
+  const [lengthOptionInput, setLengthOptionInput] = useState("");
   const [selectedWeekId, setSelectedWeekId] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [assignmentForm, setAssignmentForm] = useState<AssignmentFormState>(
@@ -531,7 +596,6 @@ export default function MonthlyPlanDetailEditorPage() {
       mealLibraryData?.data ?? data.data.mealLibrary ?? [],
     );
     setDraft(normalized);
-    setAllowedMealsInput(normalized.rules.allowedMealsPerDay.join(","));
     setAssignmentForm(createAssignmentForm());
   }, [data, mealLibraryData]);
 
@@ -607,15 +671,6 @@ export default function MonthlyPlanDetailEditorPage() {
   ) => {
     setDraft((prev) =>
       prev ? { ...prev, plan: { ...prev.plan, [field]: value } } : prev,
-    );
-  };
-
-  const setRulesField = <K extends keyof MonthlyPlanDetails["rules"]>(
-    field: K,
-    value: MonthlyPlanDetails["rules"][K],
-  ) => {
-    setDraft((prev) =>
-      prev ? { ...prev, rules: { ...prev.rules, [field]: value } } : prev,
     );
   };
 
@@ -1011,16 +1066,18 @@ export default function MonthlyPlanDetailEditorPage() {
   const saveAll = async () => {
     if (!draft) return;
     const payload = reconcileAssignedMeals(
-      normalizeDetails({
-        ...draft,
-        rules:
-          draft.plan.planKind === "normal"
-            ? {
-                ...draft.rules,
-                allowedMealsPerDay: [draft.rules.defaults.meals],
-              }
-            : draft.rules,
-      }),
+      normalizeRuleDefaultsForSave(
+        normalizeDetails({
+          ...draft,
+          rules:
+            draft.plan.planKind === "normal"
+              ? {
+                  ...draft.rules,
+                  allowedMealsPerDay: [draft.rules.defaults.meals],
+                }
+              : draft.rules,
+        }),
+      ),
       meals,
     );
     const errors = validateDetails(payload, meals);
@@ -1036,7 +1093,6 @@ export default function MonthlyPlanDetailEditorPage() {
         meals,
       );
       setDraft(normalized);
-      setAllowedMealsInput(normalized.rules.allowedMealsPerDay.join(","));
       setSaveErrors([]);
       setSaveMessage("Meal plan saved.");
     } catch (error) {
@@ -1076,6 +1132,94 @@ export default function MonthlyPlanDetailEditorPage() {
       ? [{ key: "regularMeals" as TabKey, label: "Regular Meal Categories" }]
       : []),
   ];
+  const frequencyLabel =
+    draft.plan.frequency.charAt(0).toUpperCase() + draft.plan.frequency.slice(1);
+  const effectiveDefaultDays = draft.rules.allowedDays.includes(
+    draft.rules.defaults.days,
+  )
+    ? draft.rules.defaults.days
+    : draft.rules.allowedDays[0];
+  const hasDefaultDaysMismatch =
+    Boolean(effectiveDefaultDays) &&
+    effectiveDefaultDays !== draft.rules.defaults.days;
+  const updateMealCountOptions = (nextOptions: number[]) => {
+    const normalizedOptions = normalizePositiveOptions(nextOptions);
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            rules: {
+              ...prev.rules,
+              allowedMealsPerDay: normalizedOptions,
+              defaults: {
+                ...prev.rules.defaults,
+                meals: normalizedOptions.includes(prev.rules.defaults.meals)
+                  ? prev.rules.defaults.meals
+                  : normalizedOptions[0] ?? prev.rules.defaults.meals,
+              },
+            },
+          }
+        : prev,
+    );
+  };
+  const updateLengthOptions = (nextOptions: number[]) => {
+    const normalizedOptions = normalizePositiveOptions(nextOptions);
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            rules: {
+              ...prev.rules,
+              allowedDays: normalizedOptions,
+              defaults: {
+                ...prev.rules.defaults,
+                days: normalizedOptions.includes(prev.rules.defaults.days)
+                  ? prev.rules.defaults.days
+                  : normalizedOptions[0] ?? prev.rules.defaults.days,
+              },
+            },
+          }
+        : prev,
+    );
+  };
+  const addMealCountOptions = () => {
+    const nextValues = parseNumberList(mealOptionInput, 1);
+    if (!nextValues.length) return;
+    updateMealCountOptions([...draft.rules.allowedMealsPerDay, ...nextValues]);
+    setMealOptionInput("");
+  };
+  const addLengthOptions = () => {
+    const nextValues = parseNumberList(lengthOptionInput, 1);
+    if (!nextValues.length) return;
+    updateLengthOptions([...draft.rules.allowedDays, ...nextValues]);
+    setLengthOptionInput("");
+  };
+  const setDefaultMealCount = (value: number) => {
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            rules: {
+              ...prev.rules,
+              defaults: { ...prev.rules.defaults, meals: value },
+            },
+          }
+        : prev,
+    );
+  };
+  const setDefaultLength = (value: number) => {
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            rules: {
+              ...prev.rules,
+              defaults: { ...prev.rules.defaults, days: value },
+            },
+          }
+        : prev,
+    );
+  };
 
   return (
     <section className="space-y-7">
@@ -1304,89 +1448,213 @@ export default function MonthlyPlanDetailEditorPage() {
 
         {activeTab === "rules" ? (
           <div className="space-y-4">
-            <div className="rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-              <p className="text-sm font-semibold text-white">
-                Website Meal-plan Rules
-              </p>
-              <p className="mt-1 text-xs text-zinc-400">
-                These values control the public plan builder. Pre-made plans
-                keep a fixed meal count; custom plans can expose multiple
-                meal-count options.
-              </p>
+            <div className="rounded-3xl border border-zinc-700/70 bg-zinc-900/70 p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-white">
+                    Builder options
+                  </h3>
+                  <p className="mt-1 text-sm text-zinc-400">
+                    Add the choices customers can select. Click a chip to set
+                    the default.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full border border-zinc-700 bg-zinc-950/60 px-3 py-1.5 text-xs font-semibold text-zinc-200">
+                    {draft.plan.planKind === "normal" ? "Pre-made" : "Custom"}
+                  </span>
+                  <span className="rounded-full border border-zinc-700 bg-zinc-950/60 px-3 py-1.5 text-xs font-semibold text-zinc-200">
+                    {frequencyLabel}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
-                  Number Of Meals Dropdown
-                </span>
-                <input
-                  value={allowedMealsInput}
-                  onChange={(event) => {
-                    const sanitizedValue = sanitizeNumberListInput(
-                      event.target.value,
-                    );
-                    setAllowedMealsInput(sanitizedValue);
-                    setRulesField(
-                      "allowedMealsPerDay",
-                      parseNumberList(sanitizedValue, 1),
-                    );
-                  }}
-                  placeholder={
-                    draft.plan.planKind === "normal"
-                      ? String(draft.rules.defaults.meals)
-                      : "1,2,3"
-                  }
-                  disabled={draft.plan.planKind === "normal"}
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
-                />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-3xl border border-zinc-700/70 bg-zinc-900/55 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">
+                      Meals per day
+                    </h4>
+                    <p className="mt-1 text-sm text-zinc-400">
+                      {draft.plan.planKind === "normal"
+                        ? "Fixed for this pre-made plan."
+                        : "Customer can choose one option."}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-amber-300/40 bg-amber-300/10 px-3 py-1 text-xs font-semibold text-amber-100">
+                    Default {draft.rules.defaults.meals}
+                  </span>
+                </div>
                 {draft.plan.planKind === "normal" ? (
-                  <p className="text-xs text-zinc-500">
-                    Pre-made plans use a fixed meal count. Change the default
-                    meals value only if the fixed plan changes.
-                  </p>
-                ) : null}
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {draft.rules.allowedMealsPerDay.map((value) => (
-                    <span
-                      key={`meals-${value}`}
-                      className="rounded-full border border-zinc-600 px-2 py-1 text-xs text-zinc-200"
-                    >
-                      {value}
-                    </span>
-                  ))}
+                  <div className="mt-5 rounded-3xl border border-amber-300/30 bg-amber-300/10 p-5 text-center">
+                    <p className="text-5xl font-semibold text-amber-200">
+                      {draft.rules.defaults.meals}
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-amber-50">
+                      meals per day
+                    </p>
+                    <p className="mt-2 text-xs text-amber-100/70">
+                      Locked because pre-made plans do not show this selector.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-5 space-y-4">
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input
+                        value={mealOptionInput}
+                        onChange={(event) =>
+                          setMealOptionInput(
+                            sanitizeNumberListInput(event.target.value),
+                          )
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            addMealCountOptions();
+                          }
+                        }}
+                        placeholder="Add options, e.g. 1,2,3"
+                        className="min-h-12 flex-1 rounded-2xl border border-zinc-700 bg-zinc-950/60 px-4 text-sm text-zinc-100 outline-none transition focus:border-amber-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={addMealCountOptions}
+                        className="rounded-2xl bg-amber-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-amber-200"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {draft.rules.allowedMealsPerDay.map((value) => (
+                        <div
+                          key={`meals-${value}`}
+                          className={`inline-flex items-center overflow-hidden rounded-full border text-xs font-semibold ${
+                            value === draft.rules.defaults.meals
+                              ? "border-amber-300 bg-amber-300 text-zinc-950"
+                              : "border-zinc-700 bg-zinc-950/60 text-zinc-200"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setDefaultMealCount(value)}
+                            className="px-3 py-1.5"
+                            title="Set as default"
+                          >
+                            {value} meal{value === 1 ? "" : "s"}
+                          </button>
+                          {draft.rules.allowedMealsPerDay.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateMealCountOptions(
+                                  draft.rules.allowedMealsPerDay.filter(
+                                    (option) => option !== value,
+                                  ),
+                                )
+                              }
+                              className="border-l border-black/10 px-2 py-1.5 opacity-70 transition hover:opacity-100"
+                              title="Remove option"
+                            >
+                              x
+                            </button>
+                          ) : null}
+                        </div>
+                      ))}
+                  </div>
                 </div>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
-                  {draft.plan.frequency === "monthly"
-                    ? "Monthly Length Options"
-                    : draft.plan.frequency === "weekly"
-                      ? "Weekly Length Options"
-                      : "Daily Length Options"}
-                </span>
-                <input
-                  value={draft.rules.allowedDays.join(",")}
-                  onChange={(event) =>
-                    setRulesField(
-                      "allowedDays",
-                      parseNumberList(event.target.value, 1),
-                    )
-                  }
-                  placeholder="3,4,5,6"
-                  className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-                />
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {draft.rules.allowedDays.map((value) => (
-                    <span
-                      key={`days-${value}`}
-                      className="rounded-full border border-zinc-600 px-2 py-1 text-xs text-zinc-200"
-                    >
-                      {value}
-                    </span>
-                  ))}
+                )}
+              </div>
+
+              <div className="rounded-3xl border border-zinc-700/70 bg-zinc-900/55 p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">
+                      Plan length
+                    </h4>
+                    <p className="mt-1 text-sm text-zinc-400">
+                      Add durations like 1,2,3,4. Customer chooses one.
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-emerald-300/30 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+                    Default {effectiveDefaultDays ?? "-"}
+                  </span>
                 </div>
-              </label>
+                <div className="mt-5 space-y-4">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={lengthOptionInput}
+                      onChange={(event) =>
+                        setLengthOptionInput(
+                          sanitizeNumberListInput(event.target.value),
+                        )
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addLengthOptions();
+                        }
+                      }}
+                      placeholder="Add lengths, e.g. 1,2,3,4"
+                      className="min-h-12 flex-1 rounded-2xl border border-zinc-700 bg-zinc-950/60 px-4 text-sm text-zinc-100 outline-none transition focus:border-emerald-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={addLengthOptions}
+                      className="rounded-2xl bg-emerald-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-200"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {draft.rules.allowedDays.map((value) => (
+                      <div
+                        key={`days-${value}`}
+                        className={`inline-flex items-center overflow-hidden rounded-full border text-xs font-semibold ${
+                          value === effectiveDefaultDays
+                            ? "border-emerald-300 bg-emerald-300 text-zinc-950"
+                            : "border-zinc-700 bg-zinc-950/60 text-zinc-200"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setDefaultLength(value)}
+                          className="px-3 py-1.5"
+                          title="Set as default"
+                        >
+                          {value} day{value === 1 ? "" : "s"}
+                        </button>
+                        {draft.rules.allowedDays.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateLengthOptions(
+                                draft.rules.allowedDays.filter(
+                                  (option) => option !== value,
+                                ),
+                              )
+                            }
+                            className="border-l border-black/10 px-2 py-1.5 opacity-70 transition hover:opacity-100"
+                            title="Remove option"
+                          >
+                            x
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  {hasDefaultDaysMismatch ? (
+                    <p className="rounded-2xl border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
+                      Will use {effectiveDefaultDays} as default after saving.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-zinc-500">
+                      Highlighted chip is the website default.
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         ) : null}
