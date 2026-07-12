@@ -14,6 +14,7 @@ import {
 import type {
   CustomPlanCategory,
   CustomPlanFoodItem,
+  MealLibraryItem,
   MealType,
   MonthlyPlanDetails,
   WeekAssignment,
@@ -30,6 +31,30 @@ type AssignmentFormState = {
 };
 
 const mealTypes: MealType[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
+
+const getMealLibraryTypes = (meal: MealLibraryItem): MealType[] =>
+  meal.mealTypes?.length ? meal.mealTypes : [meal.mealType];
+
+const getCategoryMealType = (categoryName: string): MealType | null => {
+  const normalized = categoryName.trim().toLowerCase();
+  return (
+    mealTypes.find((type) => type.toLowerCase() === normalized) ?? null
+  );
+};
+
+const mealSupportsCategory = (meal: MealLibraryItem, categoryName: string) => {
+  const categoryMealType = getCategoryMealType(categoryName);
+  if (!categoryMealType) return true;
+  return getMealLibraryTypes(meal).includes(categoryMealType);
+};
+
+const resolveMealTypeForMeal = (
+  mealType: MealType,
+  meal: MealLibraryItem,
+): MealType => {
+  const allowedTypes = getMealLibraryTypes(meal);
+  return allowedTypes.includes(mealType) ? mealType : allowedTypes[0] ?? "Lunch";
+};
 const weekDayOptions = [
   { value: 0, label: "Sunday" },
   { value: 1, label: "Monday" },
@@ -232,6 +257,7 @@ const normalizeDetails = (details: MonthlyPlanDetails): MonthlyPlanDetails => ({
   mealLibrary: (details.mealLibrary ?? []).map((meal) => ({
     ...meal,
     tags: [...meal.tags],
+    mealTypes: getMealLibraryTypes(meal),
   })),
 });
 
@@ -267,7 +293,7 @@ const reconcileAssignedMeals = (
               ...meal,
               mealId: linkedMeal.id,
               mealName: linkedMeal.name,
-              mealType: meal.mealType || linkedMeal.mealType || "Lunch",
+              mealType: resolveMealTypeForMeal(meal.mealType, linkedMeal),
             };
           }),
         ]),
@@ -378,6 +404,10 @@ const validateDetails = (
         if (!linkedMeal) {
           errors.push(
             `Assigned meal "${meal.mealName}" on ${dateIso} in week ${week.weekIndex} is no longer in Meal Library. Re-add that meal from Meal Library or remove it from this date.`,
+          );
+        } else if (!getMealLibraryTypes(linkedMeal).includes(meal.mealType)) {
+          errors.push(
+            `Assigned meal "${meal.mealName}" on ${dateIso} uses ${meal.mealType}, but this meal is only assigned to ${getMealLibraryTypes(linkedMeal).join(", ")} in Meal Library.`,
           );
         }
       });
@@ -505,11 +535,9 @@ export default function MonthlyPlanDetailEditorPage() {
     () => meals.find((meal) => meal.id === assignmentForm.mealId),
     [assignmentForm.mealId, meals],
   );
-  const assignmentMealTypes = selectedAssignmentMeal?.mealTypes?.length
-    ? selectedAssignmentMeal.mealTypes
-    : selectedAssignmentMeal
-      ? [selectedAssignmentMeal.mealType]
-      : mealTypes;
+  const assignmentMealTypes = selectedAssignmentMeal
+    ? getMealLibraryTypes(selectedAssignmentMeal)
+    : mealTypes;
   const selectedMealsOnDate =
     selectedWeek && selectedDate
       ? (selectedWeek.mealsByDate[selectedDate] ?? [])
@@ -604,11 +632,7 @@ export default function MonthlyPlanDetailEditorPage() {
     const selectedMeal = meals.find(
       (meal) => meal.id === assignmentForm.mealId,
     );
-    const selectedMealTypes = selectedMeal?.mealTypes?.length
-      ? selectedMeal.mealTypes
-      : selectedMeal
-        ? [selectedMeal.mealType]
-        : [];
+    const selectedMealTypes = selectedMeal ? getMealLibraryTypes(selectedMeal) : [];
     const mealType =
       selectedMealTypes.includes(assignmentForm.mealType)
         ? assignmentForm.mealType
@@ -1524,11 +1548,9 @@ export default function MonthlyPlanDetailEditorPage() {
                                 const selectedMeal = meals.find(
                                   (meal) => meal.id === event.target.value,
                                 );
-                                const selectedMealTypes = selectedMeal?.mealTypes?.length
-                                  ? selectedMeal.mealTypes
-                                  : selectedMeal
-                                    ? [selectedMeal.mealType]
-                                    : [];
+                                const selectedMealTypes = selectedMeal
+                                  ? getMealLibraryTypes(selectedMeal)
+                                  : [];
                                 setAssignmentForm((prev) => ({
                                   ...prev,
                                   mealId: event.target.value,
@@ -1543,7 +1565,7 @@ export default function MonthlyPlanDetailEditorPage() {
                               <option value="">Select meal</option>
                               {meals.map((meal) => (
                                 <option key={meal.id} value={meal.id}>
-                                  {meal.name} ({(meal.mealTypes?.length ? meal.mealTypes : [meal.mealType]).join(", ")})
+                                  {meal.name} ({getMealLibraryTypes(meal).join(", ")})
                                 </option>
                               ))}
                             </select>
@@ -1758,6 +1780,9 @@ export default function MonthlyPlanDetailEditorPage() {
                       .sort((a, b) => a.displayOrder - b.displayOrder);
                     const availableCategoryMeals = meals
                       .filter((meal) => meal.status === "active")
+                      .filter((meal) =>
+                        mealSupportsCategory(meal, category.name),
+                      )
                       .filter(
                         (meal) =>
                           !categoryItems.some(
@@ -1840,7 +1865,7 @@ export default function MonthlyPlanDetailEditorPage() {
                                 <option value="">— Select a meal —</option>
                                 {availableCategoryMeals.map((m) => (
                                   <option key={m.id} value={m.id}>
-                                    {m.name} ({m.mealType})
+                                    {m.name} ({getMealLibraryTypes(m).join(", ")})
                                   </option>
                                 ))}
                               </select>
