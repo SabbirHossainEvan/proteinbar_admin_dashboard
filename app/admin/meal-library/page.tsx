@@ -10,6 +10,10 @@ import {
 import type { MealLibraryItem, MealType } from "@/redux/monthlyPlans/types";
 
 const mealTypeOptions: MealType[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
+const maxMealImageWidth = 1400;
+const maxMealImageHeight = 1000;
+const mealImageQuality = 0.82;
+const maxCompressedMealImageBytes = 1_800_000;
 
 const initialForm = {
   id: "",
@@ -25,6 +29,66 @@ const initialForm = {
   status: "active" as "active" | "inactive",
   image: "",
 };
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(new Error("Could not read the selected image."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(source: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Could not load the selected image."));
+    image.src = source;
+  });
+}
+
+function getDataUrlByteSize(value: string) {
+  const base64 = value.split(",")[1] ?? "";
+  return Math.ceil((base64.length * 3) / 4);
+}
+
+async function compressMealImage(file: File) {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Please upload a valid image file.");
+  }
+
+  const source = await readFileAsDataUrl(file);
+  const image = await loadImage(source);
+  const scale = Math.min(
+    1,
+    maxMealImageWidth / image.width,
+    maxMealImageHeight / image.height,
+  );
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Could not prepare the image preview.");
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+  let compressed = canvas.toDataURL("image/jpeg", mealImageQuality);
+
+  if (getDataUrlByteSize(compressed) > maxCompressedMealImageBytes) {
+    compressed = canvas.toDataURL("image/jpeg", 0.68);
+  }
+
+  if (getDataUrlByteSize(compressed) > maxCompressedMealImageBytes) {
+    throw new Error("Image is too large. Please choose a smaller meal photo.");
+  }
+
+  return compressed;
+}
 
 export default function MealLibraryPage() {
   const { data, isLoading, isError } = useGetMealLibraryAdminQuery();
@@ -58,16 +122,18 @@ export default function MealLibraryPage() {
     });
   };
 
-  const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      setForm((prev) => ({ ...prev, image: result }));
-    };
-    reader.readAsDataURL(file);
+    try {
+      setError("");
+      const image = await compressMealImage(file);
+      setForm((prev) => ({ ...prev, image }));
+    } catch (issue) {
+      setError(issue instanceof Error ? issue.message : "Failed to prepare image.");
+      event.target.value = "";
+    }
   };
 
   const getApiMessage = (issue: unknown, fallback: string) =>
@@ -78,7 +144,12 @@ export default function MealLibraryPage() {
     typeof issue.data === "object" &&
     "message" in issue.data
       ? String((issue.data as { message?: string }).message ?? fallback)
-      : fallback;
+      : issue &&
+          typeof issue === "object" &&
+          "error" in issue &&
+          typeof issue.error === "string"
+        ? issue.error
+        : fallback;
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
