@@ -8,8 +8,12 @@ import {
 } from "@/redux/api/adminApi";
 import type { SubscriptionRecord } from "@/redux/monthlyPlans/types";
 
+type SubscriptionStatus = SubscriptionRecord["status"];
+
 export default function SubscriptionsPage() {
   const [search, setSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkFeedback, setBulkFeedback] = useState("");
   const [selectedSubscription, setSelectedSubscription] = useState<SubscriptionRecord | null>(null);
   const { data, isLoading, isError } = useGetMonthlySubscriptionsAdminQuery();
   const [updateSubscription, { isLoading: isUpdating }] = useUpdateMonthlySubscriptionAdminMutation();
@@ -23,8 +27,55 @@ export default function SubscriptionsPage() {
     );
   }, [data, search]);
 
-  const toggleStatus = async (id: string, status: "active" | "paused" | "cancelled") => {
+  const visibleIds = useMemo(() => filtered.map((item) => item.id), [filtered]);
+  const subscriptions = data?.data ?? [];
+  const selectedItems = useMemo(
+    () => subscriptions.filter((item) => selectedIds.includes(item.id)),
+    [subscriptions, selectedIds]
+  );
+  const selectedCount = selectedIds.length;
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
+  const someVisibleSelected = visibleIds.some((id) => selectedIds.includes(id));
+
+  const toggleStatus = async (id: string, status: SubscriptionStatus) => {
     await updateSubscription({ id, patch: { status } }).unwrap();
+  };
+
+  const toggleSelected = (id: string) => {
+    setBulkFeedback("");
+    setSelectedIds((current) =>
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id]
+    );
+  };
+
+  const toggleSelectAllVisible = () => {
+    setBulkFeedback("");
+    setSelectedIds((current) => {
+      if (allVisibleSelected) {
+        return current.filter((id) => !visibleIds.includes(id));
+      }
+
+      return Array.from(new Set([...current, ...visibleIds]));
+    });
+  };
+
+  const runBulkStatusUpdate = async (status: Exclude<SubscriptionStatus, "completed">) => {
+    const idsToUpdate = selectedItems
+      .filter((item) => item.status !== status)
+      .filter((item) => !(item.status === "cancelled" && status !== "cancelled"))
+      .map((item) => item.id);
+
+    if (!idsToUpdate.length) {
+      setBulkFeedback("No selected subscriptions can be updated for that action.");
+      return;
+    }
+
+    setBulkFeedback("");
+    await Promise.all(idsToUpdate.map((id) => toggleStatus(id, status)));
+    setSelectedIds((current) => current.filter((id) => !idsToUpdate.includes(id)));
+    setBulkFeedback(`${idsToUpdate.length} subscription${idsToUpdate.length === 1 ? "" : "s"} updated.`);
   };
 
   const getRemaining = (endDate: string) => {
@@ -42,28 +93,99 @@ export default function SubscriptionsPage() {
   return (
     <section className="space-y-7">
       <div>
-        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Monthly Subscription Records</p>
-        <h2 className="mt-1 text-3xl font-semibold text-white">Subscriptions</h2>
-        <p className="mt-2 text-sm text-zinc-300">Track progress, inspect subscription details, and control status across custom and pre-made flows.</p>
+        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Paid Plan Lifecycle Records</p>
+        <h2 className="mt-1 text-3xl font-semibold text-white">Active Subscriptions</h2>
+        <p className="mt-2 text-sm text-zinc-300">
+          Manage paid, CMI-confirmed meal-plan subscriptions only. Pending, unpaid, failed, and test checkout attempts stay in Orders until payment is confirmed.
+        </p>
       </div>
 
       <section className="admin-panel rounded-2xl p-5">
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search by subscription/customer/plan"
-          className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
-        />
+        <div className="mb-5 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4 text-sm text-amber-50">
+          <p className="font-semibold">Why this count can be lower than Orders</p>
+          <p className="mt-1 text-amber-50/85">
+            Orders is the full checkout/payment queue. Active Subscriptions is created only after CMI confirms payment, so unpaid orders can appear in Orders but not here.
+          </p>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+          <input
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setBulkFeedback("");
+            }}
+            placeholder="Search paid subscriptions by customer, plan, phone, or email"
+            className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
+          />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-zinc-700 bg-zinc-950/70 px-3 py-2 text-xs font-medium text-zinc-300">
+              {selectedCount} selected
+            </span>
+            <button
+              type="button"
+              onClick={() => void runBulkStatusUpdate("paused")}
+              disabled={!selectedCount || isUpdating}
+              className="rounded-xl bg-amber-300 px-3 py-2 text-xs font-semibold text-zinc-950 transition hover:bg-amber-200 disabled:opacity-50"
+            >
+              Bulk Pause
+            </button>
+            <button
+              type="button"
+              onClick={() => void runBulkStatusUpdate("active")}
+              disabled={!selectedCount || isUpdating}
+              className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-50"
+            >
+              Bulk Resume
+            </button>
+            <button
+              type="button"
+              onClick={() => void runBulkStatusUpdate("cancelled")}
+              disabled={!selectedCount || isUpdating}
+              className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/20 disabled:opacity-50"
+            >
+              Bulk Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedIds([]);
+                setBulkFeedback("");
+              }}
+              disabled={!selectedCount || isUpdating}
+              className="rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:border-zinc-500 disabled:opacity-50"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+        {bulkFeedback ? <p className="mt-3 text-sm text-zinc-300">{bulkFeedback}</p> : null}
       </section>
 
-      {isLoading ? <LoadingState label="Loading subscriptions..." /> : null}
-      {isError ? <ErrorState label="Failed to load subscriptions." /> : null}
+      {isLoading ? <LoadingState label="Loading active subscriptions..." /> : null}
+      {isError ? <ErrorState label="Failed to load active subscriptions." /> : null}
 
       {!isLoading ? (
         <section className="admin-panel overflow-x-auto rounded-2xl p-4 md:p-5">
           <table className="admin-table min-w-full text-left text-sm">
             <thead>
               <tr>
+                <th className="pb-2 pr-4 font-medium">
+                  <label className="inline-flex items-center gap-2 text-xs text-zinc-400">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      ref={(node) => {
+                        if (node) node.indeterminate = someVisibleSelected && !allVisibleSelected;
+                      }}
+                      onChange={toggleSelectAllVisible}
+                      disabled={!visibleIds.length || isUpdating}
+                      className="h-4 w-4 accent-amber-300"
+                    />
+                    Select
+                  </label>
+                </th>
                 <th className="pb-2 pr-4 font-medium">Subscription</th>
                 <th className="pb-2 pr-4 font-medium">Customer</th>
                 <th className="pb-2 pr-4 font-medium">Plan</th>
@@ -77,7 +199,17 @@ export default function SubscriptionsPage() {
             </thead>
             <tbody>
               {filtered.map((item) => (
-                <tr key={item.id}>
+                <tr key={item.id} className={selectedIds.includes(item.id) ? "bg-amber-300/[0.04]" : undefined}>
+                  <td className="py-3.5 pr-4 align-top">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(item.id)}
+                      onChange={() => toggleSelected(item.id)}
+                      disabled={isUpdating}
+                      aria-label={`Select subscription ${item.subscriptionId}`}
+                      className="mt-1 h-4 w-4 accent-amber-300"
+                    />
+                  </td>
                   <td className="py-3.5 pr-4 text-zinc-200">
                     <button
                       type="button"
@@ -153,8 +285,8 @@ export default function SubscriptionsPage() {
               ))}
               {!filtered.length ? (
                 <tr>
-                  <td className="py-3.5 text-zinc-400" colSpan={9}>
-                    No subscriptions found.
+                  <td className="py-3.5 text-zinc-400" colSpan={10}>
+                    No active subscriptions found. Paid CMI-confirmed plans will appear here; unpaid orders remain in Orders.
                   </td>
                 </tr>
               ) : null}

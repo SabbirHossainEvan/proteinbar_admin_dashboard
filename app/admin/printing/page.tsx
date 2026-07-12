@@ -13,6 +13,15 @@ type PrintableOrder = {
 
 type PrintableOrderApiItem = Partial<PrintableOrder>;
 
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function printLabelDocument(items: PrintableOrder[]) {
   const printWindow = window.open("", "_blank", "width=860,height=760");
   if (!printWindow) return;
@@ -21,13 +30,13 @@ function printLabelDocument(items: PrintableOrder[]) {
     .map(
       (item) => `
       <section class="label">
-        <h2>${item.client}</h2>
-        <p><strong>Date:</strong> ${item.date}</p>
-        <p><strong>Meal:</strong> ${item.meal}</p>
-        <p><strong>Macros:</strong> ${item.macros}</p>
-        <p><strong>Best Before:</strong> ${item.bestBefore}</p>
-        <p><strong>Order ID:</strong> ${item.orderId}</p>
-        <p><strong>QR:</strong> [${item.orderId}]</p>
+        <h2>${escapeHtml(item.client)}</h2>
+        <p><strong>Date:</strong> ${escapeHtml(item.date)}</p>
+        <p><strong>Meal:</strong> ${escapeHtml(item.meal)}</p>
+        <p><strong>Macros:</strong> ${escapeHtml(item.macros)}</p>
+        <p><strong>Best Before:</strong> ${escapeHtml(item.bestBefore)}</p>
+        <p><strong>Order ID:</strong> ${escapeHtml(item.orderId)}</p>
+        <p><strong>QR:</strong> [${escapeHtml(item.orderId)}]</p>
       </section>
     `
     )
@@ -46,6 +55,7 @@ function printLabelDocument(items: PrintableOrder[]) {
       </head>
       <body>
         ${labels}
+        ${items.length === 0 ? "<p>No printable labels found for today.</p>" : ""}
       </body>
     </html>
   `);
@@ -79,7 +89,8 @@ export default function PrintingPage() {
           <button
             type="button"
             onClick={() => printLabelDocument(printableOrders)}
-            className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-amber-200"
+            disabled={!printableOrders.length}
+            className="rounded-xl bg-amber-300 px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Print All Labels
           </button>

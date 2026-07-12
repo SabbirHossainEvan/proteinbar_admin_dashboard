@@ -72,7 +72,7 @@ export default function ArchivedOrdersPage() {
           { label: "Total Archived", value: String(summary?.totalArchivedOrders ?? 0) },
           { label: "Filtered Results", value: String(summary?.filteredArchivedOrders ?? 0) },
           { label: "Paid Archived", value: String(summary?.paidOrders ?? 0) },
-          { label: "Unpaid/COD", value: String((summary?.unpaidOrders ?? 0) + (summary?.codOrders ?? 0)) }
+          { label: "Failed/Unpaid/COD", value: String((summary?.failedOrders ?? 0) + (summary?.unpaidOrders ?? 0) + (summary?.codOrders ?? 0)) }
         ].map((item) => (
           <article key={item.label} className="admin-panel rounded-2xl p-5">
             <p className="text-xs uppercase tracking-[0.12em] text-zinc-400">{item.label}</p>
@@ -129,6 +129,7 @@ export default function ArchivedOrdersPage() {
             <option value="all">All payment</option>
             <option value="paid">paid</option>
             <option value="unpaid">unpaid</option>
+            <option value="failed">failed</option>
             <option value="cod">cod</option>
           </select>
           <select

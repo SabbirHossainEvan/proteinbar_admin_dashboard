@@ -16,7 +16,7 @@ export default function DashboardPage() {
         <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Meal Plans</p>
         <h2 className="mt-1 text-3xl font-semibold text-white">Admin Control Center</h2>
         <p className="mt-2 text-sm text-zinc-300">
-          Live summary for meal plans, subscriptions, website content, and day-to-day operations.
+          Live summary for meal plans, paid active subscriptions, website content, and day-to-day operations.
         </p>
       </div>
 
@@ -44,7 +44,7 @@ export default function DashboardPage() {
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {[
           { href: "/admin/monthly-plans", title: "Meal Plans", text: "Create, edit, archive plans and jump to the detailed meal-plan editor." },
-          { href: "/admin/subscriptions", title: "Subscriptions", text: "Track progress, remaining days, and pause, resume, or cancel client subscriptions." },
+          { href: "/admin/subscriptions", title: "Active Subscriptions", text: "Track only paid CMI-confirmed plan lifecycles. Pending/unpaid checkouts stay in Orders." },
           { href: "/admin/orders", title: "Orders", text: "Manage meal prep orders by delivery mode, status, and payment state." },
           { href: "/admin/menu", title: "Restaurants Menus", text: "Control client-facing menu cards, availability windows, and branch assignments." },
           { href: "/admin/website-pages", title: "Website Pages", text: "Edit homepage, about, contact, restaurants, legal pages, and top-navigation visibility." }

@@ -9,10 +9,13 @@ import {
 } from "@/redux/api/adminApi";
 import type { MealLibraryItem, MealType } from "@/redux/monthlyPlans/types";
 
+const mealTypeOptions: MealType[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
+
 const initialForm = {
   id: "",
   name: "",
   mealType: "Lunch" as MealType,
+  mealTypes: ["Lunch"] as MealType[],
   calories: 0,
   protein: 0,
   carbs: 0,
@@ -50,6 +53,19 @@ export default function MealLibraryPage() {
     return "Archived to avoid breaking existing plan data.";
   };
 
+  const toggleMealType = (mealType: MealType) => {
+    setForm((prev) => {
+      const nextMealTypes = prev.mealTypes.includes(mealType)
+        ? prev.mealTypes.filter((type) => type !== mealType)
+        : [...prev.mealTypes, mealType];
+      return {
+        ...prev,
+        mealTypes: nextMealTypes,
+        mealType: nextMealTypes[0] ?? prev.mealType
+      };
+    });
+  };
+
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -73,12 +89,17 @@ export default function MealLibraryPage() {
       setError("Meal name is required.");
       return;
     }
+    if (form.mealTypes.length === 0) {
+      setError("Select at least one meal type.");
+      return;
+    }
     setError("");
     setFeedback("");
     const payload: MealLibraryItem = {
       id: form.id || `meal-${Date.now()}`,
       name: form.name.trim(),
-      mealType: form.mealType,
+      mealType: form.mealTypes[0] ?? "Lunch",
+      mealTypes: form.mealTypes,
       calories: Number(form.calories),
       protein: Number(form.protein),
       carbs: Number(form.carbs),
@@ -109,7 +130,8 @@ export default function MealLibraryPage() {
     setForm({
       id: meal.id,
       name: meal.name,
-      mealType: meal.mealType,
+      mealType: meal.mealTypes?.[0] ?? meal.mealType,
+      mealTypes: meal.mealTypes?.length ? meal.mealTypes : [meal.mealType],
       calories: meal.calories,
       protein: meal.protein,
       carbs: meal.carbs,
@@ -180,19 +202,33 @@ export default function MealLibraryPage() {
               className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
             />
           </label>
-          <label className="space-y-1">
-            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Type</span>
-            <select
-              value={form.mealType}
-              onChange={(event) => setForm((prev) => ({ ...prev, mealType: event.target.value as MealType }))}
-              className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
-            >
-              <option value="Breakfast">Breakfast</option>
-              <option value="Lunch">Lunch</option>
-              <option value="Dinner">Dinner</option>
-              <option value="Snack">Snack</option>
-            </select>
-          </label>
+          <div className="space-y-2">
+            <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Meal Types</span>
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-zinc-600 bg-zinc-900/70 p-2">
+              {mealTypeOptions.map((mealType) => {
+                const isSelected = form.mealTypes.includes(mealType);
+                return (
+                  <label
+                    key={mealType}
+                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition ${
+                      isSelected
+                        ? "border-amber-300 bg-amber-300/15 text-amber-100"
+                        : "border-zinc-700 bg-zinc-950/40 text-zinc-300 hover:border-zinc-500"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleMealType(mealType)}
+                      className="h-4 w-4 accent-amber-300"
+                    />
+                    {mealType}
+                  </label>
+                );
+              })}
+            </div>
+            <p className="text-xs text-zinc-500">Select every slot where this meal can be used.</p>
+          </div>
           <label className="space-y-1">
             <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Status</span>
             <select
@@ -337,7 +373,7 @@ export default function MealLibraryPage() {
               <tr>
                 <th className="pb-2 pr-4 font-medium">Meal</th>
                 <th className="pb-2 pr-4 font-medium">Image</th>
-                <th className="pb-2 pr-4 font-medium">Type</th>
+                <th className="pb-2 pr-4 font-medium">Types</th>
                 <th className="pb-2 pr-4 font-medium">Macros</th>
                 <th className="pb-2 pr-4 font-medium">Tags</th>
                 <th className="pb-2 pr-4 font-medium">Extras</th>
@@ -373,7 +409,18 @@ export default function MealLibraryPage() {
                       <span className="text-zinc-500">No image</span>
                     )}
                   </td>
-                  <td className="py-3.5 pr-4 text-zinc-300">{meal.mealType}</td>
+                  <td className="py-3.5 pr-4 text-zinc-300">
+                    <div className="flex flex-wrap gap-1.5">
+                      {(meal.mealTypes?.length ? meal.mealTypes : [meal.mealType]).map((mealType) => (
+                        <span
+                          key={`${meal.id}-${mealType}`}
+                          className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-1 text-xs text-amber-100"
+                        >
+                          {mealType}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
                   <td className="py-3.5 pr-4 text-zinc-300">
                     kcal:{meal.calories} P:{meal.protein} C:{meal.carbs} F:{meal.fat}
                   </td>

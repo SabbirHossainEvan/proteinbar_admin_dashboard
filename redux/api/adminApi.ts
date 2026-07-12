@@ -175,7 +175,9 @@ const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknow
       ? item.status
       : "pending",
   paymentStatus:
-    item.paymentStatus === "cod" || item.paymentStatus === "unpaid" ? item.paymentStatus : "paid",
+    item.paymentStatus === "cod" || item.paymentStatus === "unpaid" || item.paymentStatus === "failed" ? item.paymentStatus : "paid",
+  paymentFailureReason: item.paymentFailureReason ? String(item.paymentFailureReason) : undefined,
+  isRecoveryOnly: Boolean(item.isRecoveryOnly ?? false),
   amount: Number(item.amount ?? 0),
   orderDate: String(item.orderDate ?? ""),
   deliveryOption: ((item.deliveryOption ?? "daily-delivery") as OrderRecord["deliveryOption"]),
@@ -245,6 +247,7 @@ const normalizeArchivedOrderListResponse = (item: Record<string, unknown>): Arch
       filteredArchivedOrders: Number(summary.filteredArchivedOrders ?? 0),
       paidOrders: Number(summary.paidOrders ?? 0),
       unpaidOrders: Number(summary.unpaidOrders ?? 0),
+      failedOrders: Number(summary.failedOrders ?? 0),
       codOrders: Number(summary.codOrders ?? 0)
     }
   };
@@ -308,7 +311,10 @@ const normalizeMonthlyClientListResponse = (
       totalClients: Number(summary?.totalClients ?? 0),
       activeClients: Number(summary?.activeClients ?? 0),
       pausedClients: Number(summary?.pausedClients ?? 0),
-      leadClients: Number(summary?.leadClients ?? 0)
+      leadClients: Number(summary?.leadClients ?? 0),
+      clientsWithOrders: Number(summary?.clientsWithOrders ?? 0),
+      activeSubscriptions: Number(summary?.activeSubscriptions ?? 0),
+      totalRevenue: Number(summary?.totalRevenue ?? 0)
     }
   };
 };
@@ -862,6 +868,26 @@ export const adminApi = createApi({
       }),
       providesTags: (_result, _error, clientKey) => [{ type: "MonthlyClientAdmin", id: clientKey }]
     }),
+    updateMonthlyClientAdmin: builder.mutation<
+      ApiResponse<MonthlyClientRecord>,
+      { clientKey: string; patch: { email?: string; phone?: string; address?: string } }
+    >({
+      query: ({ clientKey, patch }) => ({
+        url: `/admin/monthly-plan/clients/${encodeURIComponent(clientKey)}`,
+        method: "PATCH",
+        body: patch
+      }),
+      transformResponse: (response: ApiResponse<Record<string, unknown>>) => ({
+        ...response,
+        data: normalizeMonthlyClientRecord(response.data ?? {})
+      }),
+      invalidatesTags: (_result, _error, payload) => [
+        "MonthlyClientAdmin",
+        { type: "MonthlyClientAdmin", id: payload.clientKey },
+        "MonthlyOrderAdmin",
+        "MonthlySubscriptionAdmin"
+      ]
+    }),
     bulkArchiveMonthlyOrdersAdmin: builder.mutation<
       ApiResponse<{ requestedCount: number; archivedCount: number; skippedCount: number; invalidCount: number; message: string }>,
       { ids: string[]; reason?: string }
@@ -1106,6 +1132,7 @@ export const {
   useBulkArchiveMonthlyOrdersAdminMutation,
   useGetMonthlyClientsAdminQuery,
   useGetMonthlyClientDetailsAdminQuery,
+  useUpdateMonthlyClientAdminMutation,
   useUpdateMonthlyOrderAdminMutation,
   useGetMonthlyLocationsAdminQuery,
   useUpsertMonthlyLocationAdminMutation,
