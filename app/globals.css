@@ -3,12 +3,12 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  --admin-bg-start: #0f1720;
-  --admin-bg-end: #06090f;
-  --admin-panel: rgba(14, 20, 29, 0.82);
-  --admin-border: rgba(161, 178, 199, 0.2);
-  --admin-muted: #9eacc0;
-  --admin-text: #e6edf8;
+  --admin-bg-start: #ffffff;
+  --admin-bg-end: #ffffff;
+  --admin-panel: #f8f7f5;
+  --admin-border: #ebe7df;
+  --admin-muted: #6f6f6f;
+  --admin-text: #171717;
   --admin-accent: #ffbf47;
   --admin-accent-soft: rgba(255, 191, 71, 0.14);
 }
@@ -34,17 +34,14 @@ body {
 }
 
 .admin-bg {
-  background:
-    radial-gradient(circle at 10% -5%, rgba(255, 191, 71, 0.2), transparent 28%),
-    radial-gradient(circle at 88% 0%, rgba(63, 136, 255, 0.16), transparent 32%),
-    linear-gradient(160deg, var(--admin-bg-start), var(--admin-bg-end) 62%);
+  background: #fff;
 }
 
 .admin-panel {
   border: 1px solid var(--admin-border);
   background: var(--admin-panel);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 10px 35px rgba(1, 8, 18, 0.35);
+  border-radius: 24px;
+  box-shadow: none;
 }
 
 .admin-table th {
@@ -59,7 +56,61 @@ body {
 }
 
 .admin-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.admin-light {
+  color: #171717;
+}
+
+.admin-light .text-white,
+.admin-light .text-zinc-100,
+.admin-light .text-zinc-200,
+.admin-light .text-zinc-300 {
+  color: #171717 !important;
+}
+
+.admin-light .text-zinc-400,
+.admin-light .text-zinc-500 {
+  color: #6f6f6f !important;
+}
+
+.admin-light .border-zinc-600,
+.admin-light .border-zinc-700,
+.admin-light .border-zinc-800,
+.admin-light .border-zinc-700\/70,
+.admin-light .border-zinc-800\/80 {
+  border-color: #dedbd5 !important;
+}
+
+.admin-light input,
+.admin-light select,
+.admin-light textarea {
+  background: #fff !important;
+  border-color: #dedbd5 !important;
+  color: #171717 !important;
+}
+
+.admin-light input::placeholder,
+.admin-light textarea::placeholder {
+  color: #8a8580 !important;
+}
+
+.admin-light table,
+.admin-light .admin-table {
+  color: #171717;
+}
+
+.admin-light [class*="bg-zinc-950"],
+.admin-light [class*="bg-zinc-900"],
+.admin-light [class*="bg-zinc-800"] {
+  background: #fff !important;
+}
+
+.admin-light [class*="from-black"],
+.admin-light [class*="to-transparent"] {
+  --tw-gradient-from: rgba(0, 0, 0, 0.48) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: transparent var(--tw-gradient-to-position) !important;
 }
 
 .admin-scrollbar {
