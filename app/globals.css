@@ -75,6 +75,22 @@ body {
   color: #6f6f6f !important;
 }
 
+.admin-light [class*="text-amber-"] {
+  color: #8a5a00 !important;
+}
+
+.admin-light [class*="text-emerald-"] {
+  color: #047857 !important;
+}
+
+.admin-light [class*="text-blue-"] {
+  color: #1d4ed8 !important;
+}
+
+.admin-light [class*="text-rose-"] {
+  color: #be123c !important;
+}
+
 .admin-light .border-zinc-600,
 .admin-light .border-zinc-700,
 .admin-light .border-zinc-800,
@@ -107,10 +123,49 @@ body {
   background: #fff !important;
 }
 
+.admin-light [class*="bg-[radial-gradient"],
+.admin-light [class*="bg-[linear-gradient(180deg"] {
+  background: #f8f7f5 !important;
+}
+
+.admin-light [class*="bg-amber-300/10"],
+.admin-light [class*="bg-amber-300/[0.04]"],
+.admin-light [class*="bg-amber-300/5"] {
+  background: #fff7e3 !important;
+}
+
+.admin-light [class*="bg-emerald-500/10"],
+.admin-light [class*="bg-emerald-500/15"],
+.admin-light [class*="bg-emerald-500/20"],
+.admin-light [class*="bg-emerald-300/10"] {
+  background: #ecfdf5 !important;
+}
+
+.admin-light [class*="bg-blue-500/20"],
+.admin-light [class*="bg-blue-400/10"],
+.admin-light [class*="bg-blue-300/10"] {
+  background: #eff6ff !important;
+}
+
+.admin-light [class*="bg-rose-500/10"],
+.admin-light [class*="bg-rose-500/20"],
+.admin-light [class*="bg-rose-400/10"],
+.admin-light [class*="bg-rose-300/12"] {
+  background: #fff1f2 !important;
+}
+
 .admin-light [class*="from-black"],
 .admin-light [class*="to-transparent"] {
   --tw-gradient-from: rgba(0, 0, 0, 0.48) var(--tw-gradient-from-position) !important;
   --tw-gradient-to: transparent var(--tw-gradient-to-position) !important;
+}
+
+.admin-light .admin-table tbody tr {
+  border-top-color: #dedbd5;
+}
+
+.admin-light .admin-table tbody tr:hover {
+  background: #fff;
 }
 
 .admin-scrollbar {
