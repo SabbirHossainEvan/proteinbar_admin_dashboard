@@ -176,6 +176,8 @@ export interface CustomPlanFoodItem {
 export interface SubscriptionRecord {
   id: string;
   subscriptionId: string;
+  createdAt?: string;
+  updatedAt?: string;
   customerName: string;
   customerEmail?: string;
   customerPhone: string;
@@ -222,6 +224,8 @@ export interface OrderRecord {
   id: string;
   orderId: string;
   subscriptionId: string;
+  createdAt?: string;
+  updatedAt?: string;
   customerName: string;
   customerEmail?: string;
   customerPhone?: string;

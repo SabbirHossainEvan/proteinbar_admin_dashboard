@@ -22,6 +22,23 @@ function orderStatusBadgeClass(status: OrderRecord["status"]) {
   return "bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/25";
 }
 
+function formatDateTime(value?: string) {
+  if (!value) return "N/A";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function getOrderTimestamp(order: OrderRecord) {
+  return order.createdAt || order.orderDate;
+}
+
 export default function OrdersPage() {
   const [filters, setFilters] = useState({ search: "", planKind: "all", status: "all", deliveryOption: "all", paymentStatus: "all" });
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
@@ -296,11 +313,17 @@ export default function OrdersPage() {
         <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Monthly Order Management</p>
         <h2 className="mt-1 text-3xl font-semibold text-white">Orders</h2>
         <p className="mt-2 text-sm text-zinc-300">
-          Manage checkout outputs from custom/normal flow, including failed CMI payment attempts that need sales follow-up.
+          Orders shows every checkout/payment attempt: pending, unpaid, failed, and paid. Paid CMI-confirmed orders can create Subscriptions for ongoing plan delivery.
         </p>
       </div>
 
       <section className="admin-panel rounded-2xl p-5">
+        <div className="mb-5 rounded-2xl border border-sky-300/25 bg-sky-300/10 p-4 text-sm text-sky-50">
+          <p className="font-semibold">Orders vs Subscriptions</p>
+          <p className="mt-1 text-sky-50/85">
+            Use Orders to review checkout attempts and recover failed/unpaid sales. Use Subscriptions only for paid, confirmed meal-plan lifecycles after payment succeeds.
+          </p>
+        </div>
         <div className="grid gap-3 md:grid-cols-5">
           <input
             value={filters.search}
@@ -444,7 +467,10 @@ export default function OrdersPage() {
                     >
                       {item.orderId}
                     </button>
-                    <p className="text-xs text-zinc-400">{item.orderDate}</p>
+                    <p className="text-xs text-zinc-400">Attempted: {formatDateTime(getOrderTimestamp(item))}</p>
+                    {item.updatedAt ? (
+                      <p className="text-xs text-zinc-500">Updated: {formatDateTime(item.updatedAt)}</p>
+                    ) : null}
                   </td>
                   <td className="py-3.5 pr-4 text-zinc-100">{item.customerName}</td>
                   <td className="py-3.5 pr-4 text-zinc-300">
@@ -558,7 +584,9 @@ export default function OrdersPage() {
                 <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Subscription</p>
                 <p className="mt-2 text-sm font-mono text-amber-200">{selectedOrder.subscriptionId || "N/A"}</p>
                 <div className="mt-2 text-sm text-zinc-300">
-                  <p>Order Date: {selectedOrder.orderDate || "N/A"}</p>
+                  <p>Attempted / placed: {formatDateTime(getOrderTimestamp(selectedOrder))}</p>
+                  <p>Order date: {selectedOrder.orderDate || "N/A"}</p>
+                  <p>Last updated: {formatDateTime(selectedOrder.updatedAt)}</p>
                 </div>
               </section>
 

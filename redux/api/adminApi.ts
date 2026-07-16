@@ -94,6 +94,8 @@ const isAuthEndpoint = (args: string | FetchArgs) => {
 const normalizeSubscriptionRecord = (item: Partial<SubscriptionRecord> & Record<string, unknown>): SubscriptionRecord => ({
   id: String(item.id ?? ""),
   subscriptionId: String(item.subscriptionId ?? ""),
+  createdAt: item.createdAt ? String(item.createdAt) : undefined,
+  updatedAt: item.updatedAt ? String(item.updatedAt) : undefined,
   customerName: String(item.customerName ?? ""),
   customerEmail: item.customerEmail ? String(item.customerEmail) : undefined,
   customerPhone: String(item.customerPhone ?? ""),
@@ -152,6 +154,8 @@ const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknow
   id: String(item.id ?? ""),
   orderId: String(item.orderId ?? ""),
   subscriptionId: String(item.subscriptionId ?? ""),
+  createdAt: item.createdAt ? String(item.createdAt) : undefined,
+  updatedAt: item.updatedAt ? String(item.updatedAt) : undefined,
   customerName: String(item.customerName ?? ""),
   customerEmail: item.customerEmail ? String(item.customerEmail) : undefined,
   customerPhone: item.customerPhone ? String(item.customerPhone) : undefined,
