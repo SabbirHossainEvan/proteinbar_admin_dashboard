@@ -3,16 +3,13 @@
 import Link from "next/link";
 import { useDeferredValue, useEffect, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
+import { formatMoney } from "@/lib/currency";
 import { useGetArchivedMonthlyOrdersAdminQuery } from "@/redux/api/adminApi";
 import type { OrderRecord, PlanKind } from "@/redux/monthlyPlans/types";
 
 type OrderStatusFilter = OrderRecord["status"] | "all";
 type DeliveryFilter = OrderRecord["deliveryOption"] | "all";
 type PaymentFilter = OrderRecord["paymentStatus"] | "all";
-
-function formatMoney(value: number) {
-  return `$${value.toFixed(2)}`;
-}
 
 function formatArchiveDate(value?: string) {
   if (!value) return "N/A";
@@ -198,7 +195,7 @@ export default function ArchivedOrdersPage() {
                 </td>
                 <td className="py-3.5 pr-4 text-zinc-300">
                   <p>{order.paymentStatus}</p>
-                  <p className="text-xs text-zinc-500">{formatMoney(order.amount)}</p>
+                  <p className="text-xs text-zinc-500">{formatMoney(order.amount, order.currency)}</p>
                 </td>
                 <td className="py-3.5 pr-4 text-zinc-300">
                   <p>{formatArchiveDate(order.archivedAt)}</p>

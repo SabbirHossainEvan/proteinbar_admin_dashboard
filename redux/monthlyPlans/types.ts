@@ -235,6 +235,7 @@ export interface OrderRecord {
   paymentFailureReason?: string;
   isRecoveryOnly?: boolean;
   amount: number;
+  currency: string;
   orderDate: string;
   deliveryOption: DeliveryOption;
   deliveryAddress?: string;

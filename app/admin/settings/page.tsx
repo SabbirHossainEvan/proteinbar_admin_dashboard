@@ -12,7 +12,7 @@ export default function SettingsPage() {
           description: "High-level business defaults used across the admin and storefront.",
           fields: [
             { label: "Business Name", value: "Proteinbar" },
-            { label: "Default Currency", value: "USD" },
+            { label: "Default Currency", value: "MAD" },
             { label: "Support Email", value: "support@proteinbar.com" }
           ]
         },

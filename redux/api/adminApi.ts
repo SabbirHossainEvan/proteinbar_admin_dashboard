@@ -179,6 +179,7 @@ const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknow
   paymentFailureReason: item.paymentFailureReason ? String(item.paymentFailureReason) : undefined,
   isRecoveryOnly: Boolean(item.isRecoveryOnly ?? false),
   amount: Number(item.amount ?? 0),
+  currency: String(item.currency ?? "MAD").trim().toUpperCase() || "MAD",
   orderDate: String(item.orderDate ?? ""),
   deliveryOption: ((item.deliveryOption ?? "daily-delivery") as OrderRecord["deliveryOption"]),
   deliveryAddress: item.deliveryAddress ? String(item.deliveryAddress) : undefined,

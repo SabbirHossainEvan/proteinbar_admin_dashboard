@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState, useDeferredValue } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
+import { formatMoney } from "@/lib/currency";
 import { useGetMonthlyClientDetailsAdminQuery, useGetMonthlyClientsAdminQuery, useUpdateMonthlyClientAdminMutation } from "@/redux/api/adminApi";
 import type { MonthlyClientRecord } from "@/redux/monthlyPlans/types";
 
@@ -14,10 +15,6 @@ function EyeIcon() {
       <circle cx="12" cy="12" r="3" />
     </svg>
   );
-}
-
-function formatMoney(value: number) {
-  return `$${value.toFixed(2)}`;
 }
 
 function clientStatusLabel(status: MonthlyClientRecord["status"]) {
@@ -682,7 +679,7 @@ export default function ClientsPage() {
                         </div>
                         <div className="text-right text-xs text-zinc-300">
                           <p>{order.paymentStatus}</p>
-                          <p className="mt-1 text-zinc-500">{formatMoney(order.amount)}</p>
+                          <p className="mt-1 text-zinc-500">{formatMoney(order.amount, order.currency)}</p>
                         </div>
                       </div>
                     </div>

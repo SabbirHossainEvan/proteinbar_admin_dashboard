@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
+import { formatMoney } from "@/lib/currency";
 import {
   useGetMonthlySubscriptionsAdminQuery,
   useUpdateMonthlySubscriptionAdminMutation
@@ -396,7 +397,7 @@ export default function SubscriptionsPage() {
                         <div className="flex items-start justify-between">
                           <p className="text-sm font-semibold text-white">{meal.title}</p>
                           {(meal.totalPrice ?? 0) > 0 ? (
-                            <span className="text-sm font-semibold text-amber-200">${meal.totalPrice}</span>
+                            <span className="text-sm font-semibold text-amber-200">{formatMoney(meal.totalPrice ?? 0)}</span>
                           ) : null}
                         </div>
                         {meal.extrasSummary ? (
@@ -415,7 +416,7 @@ export default function SubscriptionsPage() {
                         </div>
                         {(meal.basePrice ?? 0) > 0 && meal.basePrice !== meal.totalPrice ? (
                           <div className="mt-2 text-xs text-zinc-500">
-                            Base Price: ${meal.basePrice} to Total: ${meal.totalPrice}
+                            Base Price: {formatMoney(meal.basePrice ?? 0)} to Total: {formatMoney(meal.totalPrice ?? 0)}
                           </div>
                         ) : null}
                       </div>
