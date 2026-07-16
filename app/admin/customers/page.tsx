@@ -57,7 +57,7 @@ export default function ClientsPage() {
     refetchOnMountOrArgChange: true
   });
 
-  const clients = data?.data.items ?? [];
+  const clients = useMemo(() => data?.data.items ?? [], [data]);
   const pagination = data?.data.pagination;
   const summary = data?.data.summary;
   const [updateClient, { isLoading: isUpdatingClient }] = useUpdateMonthlyClientAdminMutation();

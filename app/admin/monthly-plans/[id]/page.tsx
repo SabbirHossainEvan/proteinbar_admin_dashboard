@@ -348,6 +348,9 @@ const normalizeRuleDefaultsForSave = (
   details: MonthlyPlanDetails,
 ): MonthlyPlanDetails => {
   const rules = details.rules;
+  const deliveryOptionConfigsByOption = new Map(
+    rules.deliveryOptionConfigs.map((config) => [config.option, config]),
+  );
   const defaultMeals = rules.allowedMealsPerDay.includes(rules.defaults.meals)
     ? rules.defaults.meals
     : rules.allowedMealsPerDay[0] ?? rules.defaults.meals;
@@ -370,6 +373,7 @@ const normalizeRuleDefaultsForSave = (
     ...details,
     rules: {
       ...rules,
+      deliveryOptionConfigs: Array.from(deliveryOptionConfigsByOption.values()),
       defaults: {
         ...rules.defaults,
         meals: defaultMeals,
@@ -387,6 +391,23 @@ const normalizeRuleDefaultsForSave = (
     },
   };
 };
+
+const getApiMessage = (issue: unknown, fallback: string) =>
+  issue &&
+  typeof issue === "object" &&
+  "data" in issue &&
+  issue.data &&
+  typeof issue.data === "object" &&
+  "message" in issue.data
+    ? String((issue.data as { message?: string }).message ?? fallback)
+    : issue &&
+        typeof issue === "object" &&
+        "error" in issue &&
+        typeof issue.error === "string"
+      ? issue.error
+      : issue instanceof Error
+        ? issue.message
+        : fallback;
 
 const validateDetails = (
   details: MonthlyPlanDetails,
@@ -503,11 +524,7 @@ const validateDetails = (
           mealsById.get(meal.mealId) ??
           mealsByName.get(normalizeMealValue(meal.mealName));
 
-        if (!linkedMeal) {
-          errors.push(
-            `Assigned meal "${meal.mealName}" on ${dateIso} in week ${week.weekIndex} is no longer in Meal Library. Re-add that meal from Meal Library or remove it from this date.`,
-          );
-        } else if (!getMealLibraryTypes(linkedMeal).includes(meal.mealType)) {
+        if (linkedMeal && !getMealLibraryTypes(linkedMeal).includes(meal.mealType)) {
           errors.push(
             `Assigned meal "${meal.mealName}" on ${dateIso} uses ${meal.mealType}, but this meal is only assigned to ${getMealLibraryTypes(linkedMeal).join(", ")} in Meal Library.`,
           );
@@ -1097,7 +1114,7 @@ export default function MonthlyPlanDetailEditorPage() {
       setSaveMessage("Meal plan saved.");
     } catch (error) {
       setSaveErrors([
-        error instanceof Error ? error.message : "Failed to save meal plan.",
+        getApiMessage(error, "Failed to save meal plan."),
       ]);
       setSaveMessage("");
     }

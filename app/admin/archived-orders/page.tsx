@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useDeferredValue, useEffect, useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import { formatMoney } from "@/lib/currency";
 import { useGetArchivedMonthlyOrdersAdminQuery } from "@/redux/api/adminApi";
@@ -45,10 +45,6 @@ export default function ArchivedOrdersPage() {
   const pagination = data?.data.pagination;
   const summary = data?.data.summary;
 
-  useEffect(() => {
-    setPage(1);
-  }, [deferredSearch, planKind, status, deliveryOption, paymentStatus, limit]);
-
   return (
     <section className="space-y-7">
       <div className="overflow-hidden rounded-[28px] border border-zinc-800 bg-[radial-gradient(circle_at_top,_rgba(244,63,94,0.14),_transparent_30%),linear-gradient(180deg,rgba(24,24,27,0.96),rgba(9,9,11,0.96))] p-6 shadow-[0_24px_90px_rgba(0,0,0,0.28)]">
@@ -82,13 +78,19 @@ export default function ArchivedOrdersPage() {
         <div className="grid gap-3 xl:grid-cols-[1fr_repeat(5,160px)]">
           <input
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
             placeholder="Search order, customer, email, phone, location, archive reason"
             className="rounded-2xl border border-zinc-700 bg-zinc-900/70 px-4 py-3 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-rose-300"
           />
           <select
             value={planKind}
-            onChange={(event) => setPlanKind(event.target.value as PlanKind | "all")}
+            onChange={(event) => {
+              setPlanKind(event.target.value as PlanKind | "all");
+              setPage(1);
+            }}
             className="rounded-2xl border border-zinc-700 bg-zinc-900/70 px-4 py-3 text-sm text-zinc-100 outline-none focus:border-rose-300"
           >
             <option value="all">All kinds</option>
@@ -97,7 +99,10 @@ export default function ArchivedOrdersPage() {
           </select>
           <select
             value={status}
-            onChange={(event) => setStatus(event.target.value as OrderStatusFilter)}
+            onChange={(event) => {
+              setStatus(event.target.value as OrderStatusFilter);
+              setPage(1);
+            }}
             className="rounded-2xl border border-zinc-700 bg-zinc-900/70 px-4 py-3 text-sm text-zinc-100 outline-none focus:border-rose-300"
           >
             <option value="all">All status</option>
@@ -109,7 +114,10 @@ export default function ArchivedOrdersPage() {
           </select>
           <select
             value={deliveryOption}
-            onChange={(event) => setDeliveryOption(event.target.value as DeliveryFilter)}
+            onChange={(event) => {
+              setDeliveryOption(event.target.value as DeliveryFilter);
+              setPage(1);
+            }}
             className="rounded-2xl border border-zinc-700 bg-zinc-900/70 px-4 py-3 text-sm text-zinc-100 outline-none focus:border-rose-300"
           >
             <option value="all">All delivery</option>
@@ -120,7 +128,10 @@ export default function ArchivedOrdersPage() {
           </select>
           <select
             value={paymentStatus}
-            onChange={(event) => setPaymentStatus(event.target.value as PaymentFilter)}
+            onChange={(event) => {
+              setPaymentStatus(event.target.value as PaymentFilter);
+              setPage(1);
+            }}
             className="rounded-2xl border border-zinc-700 bg-zinc-900/70 px-4 py-3 text-sm text-zinc-100 outline-none focus:border-rose-300"
           >
             <option value="all">All payment</option>
@@ -131,7 +142,10 @@ export default function ArchivedOrdersPage() {
           </select>
           <select
             value={limit}
-            onChange={(event) => setLimit(Number(event.target.value))}
+            onChange={(event) => {
+              setLimit(Number(event.target.value));
+              setPage(1);
+            }}
             className="rounded-2xl border border-zinc-700 bg-zinc-900/70 px-4 py-3 text-sm text-zinc-100 outline-none focus:border-rose-300"
           >
             <option value={10}>10 per page</option>

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
+import { getAdminAuth, subscribeToAdminAuthChanges } from "@/lib/adminAuth";
 import { useGetDashboardQuery } from "@/redux/api/adminApi";
 
 type AuthUser = {
@@ -23,18 +24,8 @@ type DashboardResponse = {
 
 export default function ProfilePage() {
   const { data } = useGetDashboardQuery();
-  const user = useMemo<AuthUser>(() => {
-    if (typeof window === "undefined") return {};
-
-    try {
-      const raw = window.sessionStorage.getItem("proteinbar_admin_auth");
-      if (!raw) return {};
-      const parsed = JSON.parse(raw) as { user?: AuthUser };
-      return parsed.user ?? {};
-    } catch {
-      return {};
-    }
-  }, []);
+  const auth = useSyncExternalStore(subscribeToAdminAuthChanges, getAdminAuth, () => null);
+  const user: AuthUser = auth?.user ?? {};
 
   const recentActivity = useMemo(() => {
     const latestOrders = ((data as DashboardResponse | undefined)?.data?.latestOrders ?? []);

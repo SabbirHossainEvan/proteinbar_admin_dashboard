@@ -18,18 +18,17 @@ export default function SubscriptionsPage() {
   const [selectedSubscription, setSelectedSubscription] = useState<SubscriptionRecord | null>(null);
   const { data, isLoading, isError } = useGetMonthlySubscriptionsAdminQuery();
   const [updateSubscription, { isLoading: isUpdating }] = useUpdateMonthlySubscriptionAdminMutation();
+  const subscriptions = useMemo(() => data?.data ?? [], [data]);
 
   const filtered = useMemo(() => {
-    const subscriptions = data?.data ?? [];
     const needle = search.trim().toLowerCase();
     if (!needle) return subscriptions;
     return subscriptions.filter((item) =>
       `${item.subscriptionId} ${item.customerName} ${item.planTitle} ${item.customerPhone} ${item.customerEmail ?? ""}`.toLowerCase().includes(needle)
     );
-  }, [data, search]);
+  }, [subscriptions, search]);
 
   const visibleIds = useMemo(() => filtered.map((item) => item.id), [filtered]);
-  const subscriptions = data?.data ?? [];
   const selectedItems = useMemo(
     () => subscriptions.filter((item) => selectedIds.includes(item.id)),
     [subscriptions, selectedIds]

@@ -1,13 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminTopbar from "@/components/admin/AdminTopbar";
-import { getAdminAuth, setAdminAuth } from "@/lib/adminAuth";
+import { getAdminAuth, setAdminAuth, subscribeToAdminAuthChanges } from "@/lib/adminAuth";
 import { canAccessAdminPage } from "@/lib/adminPermissions";
 import { useGetAdminMeQuery } from "@/redux/api/adminApi";
+import type { AdminAuthRecord } from "@/redux/backoffice/types";
 
 const authRoutes = new Set([
   "/admin/login",
@@ -22,7 +23,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isAuthRoute = authRoutes.has(pathname);
-  const auth = useMemo(() => (isAuthRoute ? null : getAdminAuth()), [isAuthRoute]);
+  const storedAuth = useSyncExternalStore(subscribeToAdminAuthChanges, getAdminAuth, () => null);
+  const auth: AdminAuthRecord | null = isAuthRoute ? null : storedAuth;
   const {
     data: adminMeData,
     isLoading: isCheckingSession,
