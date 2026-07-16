@@ -1006,6 +1006,11 @@ const ensureValidDetailPayload = (payload: MonthlyPlanDetailsPayload) => {
           `Assigned date ${dateIso} must stay inside week ${week.weekIndex}.`,
         );
       }
+      if (payload.plan.planKind === "normal" && meals.length > payload.rules.defaults.meals) {
+        throw new Error(
+          `Week ${week.weekIndex}, ${dateIso} has ${meals.length} assigned meals, but this pre-made plan is fixed at ${payload.rules.defaults.meals} meals per day. Remove ${meals.length - payload.rules.defaults.meals} extra meal${meals.length - payload.rules.defaults.meals === 1 ? "" : "s"} or increase the fixed meals value.`,
+        );
+      }
       meals.forEach((meal) => {
         const normalizedMealName = meal.mealName
           .trim()
