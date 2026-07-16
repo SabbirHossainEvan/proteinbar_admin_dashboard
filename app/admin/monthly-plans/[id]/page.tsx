@@ -392,22 +392,38 @@ const normalizeRuleDefaultsForSave = (
   };
 };
 
-const getApiMessage = (issue: unknown, fallback: string) =>
-  issue &&
-  typeof issue === "object" &&
-  "data" in issue &&
-  issue.data &&
-  typeof issue.data === "object" &&
-  "message" in issue.data
-    ? String((issue.data as { message?: string }).message ?? fallback)
-    : issue &&
-        typeof issue === "object" &&
-        "error" in issue &&
-        typeof issue.error === "string"
-      ? issue.error
-      : issue instanceof Error
-        ? issue.message
-        : fallback;
+const toFriendlySaveError = (message: string) => {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("default days") &&
+    normalized.includes("allowed days")
+  ) {
+    return "The selected website default plan length was no longer available. It has been reset to the first available length option. Please click Save again.";
+  }
+
+  return message;
+};
+
+const getApiMessage = (issue: unknown, fallback: string) => {
+  const message =
+    issue &&
+    typeof issue === "object" &&
+    "data" in issue &&
+    issue.data &&
+    typeof issue.data === "object" &&
+    "message" in issue.data
+      ? String((issue.data as { message?: string }).message ?? fallback)
+      : issue &&
+          typeof issue === "object" &&
+          "error" in issue &&
+          typeof issue.error === "string"
+        ? issue.error
+        : issue instanceof Error
+          ? issue.message
+          : fallback;
+
+  return toFriendlySaveError(message);
+};
 
 const validateDetails = (
   details: MonthlyPlanDetails,
