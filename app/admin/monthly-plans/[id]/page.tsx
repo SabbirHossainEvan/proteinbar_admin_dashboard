@@ -348,6 +348,9 @@ const normalizeRuleDefaultsForSave = (
   details: MonthlyPlanDetails,
 ): MonthlyPlanDetails => {
   const rules = details.rules;
+  const deliveryOptionConfigsByOption = new Map(
+    rules.deliveryOptionConfigs.map((config) => [config.option, config]),
+  );
   const defaultMeals = rules.allowedMealsPerDay.includes(rules.defaults.meals)
     ? rules.defaults.meals
     : rules.allowedMealsPerDay[0] ?? rules.defaults.meals;
@@ -370,6 +373,7 @@ const normalizeRuleDefaultsForSave = (
     ...details,
     rules: {
       ...rules,
+      deliveryOptionConfigs: Array.from(deliveryOptionConfigsByOption.values()),
       defaults: {
         ...rules.defaults,
         meals: defaultMeals,
@@ -386,6 +390,39 @@ const normalizeRuleDefaultsForSave = (
       },
     },
   };
+};
+
+const toFriendlySaveError = (message: string) => {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("default days") &&
+    normalized.includes("allowed days")
+  ) {
+    return "The selected website default plan length was no longer available. It has been reset to the first available length option. Please click Save again.";
+  }
+
+  return message;
+};
+
+const getApiMessage = (issue: unknown, fallback: string) => {
+  const message =
+    issue &&
+    typeof issue === "object" &&
+    "data" in issue &&
+    issue.data &&
+    typeof issue.data === "object" &&
+    "message" in issue.data
+      ? String((issue.data as { message?: string }).message ?? fallback)
+      : issue &&
+          typeof issue === "object" &&
+          "error" in issue &&
+          typeof issue.error === "string"
+        ? issue.error
+        : issue instanceof Error
+          ? issue.message
+          : fallback;
+
+  return toFriendlySaveError(message);
 };
 
 const validateDetails = (
@@ -470,6 +507,10 @@ const validateDetails = (
     );
   if (details.rules.deliveryDaysRule.min > details.rules.deliveryDaysRule.max)
     errors.push("Delivery day rule min must be less than or equal to max.");
+  const fixedMealsPerDay =
+    details.plan.planKind === "normal"
+      ? Math.max(1, Number(details.rules.defaults.meals) || 1)
+      : null;
 
   details.rules.deliveryOptionConfigs.forEach((config) => {
     if (deliveryOptionIdsSeen.has(config.option))
@@ -498,16 +539,17 @@ const validateDetails = (
         errors.push(
           `Week ${week.weekIndex} contains date ${dateIso} outside its range.`,
         );
+      if (fixedMealsPerDay !== null && meals.length > fixedMealsPerDay) {
+        errors.push(
+          `Week ${week.weekIndex}, ${dateIso} has ${meals.length} assigned meals, but this pre-made plan is fixed at ${fixedMealsPerDay} meals per day. Remove ${meals.length - fixedMealsPerDay} meal${meals.length - fixedMealsPerDay === 1 ? "" : "s"} from that date or increase the fixed meals value.`,
+        );
+      }
       meals.forEach((meal) => {
         const linkedMeal =
           mealsById.get(meal.mealId) ??
           mealsByName.get(normalizeMealValue(meal.mealName));
 
-        if (!linkedMeal) {
-          errors.push(
-            `Assigned meal "${meal.mealName}" on ${dateIso} in week ${week.weekIndex} is no longer in Meal Library. Re-add that meal from Meal Library or remove it from this date.`,
-          );
-        } else if (!getMealLibraryTypes(linkedMeal).includes(meal.mealType)) {
+        if (linkedMeal && !getMealLibraryTypes(linkedMeal).includes(meal.mealType)) {
           errors.push(
             `Assigned meal "${meal.mealName}" on ${dateIso} uses ${meal.mealType}, but this meal is only assigned to ${getMealLibraryTypes(linkedMeal).join(", ")} in Meal Library.`,
           );
@@ -646,6 +688,21 @@ export default function MonthlyPlanDetailEditorPage() {
     selectedWeek && selectedDate
       ? (selectedWeek.mealsByDate[selectedDate] ?? [])
       : [];
+  const fixedMealsPerDay =
+    draft?.plan.planKind === "normal"
+      ? Math.max(1, Number(draft.rules.defaults.meals) || 1)
+      : null;
+  const selectedDateMealCountForLimit = assignmentForm.id
+    ? selectedMealsOnDate.filter((meal) => meal.id !== assignmentForm.id).length
+    : selectedMealsOnDate.length;
+  const selectedAssignmentSlotCount = assignmentForm.mealTypes.length;
+  const selectedDateRemainingSlots =
+    fixedMealsPerDay === null
+      ? null
+      : Math.max(0, fixedMealsPerDay - selectedDateMealCountForLimit);
+  const wouldExceedFixedMealsPerDay =
+    selectedDateRemainingSlots !== null &&
+    selectedAssignmentSlotCount > selectedDateRemainingSlots;
   const selectedWeekMealCount = useMemo(
     () =>
       selectedWeek
@@ -849,6 +906,27 @@ export default function MonthlyPlanDetailEditorPage() {
     );
     if (mealTypesToAssign.length === 0) {
       setSaveErrors(["Select at least one valid meal type for this meal."]);
+      return;
+    }
+    const existingMealCount = assignmentForm.id
+      ? (selectedWeek.mealsByDate[selectedDate] ?? []).filter(
+          (item) => item.id !== assignmentForm.id,
+        ).length
+      : (selectedWeek.mealsByDate[selectedDate] ?? []).length;
+    const dailyMealLimit =
+      draft?.plan.planKind === "normal"
+        ? Math.max(1, Number(draft.rules.defaults.meals) || 1)
+        : null;
+    if (
+      dailyMealLimit !== null &&
+      existingMealCount + mealTypesToAssign.length > dailyMealLimit
+    ) {
+      const remainingSlots = Math.max(0, dailyMealLimit - existingMealCount);
+      setSaveErrors([
+        remainingSlots
+          ? `This pre-made plan is fixed at ${dailyMealLimit} meals per day. ${selectedDate} has room for ${remainingSlots} more meal${remainingSlots === 1 ? "" : "s"}.`
+          : `This pre-made plan is fixed at ${dailyMealLimit} meals per day. ${selectedDate} is already full, so remove a meal before adding another.`,
+      ]);
       return;
     }
     const mealName = assignmentForm.mealName.trim() || selectedMeal?.name || "";
@@ -1097,7 +1175,7 @@ export default function MonthlyPlanDetailEditorPage() {
       setSaveMessage("Meal plan saved.");
     } catch (error) {
       setSaveErrors([
-        error instanceof Error ? error.message : "Failed to save meal plan.",
+        getApiMessage(error, "Failed to save meal plan."),
       ]);
       setSaveMessage("");
     }
@@ -1983,6 +2061,29 @@ export default function MonthlyPlanDetailEditorPage() {
 
                     <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
                       <div className="space-y-4 rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
+                        {fixedMealsPerDay !== null ? (
+                          <div
+                            className={`rounded-2xl border px-4 py-3 text-sm ${
+                              selectedMealsOnDate.length > fixedMealsPerDay
+                                ? "border-rose-400/40 bg-rose-500/10 text-rose-100"
+                                : selectedDateRemainingSlots === 0
+                                  ? "border-amber-300/35 bg-amber-300/10 text-amber-100"
+                                  : "border-emerald-300/25 bg-emerald-300/10 text-emerald-100"
+                            }`}
+                          >
+                            <p className="font-semibold">
+                              Daily meal capacity: {selectedMealsOnDate.length}/{fixedMealsPerDay} assigned
+                            </p>
+                            <p className="mt-1 opacity-85">
+                              Pre-made plans are fixed by design, so each date can contain up to {fixedMealsPerDay} meal{fixedMealsPerDay === 1 ? "" : "s"}.
+                            </p>
+                            {selectedMealsOnDate.length > fixedMealsPerDay ? (
+                              <p className="mt-1 font-medium">
+                                Remove {selectedMealsOnDate.length - fixedMealsPerDay} extra meal{selectedMealsOnDate.length - fixedMealsPerDay === 1 ? "" : "s"} from this date before saving.
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
                         <div className="grid gap-3 md:grid-cols-2">
                           <label className="space-y-1">
                             <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
@@ -2097,9 +2198,15 @@ export default function MonthlyPlanDetailEditorPage() {
                             disabled={
                               !assignmentForm.mealId ||
                               !selectedAssignmentMeal ||
-                              assignmentForm.mealTypes.length === 0
+                              assignmentForm.mealTypes.length === 0 ||
+                              wouldExceedFixedMealsPerDay
                             }
-                            className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900"
+                            title={
+                              wouldExceedFixedMealsPerDay
+                                ? `This date only has ${selectedDateRemainingSlots ?? 0} free meal slot${selectedDateRemainingSlots === 1 ? "" : "s"}.`
+                                : undefined
+                            }
+                            className="rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-semibold text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {assignmentForm.id
                               ? "Update Assigned Meal"
@@ -2117,12 +2224,24 @@ export default function MonthlyPlanDetailEditorPage() {
                             </button>
                           ) : null}
                         </div>
+                        {wouldExceedFixedMealsPerDay ? (
+                          <p className="text-xs text-rose-300">
+                            This would exceed the fixed {fixedMealsPerDay} meals per day limit. Select fewer meal types or remove an assigned meal first.
+                          </p>
+                        ) : null}
                       </div>
 
                       <div className="space-y-3 rounded-2xl border border-zinc-700/70 bg-zinc-900/50 p-4">
-                        <p className="text-sm font-semibold text-white">
-                          Meals For {selectedDate || "Selected Date"}
-                        </p>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-white">
+                            Meals For {selectedDate || "Selected Date"}
+                          </p>
+                          {fixedMealsPerDay !== null ? (
+                            <span className="rounded-full border border-zinc-700 bg-zinc-950/60 px-2.5 py-1 text-xs text-zinc-300">
+                              {selectedMealsOnDate.length}/{fixedMealsPerDay} meals
+                            </span>
+                          ) : null}
+                        </div>
                         {selectedMealsOnDate.map((item) => (
                           <div
                             key={item.id}

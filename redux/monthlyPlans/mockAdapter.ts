@@ -362,6 +362,7 @@ const entities: MonthlyPlanEntities = {
       status: "pending",
       paymentStatus: "paid",
       amount: 28.5,
+      currency: "MAD",
       orderDate: today,
       deliveryOption: "daily-delivery",
       locationId: "loc-1",
@@ -392,6 +393,7 @@ const entities: MonthlyPlanEntities = {
       status: "confirmed",
       paymentStatus: "cod",
       amount: 34,
+      currency: "MAD",
       orderDate: "2026-03-07",
       deliveryOption: "weekly-pickup",
       locationId: "loc-2",
@@ -449,7 +451,7 @@ const entities: MonthlyPlanEntities = {
     id: "monthly-plan-settings",
     weeklyCycleCount: 4,
     maxActivePlansPerKind: 6,
-    currencyCode: "USD",
+    currencyCode: "MAD",
     defaultVatPercent: 15,
     defaultSafetyBagFee: 2,
     enforceActivePlanVisibility: true,
@@ -945,20 +947,24 @@ const ensureValidDetailPayload = (payload: MonthlyPlanDetailsPayload) => {
   if (!payload.plan.slug.trim()) throw new Error("Slug is required.");
   if (!payload.plan.planKind) throw new Error("Plan kind is required.");
 
-  if (
-    payload.rules.defaults.meals &&
-    !payload.rules.allowedMealsPerDay.includes(payload.rules.defaults.meals)
-  ) {
-    throw new Error("Default meals must exist in allowed meals/day.");
+  if (!payload.rules.allowedMealsPerDay.length) {
+    throw new Error("Add at least one meals-per-day option before saving.");
   }
-  if (
-    payload.rules.defaults.days &&
-    !payload.rules.allowedDays.includes(payload.rules.defaults.days)
-  ) {
-    throw new Error("Default days must exist in allowed days.");
+  if (!payload.rules.allowedDays.length) {
+    throw new Error("Add at least one plan length option before saving.");
+  }
+  if (!payload.rules.allowedSnacks.length) {
+    throw new Error("Add at least one snack option before saving.");
+  }
+
+  if (!payload.rules.allowedMealsPerDay.includes(payload.rules.defaults.meals)) {
+    payload.rules.defaults.meals = payload.rules.allowedMealsPerDay[0];
+  }
+  if (!payload.rules.allowedDays.includes(payload.rules.defaults.days)) {
+    payload.rules.defaults.days = payload.rules.allowedDays[0];
   }
   if (!payload.rules.allowedSnacks.includes(payload.rules.defaults.snacks)) {
-    throw new Error("Default snacks must exist in allowed snacks.");
+    payload.rules.defaults.snacks = payload.rules.allowedSnacks[0];
   }
   if (
     payload.rules.defaults.planType &&
@@ -998,6 +1004,11 @@ const ensureValidDetailPayload = (payload: MonthlyPlanDetailsPayload) => {
       if (dateIso < week.startDate || dateIso > week.endDate) {
         throw new Error(
           `Assigned date ${dateIso} must stay inside week ${week.weekIndex}.`,
+        );
+      }
+      if (payload.plan.planKind === "normal" && meals.length > payload.rules.defaults.meals) {
+        throw new Error(
+          `Week ${week.weekIndex}, ${dateIso} has ${meals.length} assigned meals, but this pre-made plan is fixed at ${payload.rules.defaults.meals} meals per day. Remove ${meals.length - payload.rules.defaults.meals} extra meal${meals.length - payload.rules.defaults.meals === 1 ? "" : "s"} or increase the fixed meals value.`,
         );
       }
       meals.forEach((meal) => {

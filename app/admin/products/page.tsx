@@ -231,7 +231,7 @@ export default function ProductsPage() {
             type="text"
             value={form.price}
             onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))}
-            placeholder="Price (e.g. $11.90)"
+            placeholder="Price (e.g. 119 MAD)"
             required
             className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3.5 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
           />

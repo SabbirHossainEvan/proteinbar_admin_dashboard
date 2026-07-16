@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
+import { formatMoney } from "@/lib/currency";
 import { useBulkArchiveMonthlyOrdersAdminMutation, useGetMonthlyOrdersAdminQuery, useUpdateMonthlyOrderAdminMutation } from "@/redux/api/adminApi";
 import type { OrderRecord } from "@/redux/monthlyPlans/types";
 
@@ -21,8 +22,21 @@ function orderStatusBadgeClass(status: OrderRecord["status"]) {
   return "bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/25";
 }
 
-function formatMoney(value: number) {
-  return `$${value.toFixed(2)}`;
+function formatDateTime(value?: string) {
+  if (!value) return "N/A";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function getOrderTimestamp(order: OrderRecord) {
+  return order.createdAt || order.orderDate;
 }
 
 export default function OrdersPage() {
@@ -112,7 +126,7 @@ export default function OrdersPage() {
   };
 
   const exportCsv = () => {
-    const headers = ["Order ID", "Date", "Customer", "Plan", "Plan Kind", "Delivery Option", "Location", "Payment", "Amount", "Status"];
+    const headers = ["Order ID", "Date", "Customer", "Plan", "Plan Kind", "Delivery Option", "Location", "Payment", "Amount", "Currency", "Status"];
     const lines = filtered.map((item) =>
       [
         item.orderId,
@@ -124,6 +138,7 @@ export default function OrdersPage() {
         item.locationName,
         item.paymentStatus,
         item.amount.toFixed(2),
+        item.currency,
         item.status
       ]
         .map((value) => `"${String(value).replace(/"/g, '""')}"`)
@@ -179,7 +194,7 @@ export default function OrdersPage() {
 
     const cards = [
       { label: "TOTAL ORDERS", value: String(filtered.length) },
-      { label: "TOTAL AMOUNT", value: formatMoney(totalAmount) },
+      { label: "TOTAL AMOUNT", value: formatMoney(totalAmount, "MAD") },
       { label: "PENDING", value: String(filtered.filter((item) => item.status === "pending").length) }
     ];
     cards.forEach((card, index) => {
@@ -213,7 +228,7 @@ export default function OrdersPage() {
             `${item.deliveryOption}\n${item.locationName || item.deliveryAddress || "N/A"}`,
             item.paymentStatus,
             item.status,
-            formatMoney(item.amount)
+            formatMoney(item.amount, item.currency)
           ])
         : [["No orders found for the current filters.", "", "", "", "", "", ""]],
       theme: "grid",
@@ -298,11 +313,17 @@ export default function OrdersPage() {
         <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Monthly Order Management</p>
         <h2 className="mt-1 text-3xl font-semibold text-white">Orders</h2>
         <p className="mt-2 text-sm text-zinc-300">
-          Manage checkout outputs from custom/normal flow, including failed CMI payment attempts that need sales follow-up.
+          Orders shows every checkout/payment attempt: pending, unpaid, failed, and paid. Paid CMI-confirmed orders can create Subscriptions for ongoing plan delivery.
         </p>
       </div>
 
       <section className="admin-panel rounded-2xl p-5">
+        <div className="mb-5 rounded-2xl border border-sky-300/25 bg-sky-300/10 p-4 text-sm text-sky-50">
+          <p className="font-semibold">Orders vs Subscriptions</p>
+          <p className="mt-1 text-sky-50/85">
+            Use Orders to review checkout attempts and recover failed/unpaid sales. Use Subscriptions only for paid, confirmed meal-plan lifecycles after payment succeeds.
+          </p>
+        </div>
         <div className="grid gap-3 md:grid-cols-5">
           <input
             value={filters.search}
@@ -446,7 +467,10 @@ export default function OrdersPage() {
                     >
                       {item.orderId}
                     </button>
-                    <p className="text-xs text-zinc-400">{item.orderDate}</p>
+                    <p className="text-xs text-zinc-400">Attempted: {formatDateTime(getOrderTimestamp(item))}</p>
+                    {item.updatedAt ? (
+                      <p className="text-xs text-zinc-500">Updated: {formatDateTime(item.updatedAt)}</p>
+                    ) : null}
                   </td>
                   <td className="py-3.5 pr-4 text-zinc-100">{item.customerName}</td>
                   <td className="py-3.5 pr-4 text-zinc-300">
@@ -462,7 +486,7 @@ export default function OrdersPage() {
                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${paymentBadgeClass(item.paymentStatus)}`}>
                       {item.paymentStatus}
                     </span>
-                    <p className="text-xs text-zinc-400">${item.amount.toFixed(2)}</p>
+                    <p className="text-xs text-zinc-400">{formatMoney(item.amount, item.currency)}</p>
                     {item.paymentStatus === "failed" ? (
                       <p className="mt-1 text-xs font-medium text-red-300">Follow up</p>
                     ) : null}
@@ -560,7 +584,9 @@ export default function OrdersPage() {
                 <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Subscription</p>
                 <p className="mt-2 text-sm font-mono text-amber-200">{selectedOrder.subscriptionId || "N/A"}</p>
                 <div className="mt-2 text-sm text-zinc-300">
-                  <p>Order Date: {selectedOrder.orderDate || "N/A"}</p>
+                  <p>Attempted / placed: {formatDateTime(getOrderTimestamp(selectedOrder))}</p>
+                  <p>Order date: {selectedOrder.orderDate || "N/A"}</p>
+                  <p>Last updated: {formatDateTime(selectedOrder.updatedAt)}</p>
                 </div>
               </section>
 
@@ -650,20 +676,20 @@ export default function OrdersPage() {
                 </div>
                 {selectedOrder.totals ? (
                   <div className="mt-3 border-t border-zinc-800 pt-3 text-sm text-zinc-300">
-                    <div className="flex justify-between py-1"><span className="text-zinc-500">Subtotal:</span> <span>${selectedOrder.totals.subtotal.toFixed(2)}</span></div>
+                    <div className="flex justify-between py-1"><span className="text-zinc-500">Subtotal:</span> <span>{formatMoney(selectedOrder.totals.subtotal, selectedOrder.currency)}</span></div>
                     {selectedOrder.totals.giftDiscount > 0 && (
-                      <div className="flex justify-between py-1"><span className="text-zinc-500">Gift Discount:</span> <span className="text-emerald-400">-${selectedOrder.totals.giftDiscount.toFixed(2)}</span></div>
+                      <div className="flex justify-between py-1"><span className="text-zinc-500">Gift Discount:</span> <span className="text-emerald-400">-{formatMoney(selectedOrder.totals.giftDiscount, selectedOrder.currency)}</span></div>
                     )}
                     {selectedOrder.promoCode?.code && (
-                      <div className="flex justify-between py-1"><span className="text-zinc-500">Promo ({selectedOrder.promoCode.code}):</span> <span className="text-emerald-400">-${selectedOrder.promoCode.discountAmount.toFixed(2)}</span></div>
+                      <div className="flex justify-between py-1"><span className="text-zinc-500">Promo ({selectedOrder.promoCode.code}):</span> <span className="text-emerald-400">-{formatMoney(selectedOrder.promoCode.discountAmount, selectedOrder.currency)}</span></div>
                     )}
-                    <div className="flex justify-between py-1"><span className="text-zinc-500">VAT:</span> <span>${selectedOrder.totals.vat.toFixed(2)}</span></div>
-                    <div className="flex justify-between py-1"><span className="text-zinc-500">Safety Bag:</span> <span>${selectedOrder.totals.safetyBag.toFixed(2)}</span></div>
-                    <div className="flex justify-between border-t border-zinc-800 py-2 mt-1 font-semibold text-white"><span className="text-zinc-400">Grand Total:</span> <span className="text-lg">${selectedOrder.totals.grandTotal.toFixed(2)}</span></div>
+                    <div className="flex justify-between py-1"><span className="text-zinc-500">VAT:</span> <span>{formatMoney(selectedOrder.totals.vat, selectedOrder.currency)}</span></div>
+                    <div className="flex justify-between py-1"><span className="text-zinc-500">Safety Bag:</span> <span>{formatMoney(selectedOrder.totals.safetyBag, selectedOrder.currency)}</span></div>
+                    <div className="flex justify-between border-t border-zinc-800 py-2 mt-1 font-semibold text-white"><span className="text-zinc-400">Grand Total:</span> <span className="text-lg">{formatMoney(selectedOrder.totals.grandTotal, selectedOrder.currency)}</span></div>
                   </div>
                 ) : (
                   <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
-                    <p>Amount: ${selectedOrder.amount.toFixed(2)}</p>
+                    <p>Amount: {formatMoney(selectedOrder.amount, selectedOrder.currency)}</p>
                   </div>
                 )}
               </section>
@@ -680,7 +706,7 @@ export default function OrdersPage() {
                         <div className="flex items-start justify-between">
                           <p className="text-sm font-semibold text-white">{line.mealName}</p>
                           {(line.totalPrice ?? 0) > 0 && (
-                            <span className="text-sm font-semibold text-amber-200">${line.totalPrice}</span>
+                            <span className="text-sm font-semibold text-amber-200">{formatMoney(line.totalPrice ?? 0, selectedOrder.currency)}</span>
                           )}
                         </div>
                         {line.extrasSummary && (
@@ -700,7 +726,7 @@ export default function OrdersPage() {
                         </div>
                         {(line.basePrice ?? 0) > 0 && line.basePrice !== line.totalPrice && (
                           <div className="mt-2 text-xs text-zinc-500">
-                            Base Price: ${line.basePrice} → Total: ${line.totalPrice}
+                            Base Price: {formatMoney(line.basePrice ?? 0, selectedOrder.currency)} → Total: {formatMoney(line.totalPrice ?? 0, selectedOrder.currency)}
                           </div>
                         )}
                       </div>

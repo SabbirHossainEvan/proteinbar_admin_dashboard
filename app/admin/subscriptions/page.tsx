@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
+import { formatMoney } from "@/lib/currency";
 import {
   useGetMonthlySubscriptionsAdminQuery,
   useUpdateMonthlySubscriptionAdminMutation
@@ -10,6 +11,19 @@ import type { SubscriptionRecord } from "@/redux/monthlyPlans/types";
 
 type SubscriptionStatus = SubscriptionRecord["status"];
 
+function formatDateTime(value?: string) {
+  if (!value) return "N/A";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
 export default function SubscriptionsPage() {
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -17,18 +31,17 @@ export default function SubscriptionsPage() {
   const [selectedSubscription, setSelectedSubscription] = useState<SubscriptionRecord | null>(null);
   const { data, isLoading, isError } = useGetMonthlySubscriptionsAdminQuery();
   const [updateSubscription, { isLoading: isUpdating }] = useUpdateMonthlySubscriptionAdminMutation();
+  const subscriptions = useMemo(() => data?.data ?? [], [data]);
 
   const filtered = useMemo(() => {
-    const subscriptions = data?.data ?? [];
     const needle = search.trim().toLowerCase();
     if (!needle) return subscriptions;
     return subscriptions.filter((item) =>
       `${item.subscriptionId} ${item.customerName} ${item.planTitle} ${item.customerPhone} ${item.customerEmail ?? ""}`.toLowerCase().includes(needle)
     );
-  }, [data, search]);
+  }, [subscriptions, search]);
 
   const visibleIds = useMemo(() => filtered.map((item) => item.id), [filtered]);
-  const subscriptions = data?.data ?? [];
   const selectedItems = useMemo(
     () => subscriptions.filter((item) => selectedIds.includes(item.id)),
     [subscriptions, selectedIds]
@@ -96,15 +109,15 @@ export default function SubscriptionsPage() {
         <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Paid Plan Lifecycle Records</p>
         <h2 className="mt-1 text-3xl font-semibold text-white">Active Subscriptions</h2>
         <p className="mt-2 text-sm text-zinc-300">
-          Manage paid, CMI-confirmed meal-plan subscriptions only. Pending, unpaid, failed, and test checkout attempts stay in Orders until payment is confirmed.
+          Subscriptions are paid, CMI-confirmed plan lifecycles. Pending, unpaid, failed, and test checkout attempts stay in Orders until payment is confirmed.
         </p>
       </div>
 
       <section className="admin-panel rounded-2xl p-5">
         <div className="mb-5 rounded-2xl border border-amber-300/25 bg-amber-300/10 p-4 text-sm text-amber-50">
-          <p className="font-semibold">Why this count can be lower than Orders</p>
+          <p className="font-semibold">Orders vs Subscriptions</p>
           <p className="mt-1 text-amber-50/85">
-            Orders is the full checkout/payment queue. Active Subscriptions is created only after CMI confirms payment, so unpaid orders can appear in Orders but not here.
+            Orders is the full checkout/payment queue, including failed attempts. Subscriptions are created only after payment succeeds and are used to manage delivery progress, pause/resume, and cancellation.
           </p>
         </div>
 
@@ -218,7 +231,11 @@ export default function SubscriptionsPage() {
                     >
                       {item.subscriptionId}
                     </button>
-                    <p className="text-xs text-zinc-400">{item.startDate || "No start date"}</p>
+                    <p className="text-xs text-zinc-400">Created: {formatDateTime(item.createdAt)}</p>
+                    <p className="text-xs text-zinc-500">Starts: {item.startDate || "No start date"}</p>
+                    {item.updatedAt ? (
+                      <p className="text-xs text-zinc-500">Updated: {formatDateTime(item.updatedAt)}</p>
+                    ) : null}
                   </td>
                   <td className="py-3.5 pr-4 text-zinc-100">
                     {item.customerName}
@@ -352,6 +369,8 @@ export default function SubscriptionsPage() {
                   </p>
                   <p>Current Week: {selectedSubscription.currentWeek}/{selectedSubscription.totalWeeks}</p>
                   <p>Remaining Meals: {selectedSubscription.remainingMeals}</p>
+                  <p>Created: {formatDateTime(selectedSubscription.createdAt)}</p>
+                  <p>Last updated: {formatDateTime(selectedSubscription.updatedAt)}</p>
                 </div>
                 <div className="mt-4 border-t border-zinc-800 pt-4">
                   <p className="mb-2 text-xs uppercase tracking-[0.14em] text-zinc-500">Configuration</p>
@@ -396,7 +415,7 @@ export default function SubscriptionsPage() {
                         <div className="flex items-start justify-between">
                           <p className="text-sm font-semibold text-white">{meal.title}</p>
                           {(meal.totalPrice ?? 0) > 0 ? (
-                            <span className="text-sm font-semibold text-amber-200">${meal.totalPrice}</span>
+                            <span className="text-sm font-semibold text-amber-200">{formatMoney(meal.totalPrice ?? 0)}</span>
                           ) : null}
                         </div>
                         {meal.extrasSummary ? (
@@ -415,7 +434,7 @@ export default function SubscriptionsPage() {
                         </div>
                         {(meal.basePrice ?? 0) > 0 && meal.basePrice !== meal.totalPrice ? (
                           <div className="mt-2 text-xs text-zinc-500">
-                            Base Price: ${meal.basePrice} to Total: ${meal.totalPrice}
+                            Base Price: {formatMoney(meal.basePrice ?? 0)} to Total: {formatMoney(meal.totalPrice ?? 0)}
                           </div>
                         ) : null}
                       </div>

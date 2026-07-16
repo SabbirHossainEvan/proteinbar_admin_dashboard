@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from "@reduxjs/toolkit/query";
+import { clearAdminAuth, getAdminAuth, setAdminAuth } from "@/lib/adminAuth";
 import { backofficeMockAdapter } from "@/redux/backoffice/mockAdapter";
 import type {
   AdminAuthRecord,
@@ -30,7 +31,6 @@ import type {
 } from "@/redux/monthlyPlans/types";
 
 const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000/api/v1";
-const adminAuthStorageKey = "proteinbar_admin_auth";
 
 type ApiResponse<T> = {
   success: boolean;
@@ -67,14 +67,7 @@ type ArchivedOrderFilters = {
 };
 
 const getStoredAdminAuth = () => {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.sessionStorage.getItem(adminAuthStorageKey);
-    return raw ? (JSON.parse(raw) as Partial<AdminAuthRecord>) : null;
-  } catch {
-    window.sessionStorage.removeItem(adminAuthStorageKey);
-    return null;
-  }
+  return getAdminAuth();
 };
 
 const getAdminAccessToken = (auth: Partial<AdminAuthRecord> | null) =>
@@ -101,6 +94,8 @@ const isAuthEndpoint = (args: string | FetchArgs) => {
 const normalizeSubscriptionRecord = (item: Partial<SubscriptionRecord> & Record<string, unknown>): SubscriptionRecord => ({
   id: String(item.id ?? ""),
   subscriptionId: String(item.subscriptionId ?? ""),
+  createdAt: item.createdAt ? String(item.createdAt) : undefined,
+  updatedAt: item.updatedAt ? String(item.updatedAt) : undefined,
   customerName: String(item.customerName ?? ""),
   customerEmail: item.customerEmail ? String(item.customerEmail) : undefined,
   customerPhone: String(item.customerPhone ?? ""),
@@ -159,6 +154,8 @@ const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknow
   id: String(item.id ?? ""),
   orderId: String(item.orderId ?? ""),
   subscriptionId: String(item.subscriptionId ?? ""),
+  createdAt: item.createdAt ? String(item.createdAt) : undefined,
+  updatedAt: item.updatedAt ? String(item.updatedAt) : undefined,
   customerName: String(item.customerName ?? ""),
   customerEmail: item.customerEmail ? String(item.customerEmail) : undefined,
   customerPhone: item.customerPhone ? String(item.customerPhone) : undefined,
@@ -179,6 +176,7 @@ const normalizeOrderRecord = (item: Partial<OrderRecord> & Record<string, unknow
   paymentFailureReason: item.paymentFailureReason ? String(item.paymentFailureReason) : undefined,
   isRecoveryOnly: Boolean(item.isRecoveryOnly ?? false),
   amount: Number(item.amount ?? 0),
+  currency: String(item.currency ?? "MAD").trim().toUpperCase() || "MAD",
   orderDate: String(item.orderDate ?? ""),
   deliveryOption: ((item.deliveryOption ?? "daily-delivery") as OrderRecord["deliveryOption"]),
   deliveryAddress: item.deliveryAddress ? String(item.deliveryAddress) : undefined,
@@ -359,7 +357,7 @@ const refreshStoredAdminAuth = async (
       if (refreshResult.data && !(refreshResult as { error?: unknown }).error) {
         const response = refreshResult.data as ApiResponse<AdminAuthRecord>;
         if (response.data) {
-          window.sessionStorage.setItem(adminAuthStorageKey, JSON.stringify(response.data));
+          setAdminAuth(response.data);
           return response.data;
         }
       }
@@ -392,7 +390,7 @@ const baseQueryWithAdminAuth: BaseQueryFn<string | FetchArgs, unknown, FetchBase
   }
 
   if (result.error?.status === 401 && typeof window !== "undefined") {
-    window.sessionStorage.removeItem(adminAuthStorageKey);
+    clearAdminAuth();
     window.sessionStorage.removeItem("proteinbar_admin_reset_email");
 
     if (window.location.pathname !== "/admin/sign-in") {

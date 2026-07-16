@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { adminNavSections } from "@/data/admin/navigation";
-import { getAdminAuth } from "@/lib/adminAuth";
+import { getAdminAuth, subscribeToAdminAuthChanges } from "@/lib/adminAuth";
 import { EmptyState, ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import {
   useDeleteAdminRoleMutation,
@@ -110,7 +110,7 @@ function PermissionPicker({
 }
 
 export default function UsersPermissionsPage() {
-  const auth = useMemo(() => getAdminAuth(), []);
+  const auth = useSyncExternalStore(subscribeToAdminAuthChanges, getAdminAuth, () => null);
   const canManageUsers = auth?.user?.role === "super_admin" || auth?.user?.canManageUsers;
   const [activeTab, setActiveTab] = useState<ManageTab>("admins");
   const [roleForm, setRoleForm] = useState(initialRoleForm);

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { getAdminAuth } from "@/lib/adminAuth";
+import { getAdminAuth, subscribeToAdminAuthChanges } from "@/lib/adminAuth";
 import { getVisibleAdminNavSections } from "@/lib/adminPermissions";
+import type { AdminAuthRecord } from "@/redux/backoffice/types";
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -58,7 +59,7 @@ function NavIcon({ href }: { href: string }) {
 
 export default function AdminSidebar() {
   const pathname = usePathname();
-  const auth = useMemo(() => getAdminAuth(), []);
+  const auth = useSyncExternalStore(subscribeToAdminAuthChanges, getAdminAuth, () => null) as AdminAuthRecord | null;
   const navSections = useMemo(
     () => getVisibleAdminNavSections(auth?.user),
     [auth],
