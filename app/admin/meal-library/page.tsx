@@ -33,8 +33,10 @@ const initialForm = {
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-    reader.onerror = () => reject(new Error("Could not read the selected image."));
+    reader.onload = () =>
+      resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () =>
+      reject(new Error("Could not read the selected image."));
     reader.readAsDataURL(file);
   });
 }
@@ -43,7 +45,8 @@ function loadImage(source: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Could not load the selected image."));
+    image.onerror = () =>
+      reject(new Error("Could not load the selected image."));
     image.src = source;
   });
 }
@@ -131,7 +134,9 @@ export default function MealLibraryPage() {
       const image = await compressMealImage(file);
       setForm((prev) => ({ ...prev, image }));
     } catch (issue) {
-      setError(issue instanceof Error ? issue.message : "Failed to prepare image.");
+      setError(
+        issue instanceof Error ? issue.message : "Failed to prepare image.",
+      );
       event.target.value = "";
     }
   };
@@ -263,7 +268,10 @@ export default function MealLibraryPage() {
         </p>
       </div>
 
-      <section ref={editorRef} className="admin-panel scroll-mt-24 rounded-3xl p-4 sm:p-5 md:p-6">
+      <section
+        ref={editorRef}
+        className="admin-panel scroll-mt-24 rounded-3xl p-4 sm:p-5 md:p-6"
+      >
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.16em] text-amber-200">
@@ -642,7 +650,7 @@ export default function MealLibraryPage() {
                         type="button"
                         onClick={() => openDeleteModal(meal)}
                         disabled={isForceDeleting}
-                        className="rounded-lg border border-red-400/50 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-100 transition hover:bg-red-500/25 disabled:opacity-60"
+                        className="rounded-lg border border-red-600 bg-red-600 px-3 py-1.5 text-xs font-semibold !text-white shadow-sm transition hover:border-red-500 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Delete
                       </button>
