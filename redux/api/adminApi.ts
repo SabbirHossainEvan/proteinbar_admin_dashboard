@@ -251,6 +251,39 @@ const normalizeArchivedOrderListResponse = (item: Record<string, unknown>): Arch
   };
 };
 
+const isMonthlyPlanRecord = (item: Record<string, unknown>) => {
+  const id = String(item.id ?? "").trim();
+  const title = String(item.title ?? "").trim();
+  const planKind = String(item.planKind ?? "").trim();
+  return Boolean(id && title && (planKind === "custom" || planKind === "normal"));
+};
+
+const normalizeMonthlyPlanRecord = (item: Record<string, unknown>): MonthlyPlan => ({
+  id: String(item.id ?? ""),
+  slug: String(item.slug ?? item.id ?? ""),
+  title: String(item.title ?? "Untitled plan"),
+  description: String(item.description ?? ""),
+  image: String(item.image ?? ""),
+  badge: item.badge ? String(item.badge) : undefined,
+  status:
+    item.status === "active" || item.status === "inactive" || item.status === "archived"
+      ? item.status
+      : "draft",
+  planKind: item.planKind === "custom" ? "custom" : "normal",
+  frequency:
+    item.frequency === "daily" || item.frequency === "weekly" || item.frequency === "monthly"
+      ? item.frequency
+      : "monthly",
+  createdAt: String(item.createdAt ?? ""),
+  updatedAt: String(item.updatedAt ?? ""),
+  ruleConfigId: String(item.ruleConfigId ?? ""),
+  pricingConfigId: String(item.pricingConfigId ?? ""),
+  content: item.content && typeof item.content === "object" ? item.content as MonthlyPlan["content"] : undefined,
+  weekAssignmentIds: Array.isArray(item.weekAssignmentIds)
+    ? item.weekAssignmentIds.map((value) => String(value)).filter(Boolean)
+    : []
+});
+
 const normalizeMonthlyClientRecord = (item: Partial<MonthlyClientRecord> & Record<string, unknown>): MonthlyClientRecord => ({
   id: String(item.id ?? ""),
   key: String(item.key ?? item.id ?? ""),
@@ -639,6 +672,12 @@ export const adminApi = createApi({
       query: (filters) => ({
         url: "/admin/monthly-plan/plans",
         params: filters ?? {}
+      }),
+      transformResponse: (response: ApiResponse<Array<Record<string, unknown>>>) => ({
+        ...response,
+        data: (response.data ?? [])
+          .filter(isMonthlyPlanRecord)
+          .map(normalizeMonthlyPlanRecord)
       }),
       providesTags: ["MonthlyPlanAdmin"]
     }),
