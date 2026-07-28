@@ -17,6 +17,7 @@ import type {
   MealLibraryItem,
   MealType,
   MonthlyPlanDetails,
+  PlanFrequency,
   WeekAssignment,
 } from "@/redux/monthlyPlans/types";
 
@@ -150,6 +151,7 @@ const syncWeekDates = (week: WeekAssignment): WeekAssignment => ({
 const setWeekStartDay = (
   week: WeekAssignment,
   targetWeekDay: number,
+  spanDays = 7,
 ): WeekAssignment => {
   const currentWeekDay = getWeekDayIndex(week.startDate);
   const offset = targetWeekDay - currentWeekDay;
@@ -158,7 +160,7 @@ const setWeekStartDay = (
   return syncWeekDates({
     ...week,
     startDate: nextStartDate,
-    endDate: addDays(nextStartDate, 6),
+    endDate: addDays(nextStartDate, spanDays - 1),
   });
 };
 
@@ -511,6 +513,16 @@ const validateDetails = (
     details.plan.planKind === "normal"
       ? Math.max(1, Number(details.rules.defaults.meals) || 1)
       : null;
+  const assignmentFrequency = details.plan.frequency ?? "monthly";
+  if (
+    details.plan.planKind === "normal" &&
+    assignmentFrequency !== "monthly" &&
+    details.weekAssignments.length > 1
+  ) {
+    errors.push(
+      `${assignmentFrequency === "daily" ? "Daily" : "Weekly"} pre-made plans can contain only one assignment ${assignmentFrequency === "daily" ? "day" : "week"}.`,
+    );
+  }
 
   details.rules.deliveryOptionConfigs.forEach((config) => {
     if (deliveryOptionIdsSeen.has(config.option))
@@ -534,6 +546,20 @@ const validateDetails = (
   details.weekAssignments.forEach((week) => {
     if (week.startDate > week.endDate)
       errors.push(`Week ${week.weekIndex} has an invalid date range.`);
+    if (
+      details.plan.planKind === "normal" &&
+      assignmentFrequency !== "monthly"
+    ) {
+      const expectedEndDate = addDays(
+        week.startDate,
+        assignmentFrequency === "daily" ? 0 : 6,
+      );
+      if (week.endDate !== expectedEndDate) {
+        errors.push(
+          `${assignmentFrequency === "daily" ? "Daily" : "Weekly"} pre-made plans must use a ${assignmentFrequency === "daily" ? "one-day" : "seven-day"} assignment range.`,
+        );
+      }
+    }
     Object.entries(week.mealsByDate).forEach(([dateIso, meals]) => {
       if (dateIso < week.startDate || dateIso > week.endDate)
         errors.push(
@@ -612,6 +638,7 @@ export default function MonthlyPlanDetailEditorPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("basic");
   const [draft, setDraft] = useState<MonthlyPlanDetails | null>(null);
   const [mealOptionInput, setMealOptionInput] = useState("");
+  const [fixedMealCountInput, setFixedMealCountInput] = useState("");
   const [lengthOptionInput, setLengthOptionInput] = useState("");
   const [selectedWeekId, setSelectedWeekId] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
@@ -638,6 +665,7 @@ export default function MonthlyPlanDetailEditorPage() {
       mealLibraryData?.data ?? data.data.mealLibrary ?? [],
     );
     setDraft(normalized);
+    setFixedMealCountInput(String(normalized.rules.defaults.meals));
     setAssignmentForm(createAssignmentForm());
   }, [data, mealLibraryData]);
 
@@ -730,6 +758,80 @@ export default function MonthlyPlanDetailEditorPage() {
       prev ? { ...prev, plan: { ...prev.plan, [field]: value } } : prev,
     );
   };
+  const setPlanFrequency = (frequency: PlanFrequency) => {
+    if (!draft || draft.plan.frequency === frequency) return;
+
+    let nextAssignments = draft.weekAssignments;
+    if (
+      draft.plan.planKind === "normal" &&
+      frequency !== "monthly" &&
+      draft.weekAssignments.length
+    ) {
+      const retainedWeek =
+        draft.weekAssignments.find((week) => week.id === selectedWeekId) ??
+        draft.weekAssignments[0];
+      const retainedStartDate =
+        frequency === "daily" &&
+        selectedDate &&
+        Object.prototype.hasOwnProperty.call(
+          retainedWeek.mealsByDate,
+          selectedDate,
+        )
+          ? selectedDate
+          : retainedWeek.startDate;
+      const retainedEndDate = addDays(
+        retainedStartDate,
+        frequency === "daily" ? 0 : 6,
+      );
+      const hasMealsOutsideScope = draft.weekAssignments.some((week) =>
+        Object.entries(week.mealsByDate).some(
+          ([dateIso, assignedMeals]) =>
+            assignedMeals.length > 0 &&
+            (week.id !== retainedWeek.id ||
+              dateIso < retainedStartDate ||
+              dateIso > retainedEndDate),
+        ),
+      );
+
+      if (
+        hasMealsOutsideScope &&
+        !window.confirm(
+          `Changing to ${frequency} keeps only the currently selected ${frequency === "daily" ? "day" : "week"} and removes meal assignments outside it. Continue?`,
+        )
+      ) {
+        return;
+      }
+
+      nextAssignments = [
+        syncWeekDates({
+          ...retainedWeek,
+          weekIndex: 1,
+          startDate: retainedStartDate,
+          endDate: retainedEndDate,
+        }),
+      ];
+    }
+
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            plan: {
+              ...prev.plan,
+              frequency,
+              weekAssignmentIds: nextAssignments.map((week) => week.id),
+            },
+            weekAssignments: nextAssignments,
+          }
+        : prev,
+    );
+    setSelectedWeekId(nextAssignments[0]?.id ?? "");
+    setSelectedDate(nextAssignments[0]?.startDate ?? "");
+    setAssignmentForm(createAssignmentForm());
+    closeCopyMealsModal();
+    setSaveErrors([]);
+    setSaveMessage("");
+  };
 
   const updateWeek = (
     weekId: string,
@@ -751,15 +853,24 @@ export default function MonthlyPlanDetailEditorPage() {
     const lastWeek = [...source.weekAssignments]
       .sort((a, b) => a.weekIndex - b.weekIndex)
       .at(-1);
-    return createWeekDraft(
+    const nextWeek = createWeekDraft(
       source.plan.id,
       source.weekAssignments.length + 1,
       lastWeek,
     );
+    return source.plan.frequency === "daily"
+      ? syncWeekDates({ ...nextWeek, endDate: nextWeek.startDate })
+      : nextWeek;
   };
 
   const addWeek = () => {
     if (!draft) return;
+    if (
+      draft.plan.frequency !== "monthly" &&
+      draft.weekAssignments.length > 0
+    ) {
+      return;
+    }
     const newWeek = createNextWeek(draft);
     setDraft((prev) =>
       prev
@@ -1171,6 +1282,7 @@ export default function MonthlyPlanDetailEditorPage() {
         meals,
       );
       setDraft(normalized);
+      setFixedMealCountInput(String(normalized.rules.defaults.meals));
       setSaveErrors([]);
       setSaveMessage("Meal plan saved.");
     } catch (error) {
@@ -1212,6 +1324,11 @@ export default function MonthlyPlanDetailEditorPage() {
   ];
   const frequencyLabel =
     draft.plan.frequency.charAt(0).toUpperCase() + draft.plan.frequency.slice(1);
+  const assignmentPeriodLabel =
+    draft.plan.frequency === "daily" ? "Day" : "Week";
+  const assignmentSpanDays = draft.plan.frequency === "daily" ? 1 : 7;
+  const canAddAssignmentPeriod =
+    draft.plan.frequency === "monthly" || draft.weekAssignments.length === 0;
   const effectiveDefaultDays = draft.rules.allowedDays.includes(
     draft.rules.defaults.days,
   )
@@ -1285,6 +1402,21 @@ export default function MonthlyPlanDetailEditorPage() {
         : prev,
     );
   };
+  const setFixedMealCount = (value: number) => {
+    if (!Number.isSafeInteger(value) || value < 1) return;
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            rules: {
+              ...prev.rules,
+              allowedMealsPerDay: [value],
+              defaults: { ...prev.rules.defaults, meals: value },
+            },
+          }
+        : prev,
+    );
+  };
   const setDefaultLength = (value: number) => {
     setDraft((prev) =>
       prev
@@ -1331,7 +1463,7 @@ export default function MonthlyPlanDetailEditorPage() {
             </div>
             <div className="rounded-2xl border border-zinc-700/70 bg-zinc-950/45 px-4 py-3">
               <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">
-                Weeks
+                {draft.plan.frequency === "daily" ? "Days" : "Weeks"}
               </p>
               <p className="mt-1 text-sm font-semibold text-white">
                 {draft.weekAssignments.length}
@@ -1451,11 +1583,7 @@ export default function MonthlyPlanDetailEditorPage() {
                 <select
                   value={draft.plan.frequency}
                   onChange={(event) =>
-                    setPlanField(
-                      "frequency",
-                      event.target
-                        .value as MonthlyPlanDetails["plan"]["frequency"],
-                    )
+                    setPlanFrequency(event.target.value as PlanFrequency)
                   }
                   className="w-full rounded-2xl border border-zinc-700 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none transition focus:border-amber-300 focus:bg-zinc-900"
                 >
@@ -1567,14 +1695,32 @@ export default function MonthlyPlanDetailEditorPage() {
                 </div>
                 {draft.plan.planKind === "normal" ? (
                   <div className="mt-5 rounded-3xl border border-amber-300/30 bg-amber-300/10 p-5 text-center">
-                    <p className="text-5xl font-semibold text-amber-200">
-                      {draft.rules.defaults.meals}
-                    </p>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={fixedMealCountInput}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setFixedMealCountInput(value);
+                        if (value !== "") {
+                          setFixedMealCount(Number(value));
+                        }
+                      }}
+                      onBlur={() =>
+                        setFixedMealCountInput(
+                          String(draft.rules.defaults.meals),
+                        )
+                      }
+                      aria-label="Fixed meals per day"
+                      className="mx-auto block w-28 rounded-2xl border border-amber-200/50 bg-zinc-950/70 px-3 py-2 text-center text-4xl font-semibold text-amber-200 outline-none transition focus:border-amber-200 focus:ring-2 focus:ring-amber-200/20"
+                    />
                     <p className="mt-2 text-sm font-medium text-amber-50">
                       meals per day
                     </p>
                     <p className="mt-2 text-xs text-amber-100/70">
-                      Locked because pre-made plans do not show this selector.
+                      Customers do not see a selector for pre-made plans. Save
+                      changes to apply this fixed value.
                     </p>
                   </div>
                 ) : (
@@ -1930,16 +2076,18 @@ export default function MonthlyPlanDetailEditorPage() {
                       onClick={() => setSelectedWeekId(week.id)}
                       className={`rounded-xl px-3 py-2 text-sm ${selectedWeekId === week.id ? "bg-amber-300 text-zinc-900" : "border border-zinc-600 text-zinc-200"}`}
                     >
-                      Week {week.weekIndex}
+                      {assignmentPeriodLabel} {week.weekIndex}
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    onClick={addWeek}
-                    className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100"
-                  >
-                    + Add Week
-                  </button>
+                  {canAddAssignmentPeriod ? (
+                    <button
+                      type="button"
+                      onClick={addWeek}
+                      className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100"
+                    >
+                      + Add {assignmentPeriodLabel}
+                    </button>
+                  ) : null}
                 </div>
 
                 {selectedWeek ? (
@@ -1947,7 +2095,7 @@ export default function MonthlyPlanDetailEditorPage() {
                     <div className="grid gap-3 md:grid-cols-3">
                       <label className="space-y-1">
                         <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
-                          Week Index
+                          {assignmentPeriodLabel} Index
                         </span>
                         <input
                           type="number"
@@ -1965,13 +2113,19 @@ export default function MonthlyPlanDetailEditorPage() {
                       </label>
                       <label className="space-y-1">
                         <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">
-                          Start Day
+                          {draft.plan.frequency === "daily"
+                            ? "Assignment Day"
+                            : "Start Day"}
                         </span>
                         <select
                           value={getWeekDayIndex(selectedWeek.startDate)}
                           onChange={(event) =>
                             updateWeek(selectedWeek.id, (week) =>
-                              setWeekStartDay(week, Number(event.target.value)),
+                              setWeekStartDay(
+                                week,
+                                Number(event.target.value),
+                                assignmentSpanDays,
+                              ),
                             )
                           }
                           className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
@@ -2007,15 +2161,18 @@ export default function MonthlyPlanDetailEditorPage() {
                       >
                         Sync Days To Range
                       </button>
-                      <button
-                        type="button"
-                        onClick={openCopyMealsModal}
-                        disabled={selectedWeekMealCount === 0}
-                        className="rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900/40 disabled:text-zinc-500"
-                      >
-                        Copy meals to other weeks
-                      </button>
-                      {draft.weekAssignments.length > 1 ? (
+                      {draft.plan.frequency === "monthly" ? (
+                        <button
+                          type="button"
+                          onClick={openCopyMealsModal}
+                          disabled={selectedWeekMealCount === 0}
+                          className="rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900/40 disabled:text-zinc-500"
+                        >
+                          Copy meals to other weeks
+                        </button>
+                      ) : null}
+                      {draft.plan.frequency === "monthly" &&
+                      draft.weekAssignments.length > 1 ? (
                         <button
                           type="button"
                           onClick={() => removeWeek(selectedWeek.id)}
@@ -2031,13 +2188,18 @@ export default function MonthlyPlanDetailEditorPage() {
                         Assignment Day Picker
                       </p>
                       <p className="mt-1 text-sm text-zinc-300">
-                        Choose a weekday below instead of using raw calendar
-                        dates.
+                        {draft.plan.frequency === "daily"
+                          ? "Choose the single day that meals can be assigned to."
+                          : draft.plan.frequency === "weekly"
+                            ? "Assign meals across this single seven-day week."
+                            : "Choose a weekday below instead of using raw calendar dates."}
                       </p>
-                      <p className="mt-1 text-xs text-zinc-500">
+                      {draft.plan.frequency === "monthly" ? (
+                        <p className="mt-1 text-xs text-zinc-500">
                         Use “Copy meals to other weeks” after building one week
                         to repeat the same meal pattern across the plan.
-                      </p>
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="flex flex-wrap gap-2">

@@ -6,7 +6,14 @@ import { adminPageTitleMap } from "@/data/admin/navigation";
 
 function BellIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
       <path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5" />
       <path d="M10 20a2 2 0 004 0" />
     </svg>
@@ -15,7 +22,14 @@ function BellIcon() {
 
 function ProfileIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="8" r="3.5" />
       <path d="M5 19a7 7 0 0114 0" />
     </svg>
@@ -25,7 +39,9 @@ function ProfileIcon() {
 export default function AdminTopbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const title = pathname.startsWith("/admin/monthly-plans/") ? "Meal Plan Details" : adminPageTitleMap[pathname] ?? "Admin";
+  const title = pathname.startsWith("/admin/monthly-plans/")
+    ? "Meal Plan Details"
+    : (adminPageTitleMap[pathname] ?? "Admin");
   const showBackButton = pathname !== "/admin";
 
   return (
@@ -42,21 +58,27 @@ export default function AdminTopbar() {
           </button>
         ) : null}
         <div className="min-w-0">
-          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">Admin Panel</p>
-          <h2 className="truncate text-lg font-semibold leading-tight text-white">{title}</h2>
-          <p className="truncate text-xs text-zinc-500">User-friendly controls for content, operations, and admin settings.</p>
+          <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+            Admin Panel
+          </p>
+          <h2 className="truncate text-lg font-semibold leading-tight text-white">
+            {title}
+          </h2>
+          <p className="truncate text-xs text-zinc-500">
+            User-friendly controls for content, operations, and admin settings.
+          </p>
         </div>
       </div>
 
       <div className="relative z-50 flex shrink-0 items-center gap-2 self-start sm:self-center">
-        <Link
+        {/* <Link
           href="/admin/notifications"
           aria-label="Notifications"
           className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-600 bg-zinc-900/70 text-zinc-200 transition hover:border-zinc-500 hover:text-white"
         >
           <BellIcon />
           <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-300" />
-        </Link>
+        </Link> */}
 
         <Link
           href="/admin/profile"

@@ -5,7 +5,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminTopbar from "@/components/admin/AdminTopbar";
-import { getAdminAuth, subscribeToAdminAuthChanges } from "@/lib/adminAuth";
+import { getAdminAuth, setAdminAuth, subscribeToAdminAuthChanges } from "@/lib/adminAuth";
 import { canAccessAdminPage } from "@/lib/adminPermissions";
 import { useGetAdminMeQuery } from "@/redux/api/adminApi";
 import type { AdminAuthRecord } from "@/redux/backoffice/types";
@@ -46,17 +46,23 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const hasAccess = isAuthRoute ? true : canAccessAdminPage(pathname, verifiedUser);
 
   useEffect(() => {
+    if (!isAuthRoute && !auth?.user && adminMeData?.data?.user) {
+      setAdminAuth(adminMeData.data);
+    }
+  }, [adminMeData, auth?.user, isAuthRoute]);
+
+  useEffect(() => {
     if (!hasHydrated) return;
 
-    if (!isAuthRoute && !auth?.user && !isCheckingSession && !isFetchingSession) {
+    if (!isAuthRoute && !verifiedUser && !isCheckingSession && !isFetchingSession) {
       router.replace("/admin/sign-in");
       return;
     }
 
-    if (!isAuthRoute && auth?.user && !isCheckingSession && !isFetchingSession && !hasAccess) {
+    if (!isAuthRoute && verifiedUser && !isCheckingSession && !isFetchingSession && !hasAccess) {
       router.replace("/admin");
     }
-  }, [auth, hasAccess, hasHydrated, isAuthRoute, isCheckingSession, isFetchingSession, router]);
+  }, [hasAccess, hasHydrated, isAuthRoute, isCheckingSession, isFetchingSession, router, verifiedUser]);
 
   if (isAuthRoute) {
     return <div className="admin-bg admin-light min-h-screen text-zinc-900">{children}</div>;
