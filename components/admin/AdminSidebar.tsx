@@ -92,7 +92,7 @@ export default function AdminSidebar() {
     <aside className="md:sticky md:top-0 md:h-screen md:w-[312px] md:flex-shrink-0">
       <div className="flex h-full flex-col border-r border-[#dcdcdc] bg-[#fffbf5] text-[#4b4b4b] shadow-[10px_0_30px_rgba(0,0,0,0.08)]">
         <div className="pb-5 pt-6">
-          <div className="flex h-[54px] items-center justi fy-center bg-black px-4 text-white shadow-[0_10px_18px_rgba(0,44,81,0.15)]">
+          <div className="flex h-[54px] items-center justify-center bg-black px-4 text-white shadow-[0_10px_18px_rgba(0,44,81,0.15)]">
             <div className="leading-none tracking-[0.08em]">
               <span className="text-[22px] font-black">PROTEIN</span>
               <span className="ml-1 text-[22px] font-light">BAR</span>

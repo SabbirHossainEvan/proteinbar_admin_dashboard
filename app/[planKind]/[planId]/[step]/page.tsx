@@ -8,11 +8,12 @@ function getStorefrontBaseUrl(host: string) {
   const configuredUrl = process.env.NEXT_PUBLIC_STOREFRONT_BASE_URL?.trim();
   if (configuredUrl) return configuredUrl.replace(/\/$/, "");
 
-  if (host.startsWith("localhost:3001") || host.startsWith("127.0.0.1:3001")) {
+  const normalizedHost = host.trim().toLowerCase();
+  if (normalizedHost === "localhost:3001" || normalizedHost === "127.0.0.1:3001") {
     return "http://localhost:3000";
   }
 
-  return "http://localhost:3000";
+  throw new Error("NEXT_PUBLIC_STOREFRONT_BASE_URL is required outside local development.");
 }
 
 export default async function MealPlanFlowCompatibilityRedirect({
@@ -25,13 +26,22 @@ export default async function MealPlanFlowCompatibilityRedirect({
   const { planKind, planId, step } = await params;
   const query = await searchParams;
 
-  if (!validPlanKinds.has(planKind) || !validPlanSteps.has(step) || !planId) {
+  if (
+    !validPlanKinds.has(planKind) ||
+    !validPlanSteps.has(step) ||
+    !planId ||
+    planId === "." ||
+    planId === ".."
+  ) {
     notFound();
   }
 
   const headerStore = await headers();
   const host = headerStore.get("host") ?? "";
-  const target = new URL(`/${planKind}/${planId}/${step}`, getStorefrontBaseUrl(host));
+  const target = new URL(
+    `/${planKind}/${encodeURIComponent(planId)}/${step}`,
+    getStorefrontBaseUrl(host)
+  );
 
   Object.entries(query).forEach(([key, value]) => {
     if (Array.isArray(value)) {
