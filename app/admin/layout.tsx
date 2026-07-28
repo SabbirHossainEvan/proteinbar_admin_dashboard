@@ -39,7 +39,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     isLoading: isCheckingSession,
     isFetching: isFetchingSession
   } = useGetAdminMeQuery(undefined, {
-    skip: !hasHydrated || isAuthRoute || !auth?.user,
+    skip: !hasHydrated || isAuthRoute,
     refetchOnMountOrArgChange: true
   });
   const verifiedUser = adminMeData?.data?.user ?? auth?.user;
@@ -48,7 +48,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!hasHydrated) return;
 
-    if (!isAuthRoute && !auth?.user) {
+    if (!isAuthRoute && !auth?.user && !isCheckingSession && !isFetchingSession) {
       router.replace("/admin/sign-in");
       return;
     }

@@ -84,7 +84,11 @@ const shouldRefreshAdminAccessToken = (auth: Partial<AdminAuthRecord> | null) =>
 
 const isAuthEndpoint = (args: string | FetchArgs) => {
   const url = typeof args === "string" ? args : args.url;
-  return url.includes("/auth/admin-login") || url.includes("/auth/admin-refresh");
+  return (
+    url.includes("/auth/admin-login") ||
+    url.includes("/auth/admin-refresh") ||
+    url.includes("/auth/admin-logout")
+  );
 };
 
 const normalizeSubscriptionRecord = (item: Partial<SubscriptionRecord> & Record<string, unknown>): SubscriptionRecord => ({
