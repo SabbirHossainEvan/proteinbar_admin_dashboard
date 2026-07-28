@@ -45,6 +45,8 @@ export default function OrdersPage() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [bulkMessage, setBulkMessage] = useState("");
   const [bulkError, setBulkError] = useState("");
+  const [updateError, setUpdateError] = useState("");
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const { data, isLoading, isError } = useGetMonthlyOrdersAdminQuery();
   const [updateOrder, { isLoading: isUpdating }] = useUpdateMonthlyOrderAdminMutation();
   const [bulkArchiveOrders, { isLoading: isArchiving }] = useBulkArchiveMonthlyOrdersAdminMutation();
@@ -81,7 +83,15 @@ export default function OrdersPage() {
   }, [data]);
 
   const setStatus = async (id: string, status: OrderRecord["status"]) => {
-    await updateOrder({ id, patch: { status } }).unwrap();
+    setUpdateError("");
+    setUpdatingOrderId(id);
+    try {
+      await updateOrder({ id, patch: { status } }).unwrap();
+    } catch (error) {
+      setUpdateError(error instanceof Error ? error.message : "Failed to update order status.");
+    } finally {
+      setUpdatingOrderId(null);
+    }
   };
 
   const toggleOrderSelection = (id: string) => {
@@ -430,6 +440,7 @@ export default function OrdersPage() {
         </div>
         {bulkMessage ? <p className="mt-3 text-sm text-emerald-300">{bulkMessage}</p> : null}
         {bulkError ? <p className="mt-3 text-sm text-rose-300">{bulkError}</p> : null}
+        {updateError ? <p className="mt-3 text-sm text-rose-300">{updateError}</p> : null}
       </section>
 
       {isLoading ? <LoadingState label="Loading monthly orders..." /> : null}
@@ -518,19 +529,33 @@ export default function OrdersPage() {
                       >
                         View
                       </button>
-                      <select
-                        value={item.status}
-                        disabled={isUpdating || item.isRecoveryOnly}
-                        title={item.isRecoveryOnly ? "This is a failed payment attempt without a confirmed order lifecycle yet." : undefined}
-                        onChange={(event) => void setStatus(item.id, event.target.value as OrderRecord["status"])}
-                        className="rounded-lg border border-zinc-600 bg-zinc-900/80 px-3 py-1.5 text-xs text-zinc-100 outline-none focus:border-amber-300"
-                      >
-                        <option value="pending">pending</option>
-                        <option value="confirmed">confirmed</option>
-                        <option value="preparing">preparing</option>
-                        <option value="out-for-delivery">out-for-delivery</option>
-                        <option value="completed">completed</option>
-                      </select>
+                      <span className="relative inline-flex">
+                        <select
+                          value={item.status}
+                          disabled={isUpdating || item.isRecoveryOnly}
+                          aria-busy={isUpdating && updatingOrderId === item.id}
+                          title={item.isRecoveryOnly ? "This is a failed payment attempt without a confirmed order lifecycle yet." : undefined}
+                          onChange={(event) => void setStatus(item.id, event.target.value as OrderRecord["status"])}
+                          className={`rounded-lg border border-zinc-600 bg-zinc-900/80 px-3 py-1.5 text-xs outline-none focus:border-amber-300 ${
+                            isUpdating && updatingOrderId === item.id ? "opacity-0" : "text-zinc-100"
+                          }`}
+                        >
+                          <option value="pending">pending</option>
+                          <option value="confirmed">confirmed</option>
+                          <option value="preparing">preparing</option>
+                          <option value="out-for-delivery">out-for-delivery</option>
+                          <option value="completed">completed</option>
+                        </select>
+                        {isUpdating && updatingOrderId === item.id ? (
+                          <span
+                            role="status"
+                            aria-live="polite"
+                            className="pointer-events-none absolute inset-0 flex items-center rounded-lg border border-zinc-600 bg-zinc-900 px-3 text-xs text-zinc-100"
+                          >
+                            Updating...
+                          </span>
+                        ) : null}
+                      </span>
                     </div>
                   </td>
                 </tr>

@@ -105,6 +105,7 @@ export default function MonthlyPlansPage() {
   const [quickCreateKind, setQuickCreateKind] = useState<PlanKind>("custom");
   const [quickCreateFrequency, setQuickCreateFrequency] = useState<PlanFrequency>("monthly");
   const [createError, setCreateError] = useState("");
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useGetMonthlyPlanAdminListQuery(filters);
   const { data: allPlansData } = useGetMonthlyPlanAdminListQuery();
@@ -144,6 +145,7 @@ export default function MonthlyPlansPage() {
     setCreateError("");
     try {
       await deletePlan(id).unwrap();
+      setConfirmingDeleteId(null);
     } catch {
       setCreateError("Failed to delete plan.");
     }
@@ -263,20 +265,43 @@ export default function MonthlyPlansPage() {
                 {plan.badge ? <span className="rounded-full bg-amber-300 px-2 py-1 font-semibold text-zinc-900">{plan.badge}</span> : null}
               </div>
               <div className="mt-5 flex items-center gap-2">
-                <Link
-                  href={`/admin/monthly-plans/${plan.id}`}
-                  className="rounded-xl bg-amber-300 px-3.5 py-2 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200"
-                >
-                  Edit Details
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => void onDelete(plan.id)}
-                  disabled={isDeleting}
-                  className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3.5 py-2 text-sm font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:opacity-50"
-                >
-                  Delete
-                </button>
+                {confirmingDeleteId === plan.id ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void onDelete(plan.id)}
+                      disabled={isDeleting}
+                      className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3.5 py-2 text-sm font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:opacity-50"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDeleteId(null)}
+                      disabled={isDeleting}
+                      className="rounded-xl border border-zinc-600 px-3.5 py-2 text-sm font-medium text-zinc-200 transition hover:border-zinc-500 disabled:opacity-50"
+                    >
+                      No
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href={`/admin/monthly-plans/${plan.id}`}
+                      className="rounded-xl bg-amber-300 px-3.5 py-2 text-sm font-semibold text-zinc-900 transition hover:bg-amber-200"
+                    >
+                      Edit Details
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDeleteId(plan.id)}
+                      disabled={isDeleting}
+                      className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-3.5 py-2 text-sm font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
               </div>
             </article>
           ))}
