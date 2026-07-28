@@ -8,6 +8,14 @@ const AUTH_CHANGE_EVENT = "proteinbar_admin_auth_changed";
 let cachedAuthRaw: string | null = null;
 let cachedAuthValue: AdminAuthRecord | null = null;
 
+function safeGetBrowserStorage(key: "localStorage" | "sessionStorage") {
+  try {
+    return window[key];
+  } catch {
+    return null;
+  }
+}
+
 function safeGetStoredAuth(storage: Storage | null) {
   if (!storage) return null;
   try {
@@ -17,18 +25,70 @@ function safeGetStoredAuth(storage: Storage | null) {
   }
 }
 
-function parseStoredAuth(raw: string, storage: Storage | null) {
-  if (raw === cachedAuthRaw) {
-    return cachedAuthValue;
+function safeSetStoredAuth(storage: Storage | null, raw: string) {
+  if (!storage) return false;
+  try {
+    storage.setItem(STORAGE_KEY, raw);
+    return true;
+  } catch {
+    // Storage can be unavailable in strict browser privacy modes.
+    return false;
+  }
+}
+
+function safeRemoveStoredAuth(storage: Storage | null, expectedRaw?: string) {
+  if (!storage) return false;
+  try {
+    if (expectedRaw !== undefined && storage.getItem(STORAGE_KEY) !== expectedRaw) {
+      return false;
+    }
+    storage.removeItem(STORAGE_KEY);
+    return true;
+  } catch {
+    // Storage can be unavailable in strict browser privacy modes.
+    return false;
+  }
+}
+
+function withoutRefreshTokens(auth: AdminAuthRecord): AdminAuthRecord {
+  const safeAuth = { ...auth };
+  delete safeAuth.refreshToken;
+
+  if (safeAuth.session) {
+    safeAuth.session = { ...safeAuth.session };
+    delete safeAuth.session.refreshToken;
+  }
+
+  return safeAuth;
+}
+
+function parseStoredAuth(
+  raw: string,
+  sourceStorage: Storage | null,
+  sessionStorage: Storage | null
+) {
+  if (raw === cachedAuthRaw && cachedAuthValue) {
+    return {
+      auth: cachedAuthValue,
+      persistedToSession: safeSetStoredAuth(sessionStorage, raw)
+    };
   }
 
   try {
     const parsed = JSON.parse(raw) as AdminAuthRecord;
-    cachedAuthRaw = raw;
-    cachedAuthValue = parsed;
-    return parsed;
+    if (!parsed || typeof parsed !== "object" || !parsed.user || !parsed.token) {
+      throw new Error("Invalid stored admin auth");
+    }
+    const safeAuth = withoutRefreshTokens(parsed);
+    const safeRaw = JSON.stringify(safeAuth);
+    cachedAuthRaw = safeRaw;
+    cachedAuthValue = safeAuth;
+    return {
+      auth: safeAuth,
+      persistedToSession: safeSetStoredAuth(sessionStorage, safeRaw)
+    };
   } catch {
-    storage?.removeItem(STORAGE_KEY);
+    safeRemoveStoredAuth(sourceStorage, raw);
     if (raw === cachedAuthRaw) {
       cachedAuthRaw = null;
       cachedAuthValue = null;
@@ -44,19 +104,22 @@ function emitAuthChange() {
 export function getAdminAuth(): AdminAuthRecord | null {
   if (typeof window === "undefined") return null;
 
-  const localRaw = safeGetStoredAuth(window.localStorage);
+  const localStorage = safeGetBrowserStorage("localStorage");
+  const sessionStorage = safeGetBrowserStorage("sessionStorage");
+  const localRaw = safeGetStoredAuth(localStorage);
   if (localRaw) {
-    return parseStoredAuth(localRaw, window.localStorage);
+    const parsedLocalAuth = parseStoredAuth(localRaw, localStorage, sessionStorage);
+    if (parsedLocalAuth) {
+      if (parsedLocalAuth.persistedToSession) {
+        safeRemoveStoredAuth(localStorage, localRaw);
+      }
+      return parsedLocalAuth.auth;
+    }
   }
 
-  const sessionRaw = safeGetStoredAuth(window.sessionStorage);
+  const sessionRaw = safeGetStoredAuth(sessionStorage);
   if (sessionRaw) {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, sessionRaw);
-    } catch {
-      // localStorage can be unavailable in strict browser privacy modes.
-    }
-    return parseStoredAuth(sessionRaw, window.sessionStorage);
+    return parseStoredAuth(sessionRaw, sessionStorage, sessionStorage)?.auth ?? null;
   }
 
   if (cachedAuthRaw !== null) {
@@ -69,11 +132,12 @@ export function getAdminAuth(): AdminAuthRecord | null {
 
 export function setAdminAuth(auth: AdminAuthRecord) {
   if (typeof window === "undefined") return;
-  const raw = JSON.stringify(auth);
+  const safeAuth = withoutRefreshTokens(auth);
+  const raw = JSON.stringify(safeAuth);
   cachedAuthRaw = raw;
-  cachedAuthValue = auth;
-  window.localStorage.setItem(STORAGE_KEY, raw);
-  window.sessionStorage.setItem(STORAGE_KEY, raw);
+  cachedAuthValue = safeAuth;
+  safeRemoveStoredAuth(safeGetBrowserStorage("localStorage"));
+  safeSetStoredAuth(safeGetBrowserStorage("sessionStorage"), raw);
   emitAuthChange();
 }
 
@@ -81,8 +145,8 @@ export function clearAdminAuth() {
   if (typeof window === "undefined") return;
   cachedAuthRaw = null;
   cachedAuthValue = null;
-  window.localStorage.removeItem(STORAGE_KEY);
-  window.sessionStorage.removeItem(STORAGE_KEY);
+  safeRemoveStoredAuth(safeGetBrowserStorage("localStorage"));
+  safeRemoveStoredAuth(safeGetBrowserStorage("sessionStorage"));
   emitAuthChange();
 }
 

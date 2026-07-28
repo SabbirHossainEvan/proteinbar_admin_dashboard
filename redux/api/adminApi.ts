@@ -73,14 +73,10 @@ const getStoredAdminAuth = () => {
 const getAdminAccessToken = (auth: Partial<AdminAuthRecord> | null) =>
   auth?.accessToken || auth?.token || auth?.session?.accessToken || auth?.session?.token || "";
 
-const getAdminRefreshToken = (auth: Partial<AdminAuthRecord> | null) =>
-  auth?.refreshToken || auth?.session?.refreshToken || "";
-
 const getAdminAccessTokenExpiry = (auth: Partial<AdminAuthRecord> | null) =>
   auth?.session?.expiresAt ? new Date(auth.session.expiresAt).getTime() : 0;
 
 const shouldRefreshAdminAccessToken = (auth: Partial<AdminAuthRecord> | null) => {
-  if (!getAdminRefreshToken(auth)) return false;
   const expiresAt = getAdminAccessTokenExpiry(auth);
   if (!expiresAt) return false;
   return expiresAt - Date.now() < 60 * 1000;
@@ -352,6 +348,7 @@ const normalizeMonthlyClientListResponse = (
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl,
+  credentials: "include",
   prepareHeaders: (headers) => {
     if (typeof window !== "undefined") {
       const token = getAdminAccessToken(getStoredAdminAuth());
@@ -372,16 +369,12 @@ const refreshStoredAdminAuth = async (
 ) => {
   if (typeof window === "undefined") return null;
 
-  const refreshToken = getAdminRefreshToken(getStoredAdminAuth());
-  if (!refreshToken) return null;
-
   if (!adminRefreshPromise) {
     adminRefreshPromise = (async () => {
       const refreshResult = await rawBaseQuery(
         {
           url: "/auth/admin-refresh",
-          method: "POST",
-          body: { refreshToken }
+          method: "POST"
         },
         api,
         extraOptions
@@ -649,8 +642,7 @@ export const adminApi = createApi({
     adminLogout: builder.mutation<ApiResponse<{ loggedOut: boolean }>, void>({
       query: () => ({
         url: "/auth/admin-logout",
-        method: "POST",
-        body: { refreshToken: getAdminRefreshToken(getStoredAdminAuth()) }
+        method: "POST"
       }),
       invalidatesTags: ["AdminAuth"]
     }),

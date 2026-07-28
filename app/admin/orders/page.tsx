@@ -164,7 +164,13 @@ export default function OrdersPage() {
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const generatedAt = new Date().toLocaleString();
-    const totalAmount = filtered.reduce((sum, item) => sum + item.amount, 0);
+    const totalsByCurrency = filtered.reduce((totals, item) => {
+      totals.set(item.currency, (totals.get(item.currency) ?? 0) + item.amount);
+      return totals;
+    }, new Map<OrderRecord["currency"], number>());
+    const totalAmountSummary = totalsByCurrency.size
+      ? Array.from(totalsByCurrency, ([currency, amount]) => formatMoney(amount, currency)).join(" / ")
+      : formatMoney(0, "MAD");
     const filterSummary = [
       filters.search.trim() ? `Search: ${filters.search.trim()}` : "Search: All",
       `Plan: ${filters.planKind}`,
@@ -194,7 +200,7 @@ export default function OrdersPage() {
 
     const cards = [
       { label: "TOTAL ORDERS", value: String(filtered.length) },
-      { label: "TOTAL AMOUNT", value: formatMoney(totalAmount, "MAD") },
+      { label: "TOTAL AMOUNT", value: totalAmountSummary },
       { label: "PENDING", value: String(filtered.filter((item) => item.status === "pending").length) }
     ];
     cards.forEach((card, index) => {
@@ -209,6 +215,13 @@ export default function OrdersPage() {
       doc.text(card.label, x + 14, 176);
       doc.setTextColor(17, 17, 17);
       doc.setFontSize(18);
+      if (card.label === "TOTAL AMOUNT") {
+        const availableWidth = width - 28;
+        const naturalWidth = doc.getTextWidth(card.value);
+        if (naturalWidth > availableWidth) {
+          doc.setFontSize((18 * availableWidth) / naturalWidth);
+        }
+      }
       doc.text(card.value, x + 14, 198);
     });
 
