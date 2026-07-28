@@ -50,12 +50,16 @@ function safeRemoveStoredAuth(storage: Storage | null, expectedRaw?: string) {
   }
 }
 
-function withoutRefreshTokens(auth: AdminAuthRecord): AdminAuthRecord {
+function withoutTokens(auth: AdminAuthRecord): AdminAuthRecord {
   const safeAuth = { ...auth };
+  delete safeAuth.token;
+  delete safeAuth.accessToken;
   delete safeAuth.refreshToken;
 
   if (safeAuth.session) {
     safeAuth.session = { ...safeAuth.session };
+    delete safeAuth.session.token;
+    delete safeAuth.session.accessToken;
     delete safeAuth.session.refreshToken;
   }
 
@@ -76,10 +80,10 @@ function parseStoredAuth(
 
   try {
     const parsed = JSON.parse(raw) as AdminAuthRecord;
-    if (!parsed || typeof parsed !== "object" || !parsed.user || !parsed.token) {
+    if (!parsed || typeof parsed !== "object" || !parsed.user) {
       throw new Error("Invalid stored admin auth");
     }
-    const safeAuth = withoutRefreshTokens(parsed);
+    const safeAuth = withoutTokens(parsed);
     const safeRaw = JSON.stringify(safeAuth);
     cachedAuthRaw = safeRaw;
     cachedAuthValue = safeAuth;
@@ -132,7 +136,7 @@ export function getAdminAuth(): AdminAuthRecord | null {
 
 export function setAdminAuth(auth: AdminAuthRecord) {
   if (typeof window === "undefined") return;
-  const safeAuth = withoutRefreshTokens(auth);
+  const safeAuth = withoutTokens(auth);
   const raw = JSON.stringify(safeAuth);
   cachedAuthRaw = raw;
   cachedAuthValue = safeAuth;

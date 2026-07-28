@@ -70,9 +70,6 @@ const getStoredAdminAuth = () => {
   return getAdminAuth();
 };
 
-const getAdminAccessToken = (auth: Partial<AdminAuthRecord> | null) =>
-  auth?.accessToken || auth?.token || auth?.session?.accessToken || auth?.session?.token || "";
-
 const getAdminAccessTokenExpiry = (auth: Partial<AdminAuthRecord> | null) =>
   auth?.session?.expiresAt ? new Date(auth.session.expiresAt).getTime() : 0;
 
@@ -352,17 +349,7 @@ const normalizeMonthlyClientListResponse = (
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl,
-  credentials: "include",
-  prepareHeaders: (headers) => {
-    if (typeof window !== "undefined") {
-      const token = getAdminAccessToken(getStoredAdminAuth());
-      if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
-      }
-    }
-
-    return headers;
-  }
+  credentials: "include"
 });
 
 let adminRefreshPromise: Promise<AdminAuthRecord | null> | null = null;
