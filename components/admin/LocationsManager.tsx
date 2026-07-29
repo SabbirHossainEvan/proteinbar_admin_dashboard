@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useRef, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import {
   useCreateLocationMutation,
@@ -94,6 +94,7 @@ export default function LocationsManager({
   const [deleteLocation, { isLoading: isDeleting }] = useDeleteLocationMutation();
   const [form, setForm] = useState(() => toLocationFormState(initialForm));
   const [submitError, setSubmitError] = useState("");
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const isSaving = isCreating || isUpdating;
   const locations: LocationRecord[] = (data?.data ?? []).map((item: AdminLocationApiRecord) => normalizeAdminLocation(item));
@@ -101,13 +102,39 @@ export default function LocationsManager({
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setSubmitError("Please select a valid image file.");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setSubmitError("The location image must be 10 MB or smaller.");
+      event.target.value = "";
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
       const result = typeof reader.result === "string" ? reader.result : "";
       setForm((prev) => ({ ...prev, image: result }));
+      setSubmitError("");
+    };
+    reader.onerror = () => {
+      setSubmitError("Unable to read the selected image.");
+      event.target.value = "";
     };
     reader.readAsDataURL(file);
+  };
+
+  const resetForm = () => {
+    setForm(toLocationFormState(initialForm));
+    setSubmitError("");
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
+
+  const removeImage = () => {
+    setForm((prev) => ({ ...prev, image: "" }));
+    if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
   const save = async (event: FormEvent) => {
@@ -146,16 +173,24 @@ export default function LocationsManager({
       supportedOptions: payload.supportedOptions
     };
 
-    if (form.id) {
-      await updateLocation({ id: form.id, body }).unwrap();
-    } else {
-      await createLocation(body).unwrap();
+    try {
+      if (form.id) {
+        await updateLocation({ id: form.id, body }).unwrap();
+      } else {
+        await createLocation(body).unwrap();
+      }
+      resetForm();
+    } catch {
+      setSubmitError(
+        "Unable to save the location image. Check the image and Cloudinary configuration, then try again."
+      );
     }
-    setForm(toLocationFormState(initialForm));
   };
 
   const startEdit = (item: LocationRecord) => {
     setForm(toLocationFormState(item));
+    setSubmitError("");
+    if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
   return (
@@ -217,21 +252,33 @@ export default function LocationsManager({
           <label className="space-y-1 md:col-span-2">
             <span className="text-xs uppercase tracking-[0.12em] text-zinc-400">Location Image Upload</span>
             <input
+              ref={imageInputRef}
               type="file"
               accept="image/*"
               onChange={handleImageUpload}
+              disabled={isSaving}
               className="w-full rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-300 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-900"
             />
           </label>
           <div className="md:col-span-2">
             <div className="flex min-h-36 items-center justify-center rounded-2xl border border-dashed border-zinc-700 bg-zinc-950/35 p-3">
               {form.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={form.image}
-                  alt={form.name || "Location preview"}
-                  className="max-h-48 rounded-xl object-cover"
-                />
+                <div className="flex flex-col items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={form.image}
+                    alt={form.name || "Location preview"}
+                    className="max-h-48 rounded-xl object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    disabled={isSaving}
+                    className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100 transition hover:bg-rose-500/20 disabled:opacity-60"
+                  >
+                    Remove Image
+                  </button>
+                </div>
               ) : (
                 <p className="text-sm text-zinc-500">Uploaded location image preview will appear here.</p>
               )}
@@ -258,7 +305,7 @@ export default function LocationsManager({
             {form.id ? (
               <button
                 type="button"
-                onClick={() => setForm(toLocationFormState(initialForm))}
+                onClick={resetForm}
                 className="rounded-xl border border-zinc-600 bg-zinc-800/70 px-4 py-2.5 text-sm text-zinc-100"
               >
                 Cancel Edit

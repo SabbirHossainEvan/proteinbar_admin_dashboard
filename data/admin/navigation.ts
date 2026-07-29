@@ -19,7 +19,6 @@ export const adminNavSections: AdminNavSection[] = [
     items: [
       { href: "/admin/menu", label: "Restaurants Menus", description: "Client-facing menu cards and visibility rules." },
       { href: "/admin/products", label: "Add Product", description: "SKU-level catalog items." },
-      { href: "/admin/menu-categories", label: "Menu Categories", description: "Organize restaurant-facing menu groups." },
       { href: "/admin/restaurants", label: "Restaurants", description: "Manage branches shown on the website." }
     ]
   },
