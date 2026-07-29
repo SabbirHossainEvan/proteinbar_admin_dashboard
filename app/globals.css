@@ -44,6 +44,12 @@ body {
   box-shadow: none;
 }
 
+.orders-subscriptions-notice {
+  border-color: #bae6fd;
+  background: #f0f9ff;
+  color: #075985;
+}
+
 .admin-table th {
   color: var(--admin-muted);
   font-size: 0.78rem;
@@ -98,6 +104,14 @@ body {
 .admin-light .text-blue-200\/80,
 .admin-light .text-blue-300 {
   color: #1d4ed8 !important;
+}
+
+.admin-light .text-purple-300 {
+  color: #7e22ce !important;
+}
+
+.admin-light .text-orange-300 {
+  color: #c2410c !important;
 }
 
 .admin-light .text-rose-100,
@@ -161,6 +175,14 @@ body {
 .admin-light .bg-blue-400\/10,
 .admin-light .bg-blue-300\/10 {
   background: #eff6ff !important;
+}
+
+.admin-light .bg-purple-500\/20 {
+  background: #faf5ff !important;
+}
+
+.admin-light .bg-orange-500\/20 {
+  background: #fff7ed !important;
 }
 
 .admin-light .bg-rose-500\/10,
