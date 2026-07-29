@@ -64,10 +64,19 @@ export default function AdminSidebar() {
     () => getVisibleAdminNavSections(auth?.user),
     [auth],
   );
-  const isItemActive = (href: string) =>
-    href === "/admin"
-      ? pathname === href
-      : pathname === href || pathname.startsWith(`${href}/`);
+  const activeHref = useMemo(
+    () =>
+      navSections
+        .flatMap((section) => section.items)
+        .filter((item) =>
+          item.href === "/admin"
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(`${item.href}/`),
+        )
+        .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? "",
+    [navSections, pathname],
+  );
+  const isItemActive = (href: string) => href === activeHref;
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     () =>

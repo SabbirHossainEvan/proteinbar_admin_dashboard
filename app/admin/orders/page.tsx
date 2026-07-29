@@ -4,21 +4,32 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/admin/StateBlocks";
 import { formatMoney } from "@/lib/currency";
-import { useBulkArchiveMonthlyOrdersAdminMutation, useGetMonthlyOrdersAdminQuery, useUpdateMonthlyOrderAdminMutation } from "@/redux/api/adminApi";
+import {
+  useBulkArchiveMonthlyOrdersAdminMutation,
+  useGetMonthlyOrdersAdminQuery,
+  useUpdateMonthlyOrderAdminMutation,
+} from "@/redux/api/adminApi";
 import type { OrderRecord } from "@/redux/monthlyPlans/types";
 
 function paymentBadgeClass(status: OrderRecord["paymentStatus"]) {
-  if (status === "paid") return "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/25";
-  if (status === "failed") return "bg-red-500/20 text-red-300 ring-1 ring-red-400/25";
-  if (status === "unpaid") return "bg-rose-500/20 text-rose-300 ring-1 ring-rose-400/25";
+  if (status === "paid")
+    return "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/25";
+  if (status === "failed")
+    return "bg-red-500/20 text-red-300 ring-1 ring-red-400/25";
+  if (status === "unpaid")
+    return "bg-rose-500/20 text-rose-300 ring-1 ring-rose-400/25";
   return "bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/25";
 }
 
 function orderStatusBadgeClass(status: OrderRecord["status"]) {
-  if (status === "completed") return "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/25";
-  if (status === "confirmed") return "bg-blue-500/20 text-blue-300 ring-1 ring-blue-400/25";
-  if (status === "preparing") return "bg-purple-500/20 text-purple-300 ring-1 ring-purple-400/25";
-  if (status === "out-for-delivery") return "bg-orange-500/20 text-orange-300 ring-1 ring-orange-400/25";
+  if (status === "completed")
+    return "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/25";
+  if (status === "confirmed")
+    return "bg-blue-500/20 text-blue-300 ring-1 ring-blue-400/25";
+  if (status === "preparing")
+    return "bg-purple-500/20 text-purple-300 ring-1 ring-purple-400/25";
+  if (status === "out-for-delivery")
+    return "bg-orange-500/20 text-orange-300 ring-1 ring-orange-400/25";
   return "bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/25";
 }
 
@@ -31,7 +42,7 @@ function formatDateTime(value?: string) {
     month: "short",
     day: "2-digit",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   });
 }
 
@@ -40,7 +51,13 @@ function getOrderTimestamp(order: OrderRecord) {
 }
 
 export default function OrdersPage() {
-  const [filters, setFilters] = useState({ search: "", planKind: "all", status: "all", deliveryOption: "all", paymentStatus: "all" });
+  const [filters, setFilters] = useState({
+    search: "",
+    planKind: "all",
+    status: "all",
+    deliveryOption: "all",
+    paymentStatus: "all",
+  });
   const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [bulkMessage, setBulkMessage] = useState("");
@@ -48,8 +65,10 @@ export default function OrdersPage() {
   const [updateError, setUpdateError] = useState("");
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const { data, isLoading, isError } = useGetMonthlyOrdersAdminQuery();
-  const [updateOrder, { isLoading: isUpdating }] = useUpdateMonthlyOrderAdminMutation();
-  const [bulkArchiveOrders, { isLoading: isArchiving }] = useBulkArchiveMonthlyOrdersAdminMutation();
+  const [updateOrder, { isLoading: isUpdating }] =
+    useUpdateMonthlyOrderAdminMutation();
+  const [bulkArchiveOrders, { isLoading: isArchiving }] =
+    useBulkArchiveMonthlyOrdersAdminMutation();
 
   const filtered = useMemo(() => {
     const orders = data?.data ?? [];
@@ -57,25 +76,43 @@ export default function OrdersPage() {
     return orders.filter((item) => {
       const bySearch =
         !needle ||
-        `${item.orderId} ${item.customerName} ${item.planTitle} ${item.locationName}`.toLowerCase().includes(needle);
-      const byKind = filters.planKind === "all" || item.planKind === filters.planKind;
-      const byStatus = filters.status === "all" || item.status === filters.status;
-      const byOption = filters.deliveryOption === "all" || item.deliveryOption === filters.deliveryOption;
-      const byPayment = filters.paymentStatus === "all" || item.paymentStatus === filters.paymentStatus;
+        `${item.orderId} ${item.customerName} ${item.planTitle} ${item.locationName}`
+          .toLowerCase()
+          .includes(needle);
+      const byKind =
+        filters.planKind === "all" || item.planKind === filters.planKind;
+      const byStatus =
+        filters.status === "all" || item.status === filters.status;
+      const byOption =
+        filters.deliveryOption === "all" ||
+        item.deliveryOption === filters.deliveryOption;
+      const byPayment =
+        filters.paymentStatus === "all" ||
+        item.paymentStatus === filters.paymentStatus;
       return bySearch && byKind && byStatus && byOption && byPayment;
     });
   }, [data, filters]);
 
-  const filteredIds = useMemo(() => filtered.map((item) => item.id), [filtered]);
+  const filteredIds = useMemo(
+    () => filtered.map((item) => item.id),
+    [filtered],
+  );
   const selectedVisibleIds = useMemo(
     () => selectedOrderIds.filter((id) => filteredIds.includes(id)),
-    [filteredIds, selectedOrderIds]
+    [filteredIds, selectedOrderIds],
   );
   const selectedArchiveableIds = useMemo(
-    () => filtered.filter((item) => selectedOrderIds.includes(item.id) && !item.isRecoveryOnly).map((item) => item.id),
-    [filtered, selectedOrderIds]
+    () =>
+      filtered
+        .filter(
+          (item) => selectedOrderIds.includes(item.id) && !item.isRecoveryOnly,
+        )
+        .map((item) => item.id),
+    [filtered, selectedOrderIds],
   );
-  const allVisibleSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedOrderIds.includes(id));
+  const allVisibleSelected =
+    filteredIds.length > 0 &&
+    filteredIds.every((id) => selectedOrderIds.includes(id));
 
   useEffect(() => {
     const currentIds = new Set((data?.data ?? []).map((item) => item.id));
@@ -88,7 +125,11 @@ export default function OrdersPage() {
     try {
       await updateOrder({ id, patch: { status } }).unwrap();
     } catch (error) {
-      setUpdateError(error instanceof Error ? error.message : "Failed to update order status.");
+      setUpdateError(
+        error instanceof Error
+          ? error.message
+          : "Failed to update order status.",
+      );
     } finally {
       setUpdatingOrderId(null);
     }
@@ -97,7 +138,9 @@ export default function OrdersPage() {
   const toggleOrderSelection = (id: string) => {
     setBulkError("");
     setBulkMessage("");
-    setSelectedOrderIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+    setSelectedOrderIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
   };
 
   const toggleAllVisible = () => {
@@ -114,7 +157,7 @@ export default function OrdersPage() {
   const archiveSelectedOrders = async () => {
     if (!selectedArchiveableIds.length) return;
     const confirmed = window.confirm(
-      `Archive ${selectedArchiveableIds.length} selected order${selectedArchiveableIds.length === 1 ? "" : "s"}? They will be hidden from this list but not deleted from the database. Failed payment recovery-only attempts stay visible for follow-up.`
+      `Archive ${selectedArchiveableIds.length} selected order${selectedArchiveableIds.length === 1 ? "" : "s"}? They will be hidden from this list but not deleted from the database. Failed payment recovery-only attempts stay visible for follow-up.`,
     );
     if (!confirmed) return;
 
@@ -123,20 +166,42 @@ export default function OrdersPage() {
     try {
       const response = await bulkArchiveOrders({
         ids: selectedArchiveableIds,
-        reason: "Bulk archived from Meal Prep Management orders cleanup"
+        reason: "Bulk archived from Meal Prep Management orders cleanup",
       }).unwrap();
-      setBulkMessage(response.data?.message ?? response.message ?? "Selected orders archived.");
-      setSelectedOrderIds((prev) => prev.filter((id) => !selectedArchiveableIds.includes(id)));
+      setBulkMessage(
+        response.data?.message ??
+          response.message ??
+          "Selected orders archived.",
+      );
+      setSelectedOrderIds((prev) =>
+        prev.filter((id) => !selectedArchiveableIds.includes(id)),
+      );
       if (selectedOrder && selectedArchiveableIds.includes(selectedOrder.id)) {
         setSelectedOrder(null);
       }
     } catch (error) {
-      setBulkError(error instanceof Error ? error.message : "Failed to archive selected orders.");
+      setBulkError(
+        error instanceof Error
+          ? error.message
+          : "Failed to archive selected orders.",
+      );
     }
   };
 
   const exportCsv = () => {
-    const headers = ["Order ID", "Date", "Customer", "Plan", "Plan Kind", "Delivery Option", "Location", "Payment", "Amount", "Currency", "Status"];
+    const headers = [
+      "Order ID",
+      "Date",
+      "Customer",
+      "Plan",
+      "Plan Kind",
+      "Delivery Option",
+      "Location",
+      "Payment",
+      "Amount",
+      "Currency",
+      "Status",
+    ];
     const lines = filtered.map((item) =>
       [
         item.orderId,
@@ -149,10 +214,10 @@ export default function OrdersPage() {
         item.paymentStatus,
         item.amount.toFixed(2),
         item.currency,
-        item.status
+        item.status,
       ]
         .map((value) => `"${String(value).replace(/"/g, '""')}"`)
-        .join(",")
+        .join(","),
     );
     const csv = [headers.join(","), ...lines].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -169,9 +234,13 @@ export default function OrdersPage() {
   const exportPdf = async () => {
     const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
       import("jspdf"),
-      import("jspdf-autotable")
+      import("jspdf-autotable"),
     ]);
-    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const doc = new jsPDF({
+      orientation: "landscape",
+      unit: "pt",
+      format: "a4",
+    });
     const pageWidth = doc.internal.pageSize.getWidth();
     const generatedAt = new Date().toLocaleString();
     const totalsByCurrency = filtered.reduce((totals, item) => {
@@ -179,13 +248,17 @@ export default function OrdersPage() {
       return totals;
     }, new Map<OrderRecord["currency"], number>());
     const totalAmountSummary = totalsByCurrency.size
-      ? Array.from(totalsByCurrency, ([currency, amount]) => formatMoney(amount, currency)).join(" / ")
+      ? Array.from(totalsByCurrency, ([currency, amount]) =>
+          formatMoney(amount, currency),
+        ).join(" / ")
       : formatMoney(0, "MAD");
     const filterSummary = [
-      filters.search.trim() ? `Search: ${filters.search.trim()}` : "Search: All",
+      filters.search.trim()
+        ? `Search: ${filters.search.trim()}`
+        : "Search: All",
       `Plan: ${filters.planKind}`,
       `Status: ${filters.status}`,
-      `Delivery: ${filters.deliveryOption}`
+      `Delivery: ${filters.deliveryOption}`,
     ];
 
     doc.setFillColor(17, 17, 17);
@@ -211,7 +284,12 @@ export default function OrdersPage() {
     const cards = [
       { label: "TOTAL ORDERS", value: String(filtered.length) },
       { label: "TOTAL AMOUNT", value: totalAmountSummary },
-      { label: "PENDING", value: String(filtered.filter((item) => item.status === "pending").length) }
+      {
+        label: "PENDING",
+        value: String(
+          filtered.filter((item) => item.status === "pending").length,
+        ),
+      },
     ];
     cards.forEach((card, index) => {
       const x = 32 + index * ((pageWidth - 80) / 3 + 8);
@@ -242,7 +320,17 @@ export default function OrdersPage() {
 
     autoTable(doc, {
       startY: 256,
-      head: [["Order", "Customer", "Plan", "Delivery", "Payment", "Status", "Amount"]],
+      head: [
+        [
+          "Order",
+          "Customer",
+          "Plan",
+          "Delivery",
+          "Payment",
+          "Status",
+          "Amount",
+        ],
+      ],
       body: filtered.length
         ? filtered.map((item) => [
             `${item.orderId}\n${item.orderDate || "N/A"}`,
@@ -251,9 +339,19 @@ export default function OrdersPage() {
             `${item.deliveryOption}\n${item.locationName || item.deliveryAddress || "N/A"}`,
             item.paymentStatus,
             item.status,
-            formatMoney(item.amount, item.currency)
+            formatMoney(item.amount, item.currency),
           ])
-        : [["No orders found for the current filters.", "", "", "", "", "", ""]],
+        : [
+            [
+              "No orders found for the current filters.",
+              "",
+              "",
+              "",
+              "",
+              "",
+              "",
+            ],
+          ],
       theme: "grid",
       styles: {
         font: "helvetica",
@@ -261,16 +359,16 @@ export default function OrdersPage() {
         cellPadding: 7,
         lineColor: [238, 229, 215],
         lineWidth: 0.5,
-        valign: "middle"
+        valign: "middle",
       },
       headStyles: {
         fillColor: [211, 170, 87],
         textColor: [17, 17, 17],
         fontStyle: "bold",
-        fontSize: 8
+        fontSize: 8,
       },
       alternateRowStyles: {
-        fillColor: [255, 253, 248]
+        fillColor: [255, 253, 248],
       },
       columnStyles: {
         0: { cellWidth: 92 },
@@ -279,7 +377,7 @@ export default function OrdersPage() {
         3: { cellWidth: 112 },
         4: { cellWidth: 70, halign: "center", fontStyle: "bold" },
         5: { cellWidth: 82, halign: "center", fontStyle: "bold" },
-        6: { cellWidth: 66, halign: "right", fontStyle: "bold" }
+        6: { cellWidth: 66, halign: "right", fontStyle: "bold" },
       },
       didParseCell: (data) => {
         if (data.section !== "body") return;
@@ -323,8 +421,12 @@ export default function OrdersPage() {
         doc.setFontSize(8);
         doc.setTextColor(129, 118, 103);
         doc.text("Proteinbar admin report", 32, pageHeight - 24);
-        doc.text(`Page ${doc.getNumberOfPages()}`, pageWidth - 72, pageHeight - 24);
-      }
+        doc.text(
+          `Page ${doc.getNumberOfPages()}`,
+          pageWidth - 72,
+          pageHeight - 24,
+        );
+      },
     });
 
     doc.save(`proteinbar-orders-${new Date().toISOString().slice(0, 10)}.pdf`);
@@ -333,30 +435,40 @@ export default function OrdersPage() {
   return (
     <section className="space-y-7">
       <div>
-        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">Monthly Order Management</p>
+        <p className="text-xs uppercase tracking-[0.16em] text-zinc-400">
+          Monthly Order Management
+        </p>
         <h2 className="mt-1 text-3xl font-semibold text-white">Orders</h2>
         <p className="mt-2 text-sm text-zinc-300">
-          Orders shows every checkout/payment attempt: pending, unpaid, failed, and paid. Paid CMI-confirmed orders can create Subscriptions for ongoing plan delivery.
+          Orders shows every checkout/payment attempt: pending, unpaid, failed,
+          and paid. Paid CMI-confirmed orders can create Subscriptions for
+          ongoing plan delivery.
         </p>
       </div>
 
       <section className="admin-panel rounded-2xl p-5">
-        <div className="mb-5 rounded-2xl border border-sky-300/25 bg-sky-300/10 p-4 text-sm text-sky-50">
+        <div className="orders-subscriptions-notice mb-5 rounded-2xl border p-4 text-sm">
           <p className="font-semibold">Orders vs Subscriptions</p>
-          <p className="mt-1 text-sky-50/85">
-            Use Orders to review checkout attempts and recover failed/unpaid sales. Use Subscriptions only for paid, confirmed meal-plan lifecycles after payment succeeds.
+          <p className="mt-1">
+            Use Orders to review checkout attempts and recover failed/unpaid
+            sales. Use Subscriptions only for paid, confirmed meal-plan
+            lifecycles after payment succeeds.
           </p>
         </div>
         <div className="grid gap-3 md:grid-cols-5">
           <input
             value={filters.search}
-            onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
+            onChange={(event) =>
+              setFilters((prev) => ({ ...prev, search: event.target.value }))
+            }
             placeholder="Search order/customer/plan"
             className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-amber-300"
           />
           <select
             value={filters.planKind}
-            onChange={(event) => setFilters((prev) => ({ ...prev, planKind: event.target.value }))}
+            onChange={(event) =>
+              setFilters((prev) => ({ ...prev, planKind: event.target.value }))
+            }
             className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
           >
             <option value="all">All kinds</option>
@@ -365,7 +477,9 @@ export default function OrdersPage() {
           </select>
           <select
             value={filters.status}
-            onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}
+            onChange={(event) =>
+              setFilters((prev) => ({ ...prev, status: event.target.value }))
+            }
             className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
           >
             <option value="all">All status</option>
@@ -377,7 +491,12 @@ export default function OrdersPage() {
           </select>
           <select
             value={filters.deliveryOption}
-            onChange={(event) => setFilters((prev) => ({ ...prev, deliveryOption: event.target.value }))}
+            onChange={(event) =>
+              setFilters((prev) => ({
+                ...prev,
+                deliveryOption: event.target.value,
+              }))
+            }
             className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
           >
             <option value="all">All delivery options</option>
@@ -388,7 +507,12 @@ export default function OrdersPage() {
           </select>
           <select
             value={filters.paymentStatus}
-            onChange={(event) => setFilters((prev) => ({ ...prev, paymentStatus: event.target.value }))}
+            onChange={(event) =>
+              setFilters((prev) => ({
+                ...prev,
+                paymentStatus: event.target.value,
+              }))
+            }
             className="rounded-xl border border-zinc-600 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-amber-300"
           >
             <option value="all">All payment</option>
@@ -400,7 +524,9 @@ export default function OrdersPage() {
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="rounded-xl border border-zinc-700 bg-zinc-950/70 px-3 py-2 text-sm text-zinc-300">
-            {selectedVisibleIds.length ? `${selectedVisibleIds.length} selected (${selectedArchiveableIds.length} archiveable)` : "Select orders to archive test data"}
+            {selectedVisibleIds.length
+              ? `${selectedVisibleIds.length} selected (${selectedArchiveableIds.length} archiveable)`
+              : "Select orders to archive test data"}
           </span>
           <button
             type="button"
@@ -438,9 +564,15 @@ export default function OrdersPage() {
             Print
           </button>
         </div>
-        {bulkMessage ? <p className="mt-3 text-sm text-emerald-300">{bulkMessage}</p> : null}
-        {bulkError ? <p className="mt-3 text-sm text-rose-300">{bulkError}</p> : null}
-        {updateError ? <p className="mt-3 text-sm text-rose-300">{updateError}</p> : null}
+        {bulkMessage ? (
+          <p className="mt-3 text-sm text-emerald-300">{bulkMessage}</p>
+        ) : null}
+        {bulkError ? (
+          <p className="mt-3 text-sm text-rose-300">{bulkError}</p>
+        ) : null}
+        {updateError ? (
+          <p className="mt-3 text-sm text-rose-300">{updateError}</p>
+        ) : null}
       </section>
 
       {isLoading ? <LoadingState label="Loading monthly orders..." /> : null}
@@ -473,7 +605,14 @@ export default function OrdersPage() {
             </thead>
             <tbody>
               {filtered.map((item) => (
-                <tr key={item.id} className={item.paymentStatus === "failed" ? "bg-red-500/[0.04]" : undefined}>
+                <tr
+                  key={item.id}
+                  className={
+                    item.paymentStatus === "failed"
+                      ? "bg-red-500/[0.04]"
+                      : undefined
+                  }
+                >
                   <td className="py-3.5 pr-4">
                     <input
                       type="checkbox"
@@ -491,12 +630,18 @@ export default function OrdersPage() {
                     >
                       {item.orderId}
                     </button>
-                    <p className="text-xs text-zinc-400">Attempted: {formatDateTime(getOrderTimestamp(item))}</p>
+                    <p className="text-xs text-zinc-400">
+                      Attempted: {formatDateTime(getOrderTimestamp(item))}
+                    </p>
                     {item.updatedAt ? (
-                      <p className="text-xs text-zinc-500">Updated: {formatDateTime(item.updatedAt)}</p>
+                      <p className="text-xs text-zinc-500">
+                        Updated: {formatDateTime(item.updatedAt)}
+                      </p>
                     ) : null}
                   </td>
-                  <td className="py-3.5 pr-4 text-zinc-100">{item.customerName}</td>
+                  <td className="py-3.5 pr-4 text-zinc-100">
+                    {item.customerName}
+                  </td>
                   <td className="py-3.5 pr-4 text-zinc-300">
                     {item.planTitle}
                     <p className="text-xs text-zinc-400">{item.planKind}</p>
@@ -505,18 +650,28 @@ export default function OrdersPage() {
                     {item.deliveryOption}
                     <p className="text-xs text-zinc-400">{item.locationName}</p>
                   </td>
-                  <td className="py-3.5 pr-4 text-zinc-300">{item.items.length} items</td>
                   <td className="py-3.5 pr-4 text-zinc-300">
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${paymentBadgeClass(item.paymentStatus)}`}>
+                    {item.items.length} items
+                  </td>
+                  <td className="py-3.5 pr-4 text-zinc-300">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${paymentBadgeClass(item.paymentStatus)}`}
+                    >
                       {item.paymentStatus}
                     </span>
-                    <p className="text-xs text-zinc-400">{formatMoney(item.amount, item.currency)}</p>
+                    <p className="text-xs text-zinc-400">
+                      {formatMoney(item.amount, item.currency)}
+                    </p>
                     {item.paymentStatus === "failed" ? (
-                      <p className="mt-1 text-xs font-medium text-red-300">Follow up</p>
+                      <p className="mt-1 text-xs font-medium text-red-300">
+                        Follow up
+                      </p>
                     ) : null}
                   </td>
                   <td className="py-3.5 pr-4 text-zinc-200">
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${orderStatusBadgeClass(item.status)}`}>
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${orderStatusBadgeClass(item.status)}`}
+                    >
                       {item.status}
                     </span>
                   </td>
@@ -534,16 +689,29 @@ export default function OrdersPage() {
                           value={item.status}
                           disabled={isUpdating || item.isRecoveryOnly}
                           aria-busy={isUpdating && updatingOrderId === item.id}
-                          title={item.isRecoveryOnly ? "This is a failed payment attempt without a confirmed order lifecycle yet." : undefined}
-                          onChange={(event) => void setStatus(item.id, event.target.value as OrderRecord["status"])}
+                          title={
+                            item.isRecoveryOnly
+                              ? "This is a failed payment attempt without a confirmed order lifecycle yet."
+                              : undefined
+                          }
+                          onChange={(event) =>
+                            void setStatus(
+                              item.id,
+                              event.target.value as OrderRecord["status"],
+                            )
+                          }
                           className={`rounded-lg border border-zinc-600 bg-zinc-900/80 px-3 py-1.5 text-xs outline-none focus:border-amber-300 ${
-                            isUpdating && updatingOrderId === item.id ? "opacity-0" : "text-zinc-100"
+                            isUpdating && updatingOrderId === item.id
+                              ? "opacity-0"
+                              : "text-zinc-100"
                           }`}
                         >
                           <option value="pending">pending</option>
                           <option value="confirmed">confirmed</option>
                           <option value="preparing">preparing</option>
-                          <option value="out-for-delivery">out-for-delivery</option>
+                          <option value="out-for-delivery">
+                            out-for-delivery
+                          </option>
                           <option value="completed">completed</option>
                         </select>
                         {isUpdating && updatingOrderId === item.id ? (
@@ -583,17 +751,27 @@ export default function OrdersPage() {
           <aside className="absolute right-0 top-0 h-full w-full max-w-xl overflow-y-auto border-l border-zinc-800 bg-zinc-950 shadow-[-24px_0_60px_rgba(0,0,0,0.45)]">
             <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Order Details</p>
-                <h3 className="mt-1 text-xl font-semibold text-white">{selectedOrder.orderId}</h3>
+                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">
+                  Order Details
+                </p>
+                <h3 className="mt-1 text-xl font-semibold text-white">
+                  {selectedOrder.orderId}
+                </h3>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  selectedOrder.status === "completed" ? "bg-emerald-500/20 text-emerald-300" :
-                  selectedOrder.status === "confirmed" ? "bg-blue-500/20 text-blue-300" :
-                  selectedOrder.status === "preparing" ? "bg-purple-500/20 text-purple-300" :
-                  selectedOrder.status === "out-for-delivery" ? "bg-orange-500/20 text-orange-300" :
-                  "bg-amber-500/20 text-amber-300"
-                }`}>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    selectedOrder.status === "completed"
+                      ? "bg-emerald-500/20 text-emerald-300"
+                      : selectedOrder.status === "confirmed"
+                        ? "bg-blue-500/20 text-blue-300"
+                        : selectedOrder.status === "preparing"
+                          ? "bg-purple-500/20 text-purple-300"
+                          : selectedOrder.status === "out-for-delivery"
+                            ? "bg-orange-500/20 text-orange-300"
+                            : "bg-amber-500/20 text-amber-300"
+                  }`}
+                >
                   {selectedOrder.status}
                 </span>
                 <button
@@ -608,8 +786,12 @@ export default function OrdersPage() {
 
             <div className="space-y-5 px-5 py-5">
               <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Customer</p>
-                <p className="mt-2 text-lg font-semibold text-white">{selectedOrder.customerName}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                  Customer
+                </p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {selectedOrder.customerName}
+                </p>
                 <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
                   <p>Email: {selectedOrder.customerEmail || "N/A"}</p>
                   <p>Phone: {selectedOrder.customerPhone || "N/A"}</p>
@@ -619,36 +801,93 @@ export default function OrdersPage() {
               </section>
 
               <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Subscription</p>
-                <p className="mt-2 text-sm font-mono text-amber-200">{selectedOrder.subscriptionId || "N/A"}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                  Subscription
+                </p>
+                <p className="mt-2 text-sm font-mono text-amber-200">
+                  {selectedOrder.subscriptionId || "N/A"}
+                </p>
                 <div className="mt-2 text-sm text-zinc-300">
-                  <p>Attempted / placed: {formatDateTime(getOrderTimestamp(selectedOrder))}</p>
+                  <p>
+                    Attempted / placed:{" "}
+                    {formatDateTime(getOrderTimestamp(selectedOrder))}
+                  </p>
                   <p>Order date: {selectedOrder.orderDate || "N/A"}</p>
                   <p>Last updated: {formatDateTime(selectedOrder.updatedAt)}</p>
                 </div>
               </section>
 
               <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Plan</p>
-                <p className="mt-2 text-lg font-semibold text-white">{selectedOrder.planTitle}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                  Plan
+                </p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {selectedOrder.planTitle}
+                </p>
                 <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
                   <p>Plan ID: {selectedOrder.planId || "N/A"}</p>
-                  <p>Kind: <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
-                    selectedOrder.planKind === "custom" ? "bg-violet-500/20 text-violet-300" : "bg-sky-500/20 text-sky-300"
-                  }`}>{selectedOrder.planKind}</span></p>
+                  <p>
+                    Kind:{" "}
+                    <span
+                      className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+                        selectedOrder.planKind === "custom"
+                          ? "bg-violet-500/20 text-violet-300"
+                          : "bg-sky-500/20 text-sky-300"
+                      }`}
+                    >
+                      {selectedOrder.planKind}
+                    </span>
+                  </p>
                 </div>
                 {selectedOrder.selections && (
                   <div className="mt-4 border-t border-zinc-800 pt-4">
-                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500 mb-2">Configuration</p>
+                    <p className="text-xs uppercase tracking-[0.14em] text-zinc-500 mb-2">
+                      Configuration
+                    </p>
                     <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm text-zinc-300">
-                      <div className="flex justify-between"><span className="text-zinc-500">Meals:</span> <span className="font-medium text-white">{selectedOrder.selections.meals}</span></div>
-                      <div className="flex justify-between"><span className="text-zinc-500">Snacks:</span> <span className="font-medium text-white">{selectedOrder.selections.snacks}</span></div>
-                      <div className="flex justify-between"><span className="text-zinc-500">Days:</span> <span className="font-medium text-white">{selectedOrder.selections.days}</span></div>
-                      <div className="flex justify-between"><span className="text-zinc-500">Weeks:</span> <span className="font-medium text-white">{selectedOrder.selections.weeks}</span></div>
-                      <div className="flex justify-between col-span-2"><span className="text-zinc-500">Delivery Days:</span> <span className="font-medium text-amber-200">{selectedOrder.selections.deliveryDays}</span></div>
-                      <div className="flex justify-between col-span-2"><span className="text-zinc-500">Start Date:</span> <span className="font-medium text-amber-200">{selectedOrder.selections.startDate}</span></div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Meals:</span>{" "}
+                        <span className="font-medium text-white">
+                          {selectedOrder.selections.meals}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Snacks:</span>{" "}
+                        <span className="font-medium text-white">
+                          {selectedOrder.selections.snacks}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Days:</span>{" "}
+                        <span className="font-medium text-white">
+                          {selectedOrder.selections.days}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Weeks:</span>{" "}
+                        <span className="font-medium text-white">
+                          {selectedOrder.selections.weeks}
+                        </span>
+                      </div>
+                      <div className="flex justify-between col-span-2">
+                        <span className="text-zinc-500">Delivery Days:</span>{" "}
+                        <span className="font-medium text-amber-200">
+                          {selectedOrder.selections.deliveryDays}
+                        </span>
+                      </div>
+                      <div className="flex justify-between col-span-2">
+                        <span className="text-zinc-500">Start Date:</span>{" "}
+                        <span className="font-medium text-amber-200">
+                          {selectedOrder.selections.startDate}
+                        </span>
+                      </div>
                       {selectedOrder.selections.planType && (
-                        <div className="flex justify-between col-span-2"><span className="text-zinc-500">Plan Type:</span> <span className="font-medium text-amber-200">{selectedOrder.selections.planType}</span></div>
+                        <div className="flex justify-between col-span-2">
+                          <span className="text-zinc-500">Plan Type:</span>{" "}
+                          <span className="font-medium text-amber-200">
+                            {selectedOrder.selections.planType}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -656,26 +895,48 @@ export default function OrdersPage() {
               </section>
 
               <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Delivery</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                  Delivery
+                </p>
                 <div className="mt-3 grid gap-2 text-sm text-zinc-300">
-                  <p>Option: <span className="font-medium text-white">{selectedOrder.deliveryOption}</span></p>
+                  <p>
+                    Option:{" "}
+                    <span className="font-medium text-white">
+                      {selectedOrder.deliveryOption}
+                    </span>
+                  </p>
                   <p>Address: {selectedOrder.deliveryAddress || "N/A"}</p>
                   {selectedOrder.locationName && (
-                    <p>Pickup Location: <span className="font-medium text-white">{selectedOrder.locationName}</span></p>
+                    <p>
+                      Pickup Location:{" "}
+                      <span className="font-medium text-white">
+                        {selectedOrder.locationName}
+                      </span>
+                    </p>
                   )}
                   {selectedOrder.locationId && (
-                    <p>Location ID: <span className="text-zinc-400">{selectedOrder.locationId}</span></p>
+                    <p>
+                      Location ID:{" "}
+                      <span className="text-zinc-400">
+                        {selectedOrder.locationId}
+                      </span>
+                    </p>
                   )}
                 </div>
               </section>
 
               <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Payment &amp; Totals</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                  Payment &amp; Totals
+                </p>
                 {selectedOrder.paymentStatus === "failed" ? (
                   <div className="mt-3 rounded-2xl border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-100">
-                    <p className="font-semibold">Failed payment attempt - follow up to recover the sale</p>
+                    <p className="font-semibold">
+                      Failed payment attempt - follow up to recover the sale
+                    </p>
                     <p className="mt-1 text-red-100/80">
-                      {selectedOrder.paymentFailureReason || "CMI marked this payment as failed or declined."}
+                      {selectedOrder.paymentFailureReason ||
+                        "CMI marked this payment as failed or declined."}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {selectedOrder.customerPhone ? (
@@ -698,79 +959,197 @@ export default function OrdersPage() {
                   </div>
                 ) : null}
                 <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
-                  <p>Payment: <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
-                    selectedOrder.paymentStatus === "paid" ? "bg-emerald-500/20 text-emerald-300" :
-                    selectedOrder.paymentStatus === "failed" ? "bg-red-500/20 text-red-300" :
-                    selectedOrder.paymentStatus === "cod" ? "bg-amber-500/20 text-amber-300" :
-                    "bg-red-500/20 text-red-300"
-                  }`}>{selectedOrder.paymentStatus}</span></p>
-                  <p>Status: <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
-                    selectedOrder.status === "completed" ? "bg-emerald-500/20 text-emerald-300" :
-                    selectedOrder.status === "confirmed" ? "bg-blue-500/20 text-blue-300" :
-                    selectedOrder.status === "preparing" ? "bg-purple-500/20 text-purple-300" :
-                    selectedOrder.status === "out-for-delivery" ? "bg-orange-500/20 text-orange-300" :
-                    "bg-amber-500/20 text-amber-300"
-                  }`}>{selectedOrder.status}</span></p>
+                  <p>
+                    Payment:{" "}
+                    <span
+                      className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+                        selectedOrder.paymentStatus === "paid"
+                          ? "bg-emerald-500/20 text-emerald-300"
+                          : selectedOrder.paymentStatus === "failed"
+                            ? "bg-red-500/20 text-red-300"
+                            : selectedOrder.paymentStatus === "cod"
+                              ? "bg-amber-500/20 text-amber-300"
+                              : "bg-red-500/20 text-red-300"
+                      }`}
+                    >
+                      {selectedOrder.paymentStatus}
+                    </span>
+                  </p>
+                  <p>
+                    Status:{" "}
+                    <span
+                      className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+                        selectedOrder.status === "completed"
+                          ? "bg-emerald-500/20 text-emerald-300"
+                          : selectedOrder.status === "confirmed"
+                            ? "bg-blue-500/20 text-blue-300"
+                            : selectedOrder.status === "preparing"
+                              ? "bg-purple-500/20 text-purple-300"
+                              : selectedOrder.status === "out-for-delivery"
+                                ? "bg-orange-500/20 text-orange-300"
+                                : "bg-amber-500/20 text-amber-300"
+                      }`}
+                    >
+                      {selectedOrder.status}
+                    </span>
+                  </p>
                 </div>
                 {selectedOrder.totals ? (
                   <div className="mt-3 border-t border-zinc-800 pt-3 text-sm text-zinc-300">
-                    <div className="flex justify-between py-1"><span className="text-zinc-500">Subtotal:</span> <span>{formatMoney(selectedOrder.totals.subtotal, selectedOrder.currency)}</span></div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-zinc-500">Subtotal:</span>{" "}
+                      <span>
+                        {formatMoney(
+                          selectedOrder.totals.subtotal,
+                          selectedOrder.currency,
+                        )}
+                      </span>
+                    </div>
                     {selectedOrder.totals.giftDiscount > 0 && (
-                      <div className="flex justify-between py-1"><span className="text-zinc-500">Gift Discount:</span> <span className="text-emerald-400">-{formatMoney(selectedOrder.totals.giftDiscount, selectedOrder.currency)}</span></div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-zinc-500">Gift Discount:</span>{" "}
+                        <span className="text-emerald-400">
+                          -
+                          {formatMoney(
+                            selectedOrder.totals.giftDiscount,
+                            selectedOrder.currency,
+                          )}
+                        </span>
+                      </div>
                     )}
                     {selectedOrder.promoCode?.code && (
-                      <div className="flex justify-between py-1"><span className="text-zinc-500">Promo ({selectedOrder.promoCode.code}):</span> <span className="text-emerald-400">-{formatMoney(selectedOrder.promoCode.discountAmount, selectedOrder.currency)}</span></div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-zinc-500">
+                          Promo ({selectedOrder.promoCode.code}):
+                        </span>{" "}
+                        <span className="text-emerald-400">
+                          -
+                          {formatMoney(
+                            selectedOrder.promoCode.discountAmount,
+                            selectedOrder.currency,
+                          )}
+                        </span>
+                      </div>
                     )}
-                    <div className="flex justify-between py-1"><span className="text-zinc-500">VAT:</span> <span>{formatMoney(selectedOrder.totals.vat, selectedOrder.currency)}</span></div>
-                    <div className="flex justify-between py-1"><span className="text-zinc-500">Safety Bag:</span> <span>{formatMoney(selectedOrder.totals.safetyBag, selectedOrder.currency)}</span></div>
-                    <div className="flex justify-between border-t border-zinc-800 py-2 mt-1 font-semibold text-white"><span className="text-zinc-400">Grand Total:</span> <span className="text-lg">{formatMoney(selectedOrder.totals.grandTotal, selectedOrder.currency)}</span></div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-zinc-500">VAT:</span>{" "}
+                      <span>
+                        {formatMoney(
+                          selectedOrder.totals.vat,
+                          selectedOrder.currency,
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-zinc-500">Safety Bag:</span>{" "}
+                      <span>
+                        {formatMoney(
+                          selectedOrder.totals.safetyBag,
+                          selectedOrder.currency,
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-zinc-800 py-2 mt-1 font-semibold text-white">
+                      <span className="text-zinc-400">Grand Total:</span>{" "}
+                      <span className="text-lg">
+                        {formatMoney(
+                          selectedOrder.totals.grandTotal,
+                          selectedOrder.currency,
+                        )}
+                      </span>
+                    </div>
                   </div>
                 ) : (
                   <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
-                    <p>Amount: {formatMoney(selectedOrder.amount, selectedOrder.currency)}</p>
+                    <p>
+                      Amount:{" "}
+                      {formatMoney(
+                        selectedOrder.amount,
+                        selectedOrder.currency,
+                      )}
+                    </p>
                   </div>
                 )}
               </section>
 
               <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Selected Meals</p>
-                  <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">{selectedOrder.items.length} item{selectedOrder.items.length !== 1 ? "s" : ""}</span>
+                  <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">
+                    Selected Meals
+                  </p>
+                  <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
+                    {selectedOrder.items.length} item
+                    {selectedOrder.items.length !== 1 ? "s" : ""}
+                  </span>
                 </div>
                 <div className="mt-3 space-y-3">
                   {selectedOrder.items.length ? (
                     selectedOrder.items.map((line, index) => (
-                      <div key={`${line.mealId}-${index}`} className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3">
+                      <div
+                        key={`${line.mealId}-${index}`}
+                        className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3"
+                      >
                         <div className="flex items-start justify-between">
-                          <p className="text-sm font-semibold text-white">{line.mealName}</p>
+                          <p className="text-sm font-semibold text-white">
+                            {line.mealName}
+                          </p>
                           {(line.totalPrice ?? 0) > 0 && (
-                            <span className="text-sm font-semibold text-amber-200">{formatMoney(line.totalPrice ?? 0, selectedOrder.currency)}</span>
+                            <span className="text-sm font-semibold text-amber-200">
+                              {formatMoney(
+                                line.totalPrice ?? 0,
+                                selectedOrder.currency,
+                              )}
+                            </span>
                           )}
                         </div>
                         {line.extrasSummary && (
-                          <p className="mt-1 text-xs text-amber-400/80">{line.extrasSummary}</p>
+                          <p className="mt-1 text-xs text-amber-400/80">
+                            {line.extrasSummary}
+                          </p>
                         )}
                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-400">
                           <span>Date: {line.date || "N/A"}</span>
-                          {line.instanceId && <span>Instance: {line.instanceId}</span>}
+                          {line.instanceId && (
+                            <span>Instance: {line.instanceId}</span>
+                          )}
                           <span>Meal ID: {line.mealId || "N/A"}</span>
                           <span>Type: {line.mealType}</span>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-300">{line.calories || 0} cal</span>
-                          <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-300">P: {line.protein || 0}g</span>
-                          <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-300">C: {line.carb || 0}g</span>
-                          <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-300">F: {line.fat || 0}g</span>
+                          <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-300">
+                            {line.calories || 0} cal
+                          </span>
+                          <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-300">
+                            P: {line.protein || 0}g
+                          </span>
+                          <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-300">
+                            C: {line.carb || 0}g
+                          </span>
+                          <span className="rounded bg-zinc-800/80 px-1.5 py-0.5 text-xs text-zinc-300">
+                            F: {line.fat || 0}g
+                          </span>
                         </div>
-                        {(line.basePrice ?? 0) > 0 && line.basePrice !== line.totalPrice && (
-                          <div className="mt-2 text-xs text-zinc-500">
-                            Base Price: {formatMoney(line.basePrice ?? 0, selectedOrder.currency)} → Total: {formatMoney(line.totalPrice ?? 0, selectedOrder.currency)}
-                          </div>
-                        )}
+                        {(line.basePrice ?? 0) > 0 &&
+                          line.basePrice !== line.totalPrice && (
+                            <div className="mt-2 text-xs text-zinc-500">
+                              Base Price:{" "}
+                              {formatMoney(
+                                line.basePrice ?? 0,
+                                selectedOrder.currency,
+                              )}{" "}
+                              → Total:{" "}
+                              {formatMoney(
+                                line.totalPrice ?? 0,
+                                selectedOrder.currency,
+                              )}
+                            </div>
+                          )}
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-zinc-500">No item details available for this order.</p>
+                    <p className="text-sm text-zinc-500">
+                      No item details available for this order.
+                    </p>
                   )}
                 </div>
               </section>
