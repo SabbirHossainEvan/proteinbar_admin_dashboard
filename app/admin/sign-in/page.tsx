@@ -8,8 +8,8 @@ import { useAdminLoginMutation } from "@/redux/api/adminApi";
 
 export default function AdminSignInPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("superadmin@proteinbar.com");
-  const [password, setPassword] = useState("admin12345");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [adminLogin, { isLoading }] = useAdminLoginMutation();
 
@@ -31,9 +31,13 @@ export default function AdminSignInPage() {
       <div className="absolute -left-24 top-16 h-60 w-60 rounded-full bg-amber-300/15 blur-3xl" />
       <div className="absolute -right-24 bottom-20 h-72 w-72 rounded-full bg-blue-400/10 blur-3xl" />
       <div className="admin-panel relative w-full max-w-md rounded-2xl p-8">
-        <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">Proteinbar</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+          Proteinbar
+        </p>
         <h1 className="mt-2 text-3xl font-semibold text-white">Sign In</h1>
-        <p className="mt-2 text-sm text-zinc-300">Sign in to the admin dashboard.</p>
+        <p className="mt-2 text-sm text-zinc-300">
+          Sign in to the admin dashboard.
+        </p>
 
         <form className="mt-6 space-y-3" onSubmit={onSubmit}>
           <input
@@ -72,4 +76,3 @@ export default function AdminSignInPage() {
     </div>
   );
 }
-
