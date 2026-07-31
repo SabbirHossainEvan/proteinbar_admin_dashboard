@@ -33,6 +33,7 @@ type AssignmentFormState = {
 };
 
 const mealTypes: MealType[] = ["Breakfast", "Lunch", "Dinner", "Snack"];
+const maxPlanImageBytes = 10 * 1024 * 1024;
 
 const getMealLibraryTypes = (meal: MealLibraryItem): MealType[] =>
   meal.mealTypes?.length ? meal.mealTypes : [meal.mealType];
@@ -647,6 +648,7 @@ export default function MonthlyPlanDetailEditorPage() {
   );
   const [saveMessage, setSaveMessage] = useState("");
   const [saveErrors, setSaveErrors] = useState<string[]>([]);
+  const [planImageError, setPlanImageError] = useState("");
   const [pickerCategoryId, setPickerCategoryId] = useState<string | null>(null);
   const [pickerMealId, setPickerMealId] = useState("");
   const [isCopyMealsModalOpen, setIsCopyMealsModalOpen] = useState(false);
@@ -1254,6 +1256,11 @@ export default function MonthlyPlanDetailEditorPage() {
 
   const saveAll = async () => {
     if (!draft) return;
+    if (planImageError) {
+      setSaveErrors([planImageError]);
+      setSaveMessage("");
+      return;
+    }
     const payload = reconcileAssignedMeals(
       normalizeRuleDefaultsForSave(
         normalizeDetails({
@@ -1296,11 +1303,31 @@ export default function MonthlyPlanDetailEditorPage() {
   const handlePlanImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    event.target.value = "";
+
+    if (!file.type.startsWith("image/")) {
+      setPlanImageError("Please choose a valid image file.");
+      return;
+    }
+    if (file.size > maxPlanImageBytes) {
+      setPlanImageError(
+        `Plan image is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum allowed size is 10 MB.`,
+      );
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
       const result = typeof reader.result === "string" ? reader.result : "";
+      if (!result) {
+        setPlanImageError("Unable to read the selected plan image.");
+        return;
+      }
       setPlanField("image", result);
+      setPlanImageError("");
+    };
+    reader.onerror = () => {
+      setPlanImageError("Unable to read the selected plan image.");
     };
     reader.readAsDataURL(file);
   };
@@ -1610,9 +1637,14 @@ export default function MonthlyPlanDetailEditorPage() {
                     Upload plan cover
                   </span>
                   <span className="text-xs text-zinc-500">
-                    JPG, PNG, or WebP. Click to choose a file.
+                    JPG, PNG, or WebP. Maximum 10 MB.
                   </span>
                 </label>
+                {planImageError ? (
+                  <p role="alert" className="mt-2 text-sm text-rose-300">
+                    {planImageError}
+                  </p>
+                ) : null}
               </div>
               <div className="rounded-[24px] border border-zinc-800 bg-zinc-950/40 p-3">
                 {draft.plan.image ? (
