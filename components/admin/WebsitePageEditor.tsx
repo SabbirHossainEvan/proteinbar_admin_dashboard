@@ -5,6 +5,7 @@ import { ErrorState } from "@/components/admin/StateBlocks";
 import LocationsManager, {
   normalizeAdminLocation,
 } from "@/components/admin/LocationsManager";
+import FooterContentEditor from "@/components/admin/FooterContentEditor";
 import {
   useGetLocationsQuery,
   useUpsertWebsitePageAdminMutation,
@@ -185,6 +186,10 @@ export default function WebsitePageEditor({
   const [errors, setErrors] = useState<string[]>([]);
   const [savePage, { isLoading: isSaving }] =
     useUpsertWebsitePageAdminMutation();
+  const isProtectedSection = (sectionKey: string) =>
+    sectionKey === locationsSectionKey ||
+    (page.slug === "footer" &&
+      (sectionKey === "contact-details" || sectionKey === "footer-links"));
   const { data: locationsData } = useGetLocationsQuery(undefined, {
     skip: page.slug !== "locations",
   });
@@ -409,7 +414,7 @@ export default function WebsitePageEditor({
                     <button
                       type="button"
                       onClick={() => onMoveSection(section.id, -1)}
-                      disabled={section.sectionKey === locationsSectionKey}
+                      disabled={isProtectedSection(section.sectionKey)}
                       className="rounded-lg border border-zinc-600 px-2.5 py-1 text-xs text-zinc-200"
                     >
                       Up
@@ -417,12 +422,12 @@ export default function WebsitePageEditor({
                     <button
                       type="button"
                       onClick={() => onMoveSection(section.id, 1)}
-                      disabled={section.sectionKey === locationsSectionKey}
+                      disabled={isProtectedSection(section.sectionKey)}
                       className="rounded-lg border border-zinc-600 px-2.5 py-1 text-xs text-zinc-200"
                     >
                       Down
                     </button>
-                    {section.sectionKey !== locationsSectionKey ? (
+                    {!isProtectedSection(section.sectionKey) ? (
                       <>
                         <button
                           type="button"
@@ -763,6 +768,14 @@ export default function WebsitePageEditor({
             </section>
           ) : null}
 
+          {page.slug === "footer" ? (
+            <FooterContentEditor
+              draft={draftWithSyncedLocations}
+              onUpdatePage={updateDraft}
+              onUpdateSections={setSections}
+            />
+          ) : null}
+
           {draft.kind === "legal" ? (
             <section className="admin-panel rounded-2xl p-5">
               <div className="flex items-center justify-between gap-3">
@@ -892,6 +905,7 @@ export default function WebsitePageEditor({
             </section>
           ) : null}
 
+          {page.slug !== "footer" ? (
           <section className="admin-panel rounded-2xl p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -1032,6 +1046,7 @@ export default function WebsitePageEditor({
               </label>
             </div>
           </section>
+          ) : null}
         </div>
 
         <aside className="space-y-5">
