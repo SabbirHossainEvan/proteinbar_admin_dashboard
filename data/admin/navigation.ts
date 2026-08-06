@@ -55,7 +55,8 @@ export const adminNavSections: AdminNavSection[] = [
       { href: "/admin/website-pages/locations", label: "Locations", description: "Hero and supporting content for public location pages." },
       { href: "/admin/website-pages/meal-prep", label: "Meal Prep", description: "Page-level content for the meal-prep and plan builder flow." },
       { href: "/admin/website-pages/about-us", label: "About Us", description: "Brand story and trust-building content." },
-      { href: "/admin/website-pages/contact", label: "Contact", description: "Support details, CTA blocks, and contact copy." }
+      { href: "/admin/website-pages/contact", label: "Contact", description: "Support details, CTA blocks, and contact copy." },
+      { href: "/admin/website-pages/footer", label: "Footer", description: "Global footer branding, contact details, and legal links." }
     ]
   },
   {
