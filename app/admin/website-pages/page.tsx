@@ -65,6 +65,7 @@ export default function WebsitePagesOverviewPage() {
                   { href: "/admin/website-pages/meal-prep", title: "Meal Prep", text: "Manage hero, FAQ, and conversion copy around the plan builder." },
                   { href: "/admin/website-pages/about-us", title: "About Us", text: "Update brand story, proof points, and trust-building content." },
                   { href: "/admin/website-pages/contact", title: "Contact", text: "Manage contact copy, CTA language, and support blocks." },
+                  { href: "/admin/website-pages/footer", title: "Footer", text: "Update global branding, contact details, and legal links." },
                   { href: "/admin/legal/terms-and-conditions", title: "Terms & Conditions", text: "Edit the legal clauses customers see on the public terms page." },
                   { href: "/admin/legal/privacy-policy", title: "Privacy Policy", text: "Update privacy disclosures and customer-data policy content." }
                 ].map((card) => (
